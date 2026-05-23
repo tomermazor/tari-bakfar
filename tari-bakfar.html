@@ -62,7 +62,7 @@ html, body { margin:0; padding:0; min-height:100%; background:var(--bg); color:v
 select { appearance:none; background-image: linear-gradient(45deg, transparent 50%, var(--textDim) 50%), linear-gradient(135deg, var(--textDim) 50%, transparent 50%); background-position: calc(0% + 14px) 50%, calc(0% + 18px) 50%; background-size: 4px 4px; background-repeat: no-repeat; padding-left: 30px !important; }
 input::-webkit-inner-spin-button, input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
-.toast { position:fixed; top:80px; left:50%; transform:translateX(-50%); background:var(--surfaceHi); border:1px solid var(--border); border-radius:12px; padding:12px 18px; color:var(--text); font-weight:600; font-size:13px; z-index:100; box-shadow:0 8px 32px rgba(0,0,0,0.4); animation: fadeUp 0.3s ease; max-width:90vw; }
+.toast { position:fixed; top:80px; left:50%; transform:translateX(-50%); background:var(--surfaceHi); border:1px solid var(--border); border-radius:12px; padding:12px 18px; color:var(--text); font-weight:600; font-size:13px; z-index:100; box-shadow:0 8px 32px rgba(0,0,0,0.4); animation: fadeUp 0.3s ease; max-width:90vw; transition: opacity 0.5s ease; }
 .toast.success { border-color:rgba(143,198,80,0.4); color:var(--accent); }
 .toast.error { border-color:rgba(220,98,98,0.4); color:var(--danger); }
 </style>
@@ -165,15 +165,15 @@ async function syncAll() {
       localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
     }
 
-    // 2. Pull fresh data
+    // 2. Pull fresh data — only replace local if cloud has more records or local is empty
     const [exp, fix, ins] = await Promise.all([
       cloudCall('list_expenses', {}),
       cloudCall('list_fixed', {}),
       cloudCall('list_installments', {}),
     ]);
-    DB.expenses = exp || [];
-    DB.fixed = fix || [];
-    DB.installments = ins || [];
+    if ((exp||[]).length > 0 || DB.expenses.length === 0) DB.expenses = exp || [];
+    if ((fix||[]).length > 0 || DB.fixed.length === 0) DB.fixed = fix || [];
+    if ((ins||[]).length > 0 || DB.installments.length === 0) DB.installments = ins || [];
     persistLocal();
     setSyncStatus('ok');
     render();
@@ -223,11 +223,10 @@ const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
 const todayStr = () => new Date().toLocaleDateString("he-IL",{day:"2-digit",month:"2-digit",year:"numeric"});
 const fmt = n => Number(n||0).toLocaleString("he-IL",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtCurr = n => "₪" + fmt(n);
-const now = new Date();
 const parseD = d => { try { return new Date(String(d).split("/").reverse().join("-")); } catch { return null; } };
-const isToday = d => { const p=parseD(d); return p && p.toDateString()===now.toDateString(); };
-const isWeek = d => { const p=parseD(d); if(!p) return false; const diff=(now-p)/864e5; return diff>=0&&diff<7; };
-const isMonth = d => { const p=parseD(d); return p && p.getMonth()===now.getMonth() && p.getFullYear()===now.getFullYear(); };
+const isToday = d => { const p=parseD(d); const n=new Date(); return p && p.toDateString()===n.toDateString(); };
+const isWeek = d => { const p=parseD(d); if(!p) return false; const diff=(new Date()-p)/864e5; return diff>=0&&diff<7; };
+const isMonth = d => { const p=parseD(d); const n=new Date(); return p && p.getMonth()===n.getMonth() && p.getFullYear()===n.getFullYear(); };
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function toast(msg, type='info') {
@@ -439,8 +438,10 @@ function manualForm() {
 
 async function saveScanResult() {
   const item = state.scanForm;
+  // Store without base64 locally — Drive URL arrives on next syncAll()
+  const localItem = {...item, image: item.image?.startsWith('data:') ? '' : (item.image || '')};
   await queueAndSync('add_expense', {payload: item}, () => {
-    DB.expenses.unshift({...item, image: item.image}); // keep image locally too
+    DB.expenses.unshift(localItem);
   });
   toast('נשמר בהצלחה', 'success');
   setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null});
@@ -855,7 +856,15 @@ function renderSettings() {
       <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
         <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px">נתונים</div>
         <div class="display" style="font-size:26px;color:var(--text)">${DB.expenses.length} רשומות</div>
-        <div style="font-size:12px;color:var(--textDim);margin-top:4px">${DB.fixed.length} קבועות · ${DB.installments.length} תשלומים · ${PENDING.length} ממתינות לסנכרון</div>
+        <div style="font-size:12px;color:var(--textDim);margin-top:4px;margin-bottom:14px">${DB.fixed.length} קבועות · ${DB.installments.length} תשלומים · ${PENDING.length} ממתינות לסנכרון</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button onclick="exportJSON()" style="padding:10px;border:1px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;background:transparent;color:var(--text);cursor:pointer;font-family:inherit">📥 ייצוא JSON</button>
+          <button onclick="exportCSV()" style="padding:10px;border:1px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;background:transparent;color:var(--text);cursor:pointer;font-family:inherit">📊 ייצוא CSV</button>
+        </div>
+        <label style="display:block;margin-top:8px;padding:10px;border:1px dashed var(--borderHi);border-radius:10px;text-align:center;font-size:12px;font-weight:600;color:var(--textDim);cursor:pointer">
+          📤 ייבוא מ-JSON
+          <input type="file" accept=".json" onchange="importJSON(this)" style="display:none">
+        </label>
       </div>
 
       <button onclick="syncAll()" class="btn-secondary">🔄 סנכרן עכשיו</button>
@@ -891,6 +900,56 @@ function saveApiKey() {
   localStorage.setItem('tari_apikey_v1', CFG.apiKey);
   toast('המפתח נשמר', 'success');
   render();
+}
+
+function exportJSON() {
+  const data = { expenses: DB.expenses, fixed: DB.fixed, installments: DB.installments, exported: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tari-bakfar-${new Date().toLocaleDateString('he-IL').replace(/\//g,'-')}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('ייצוא הושלם', 'success');
+}
+
+function exportCSV() {
+  const headers = ['תאריך','ספק','סכום כולל','מע"מ','לפני מע"מ','קטגוריה','סוג מסמך','מספר מסמך','הערות'];
+  const rows = DB.expenses.map(e => [
+    e.date, e.supplier, e.total_amount, e.vat_amount, e.amount_before_vat,
+    e.category, e.document_type, e.document_number, e.notes
+  ].map(v => `"${String(v||'').replace(/"/g,'""')}"`));
+  const csv = '﻿' + [headers.join(','), ...rows.map(r=>r.join(','))].join('\r\n');
+  const blob = new Blob([csv], {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tari-bakfar-${new Date().toLocaleDateString('he-IL').replace(/\//g,'-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('ייצוא CSV הושלם', 'success');
+}
+
+function importJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.expenses || !Array.isArray(data.expenses)) throw new Error('קובץ לא תקין');
+      if (!confirm(`ייבוא יחליף את הנתונים הקיימים. יש ${data.expenses.length} הוצאות בקובץ. להמשיך?`)) return;
+      DB.expenses = data.expenses || [];
+      DB.fixed = data.fixed || [];
+      DB.installments = data.installments || [];
+      persistLocal();
+      render();
+      toast(`יובאו ${DB.expenses.length} הוצאות`, 'success');
+    } catch(err) {
+      toast('שגיאת ייבוא: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
