@@ -3,14 +3,17 @@ $root = $PSScriptRoot
 $listener = [System.Net.HttpListener]::new()
 $listener.Prefixes.Add("http://localhost:$port/")
 $listener.Start()
-Write-Host "Serving $root at http://localhost:$port"
+$ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notlike "*Loopback*" -and $_.IPAddress -notlike "169.*" } | Select-Object -First 1).IPAddress
+Write-Host "Serving at:"
+Write-Host "  Local  → http://localhost:$port"
+Write-Host "  Phone  → http://${ip}:$port/tari-bakfar.html"
 
 while ($listener.IsListening) {
   $ctx = $listener.GetContext()
   $req = $ctx.Request
   $res = $ctx.Response
   $path = $req.Url.LocalPath -replace '^/', ''
-  if ($path -eq '' -or $path -eq '/') { $path = 'tari-bakfar.html' }
+  if ($path -eq '' -or $path -eq '/') { $path = 'index.html' }
   $file = Join-Path $root $path
   if (Test-Path $file -PathType Leaf) {
     $ext = [System.IO.Path]::GetExtension($file).ToLower()

@@ -1,5 +1,5 @@
-const CACHE = 'tari-bakfar-v1';
-const SHELL = ['./tari-bakfar.html', './manifest.json'];
+const CACHE = 'app-v2';
+const SHELL = ['./index.html', './tari-bakfar.html', './orders.html', './manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)));
