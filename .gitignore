@@ -1,0 +1,16 @@
+# Secrets — never commit these
+.env
+*.env.local
+secrets.json
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+*.swp
+
+# Claude internal
+.claude/

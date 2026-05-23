@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="טרי בכפר">
+<link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzhmYzY1MCIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+8J+MvzwvdGV4dD48L3N2Zz4=">
+<title>טרי בכפר</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Frank+Ruhl+Libre:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e0a; --surface: #11161a; --surfaceHi: #1a2025;
+  --border: #1f2a30; --borderHi: #2a3640;
+  --text: #e8efe5; --textDim: #7a8a82; --textMuted: #475259;
+  --accent: #8fc650; --accent2: #d4a574; --amber: #f4b942; --danger: #dc6262;
+}
+* { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+html, body { margin:0; padding:0; min-height:100%; background:var(--bg); color:var(--text); font-family:'Heebo',-apple-system,sans-serif; overscroll-behavior:none; }
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.display { font-family:'Frank Ruhl Libre',serif; font-weight:700; letter-spacing:-0.02em; }
+.app { max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; position:relative; }
+.header { padding:14px 20px 12px; position:sticky; top:0; z-index:10; background:rgba(10,14,10,0.95); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.logo { width:46px; height:46px; border-radius:12px; background:#fff; overflow:hidden; padding:3px; box-shadow:0 4px 16px -4px rgba(143,198,80,0.4), 0 0 0 1px var(--border); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:26px; }
+.sync-badge { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:100px; font-size:10px; font-weight:600; }
+.sync-badge.ok { background:rgba(143,198,80,0.1); color:var(--accent); border:1px solid rgba(143,198,80,0.3); }
+.sync-badge.syncing { background:rgba(244,185,66,0.1); color:var(--amber); border:1px solid rgba(244,185,66,0.3); }
+.sync-badge.offline { background:rgba(220,98,98,0.1); color:var(--danger); border:1px solid rgba(220,98,98,0.3); }
+.sync-badge.local { background:rgba(122,138,130,0.1); color:var(--textDim); border:1px solid var(--border); }
+.main { flex:1; overflow-y:auto; padding-bottom:72px; }
+.nav { position:fixed; bottom:0; right:0; left:0; max-width:480px; margin:0 auto; background:rgba(17,22,26,0.95); backdrop-filter:blur(20px); border-top:1px solid var(--border); display:flex; z-index:20; padding-bottom:env(safe-area-inset-bottom,0px); }
+.nav button { flex:1; padding:10px 2px 8px; border:none; background:transparent; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; font-family:inherit; position:relative; color:var(--textDim); }
+.nav button.active { color:var(--accent); }
+.nav button.active::before { content:''; position:absolute; top:0; left:30%; right:30%; height:2px; background:var(--accent); border-radius:0 0 2px 2px; }
+.nav button span { font-size:9px; font-weight:600; }
+.input { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:13px 14px; color:var(--text); font-size:15px; font-family:inherit; outline:none; box-sizing:border-box; }
+.input:focus { border-color:var(--borderHi); }
+.label { font-size:11px; color:var(--textDim); margin-bottom:6px; display:block; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; }
+.field { margin-bottom:14px; }
+.btn-primary { width:100%; border:none; border-radius:14px; padding:15px 20px; font-size:15px; font-weight:700; font-family:inherit; cursor:pointer; background:linear-gradient(135deg,var(--accent) 0%,#6fa83a 100%); color:#0a1505; box-shadow:0 1px 0 rgba(255,255,255,0.15) inset, 0 8px 24px -8px rgba(143,198,80,0.5); margin-bottom:10px; }
+.btn-primary:active { transform:scale(0.98); }
+.btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
+.btn-secondary { width:100%; border:1px solid var(--border); border-radius:14px; padding:14px 20px; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer; background:var(--surface); color:var(--text); margin-bottom:10px; }
+.btn-ghost { width:100%; border:none; border-radius:10px; padding:12px; font-size:13px; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; }
+.pill { padding:6px 14px; border-radius:100px; border:1px solid var(--border); cursor:pointer; font-size:12px; font-weight:600; font-family:inherit; white-space:nowrap; background:transparent; color:var(--textDim); }
+.pill.active { background:rgba(143,198,80,0.1); color:var(--accent); border-color:rgba(143,198,80,0.4); }
+.row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.err { background:rgba(220,98,98,0.1); border:1px solid rgba(220,98,98,0.3); border-radius:12px; padding:14px; color:var(--danger); font-size:13px; margin-bottom:14px; line-height:1.5; }
+.ok { background:rgba(143,198,80,0.15); border:1px solid rgba(143,198,80,0.4); border-radius:12px; padding:14px; color:var(--accent); font-size:14px; font-weight:700; margin-bottom:14px; text-align:center; }
+.fade-up { animation: fadeUp 0.4s ease-out backwards; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.pulse { animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+select { appearance:none; background-image: linear-gradient(45deg, transparent 50%, var(--textDim) 50%), linear-gradient(135deg, var(--textDim) 50%, transparent 50%); background-position: calc(0% + 14px) 50%, calc(0% + 18px) 50%; background-size: 4px 4px; background-repeat: no-repeat; padding-left: 30px !important; }
+input::-webkit-inner-spin-button, input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+.toast { position:fixed; top:80px; left:50%; transform:translateX(-50%); background:var(--surfaceHi); border:1px solid var(--border); border-radius:12px; padding:12px 18px; color:var(--text); font-weight:600; font-size:13px; z-index:100; box-shadow:0 8px 32px rgba(0,0,0,0.4); animation: fadeUp 0.3s ease; max-width:90vw; }
+.toast.success { border-color:rgba(143,198,80,0.4); color:var(--accent); }
+.toast.error { border-color:rgba(220,98,98,0.4); color:var(--danger); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="logo">🌿</div>
+    <div style="flex:1;min-width:0">
+      <h1 class="display" style="font-size:17px;color:var(--text);margin:0;line-height:1.1">טרי בכפר</h1>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:2px">
+        <div id="sync-badge" class="sync-badge local">⚠ לא מחובר</div>
+      </div>
+    </div>
+    <div style="text-align:left;flex-shrink:0">
+      <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase">החודש</div>
+      <div class="display" id="month-total" style="font-size:16px;color:var(--accent);line-height:1.1">₪0.00</div>
+    </div>
+  </header>
+  <main class="main" id="main"></main>
+  <nav class="nav" id="nav"></nav>
+</div>
+<div id="toast-container"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
+const CFG = {
+  webAppUrl: localStorage.getItem('tari_webapp_url') || '',
+  apiKey: localStorage.getItem('tari_apikey_v1') || '',
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA LAYER — local cache + cloud sync
+// ═══════════════════════════════════════════════════════════════════════════
+const DB = {
+  expenses: JSON.parse(localStorage.getItem('tari_expenses_v2')||'[]'),
+  fixed: JSON.parse(localStorage.getItem('tari_fixed_v1')||'[]'),
+  installments: JSON.parse(localStorage.getItem('tari_installments_v1')||'[]'),
+};
+
+const PENDING = JSON.parse(localStorage.getItem('tari_pending_v1')||'[]'); // pending sync operations
+
+function persistLocal() {
+  localStorage.setItem('tari_expenses_v2', JSON.stringify(DB.expenses));
+  localStorage.setItem('tari_fixed_v1', JSON.stringify(DB.fixed));
+  localStorage.setItem('tari_installments_v1', JSON.stringify(DB.installments));
+  localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+  updateHeader();
+}
+
+let SYNC_STATUS = 'local'; // local | syncing | ok | offline
+function setSyncStatus(s) {
+  SYNC_STATUS = s;
+  const badge = document.getElementById('sync-badge');
+  if (!badge) return;
+  badge.className = 'sync-badge ' + s;
+  badge.innerHTML = {
+    local: '⚠ לא מחובר',
+    syncing: '<div class="spin" style="width:8px;height:8px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%"></div> מסנכרן',
+    ok: '<div style="width:6px;height:6px;border-radius:50%;background:currentColor"></div> מסונכרן',
+    offline: '⚠ אופליין',
+  }[s] || s;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLOUD SYNC
+// ═══════════════════════════════════════════════════════════════════════════
+async function cloudCall(action, payload) {
+  if (!CFG.webAppUrl) throw new Error('לא הוגדר חיבור ל-Google Sheets');
+
+  // Use text/plain to avoid CORS preflight
+  const res = await fetch(CFG.webAppUrl, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({action, ...payload}),
+    redirect: 'follow'
+  });
+
+  if (!res.ok) throw new Error(`Server ${res.status}`);
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); }
+  catch(e) { throw new Error('תשובה לא תקינה מהשרת: ' + text.slice(0,200)); }
+
+  if (!data.ok) throw new Error(data.error || 'שגיאה לא ידועה');
+  return data.data;
+}
+
+async function syncAll() {
+  if (!CFG.webAppUrl) { setSyncStatus('local'); return; }
+  setSyncStatus('syncing');
+  try {
+    // 1. Push pending changes
+    while (PENDING.length > 0) {
+      const op = PENDING[0];
+      await cloudCall(op.action, op.payload);
+      PENDING.shift();
+      localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    }
+
+    // 2. Pull fresh data
+    const [exp, fix, ins] = await Promise.all([
+      cloudCall('list_expenses', {}),
+      cloudCall('list_fixed', {}),
+      cloudCall('list_installments', {}),
+    ]);
+    DB.expenses = exp || [];
+    DB.fixed = fix || [];
+    DB.installments = ins || [];
+    persistLocal();
+    setSyncStatus('ok');
+    render();
+  } catch(e) {
+    console.error('Sync failed:', e);
+    setSyncStatus('offline');
+    toast('סנכרון נכשל: ' + e.message, 'error');
+  }
+}
+
+async function queueAndSync(action, payload, optimisticLocal) {
+  // 1. Apply optimistically to local DB
+  if (optimisticLocal) optimisticLocal();
+  persistLocal();
+  render();
+
+  // 2. If no cloud configured, stop here
+  if (!CFG.webAppUrl) return;
+
+  // 3. Try to push to cloud
+  setSyncStatus('syncing');
+  try {
+    await cloudCall(action, payload);
+    setSyncStatus('ok');
+  } catch(e) {
+    console.error('Push failed:', e);
+    // Queue for later
+    PENDING.push({action, payload});
+    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    setSyncStatus('offline');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+const CATS = ["ירקות","פירות","עשבי תיבול","פטריות","תוצרת יבשה","אריזות","ציוד","הובלה","שיווק","שירותים","אחר"];
+const CAT_COLORS = {"ירקות":"#84cc16","פירות":"#f97316","עשבי תיבול":"#10b981","פטריות":"#a78bfa","תוצרת יבשה":"#eab308","אריזות":"#06b6d4","ציוד":"#64748b","הובלה":"#3b82f6","שיווק":"#ec4899","שירותים":"#8b5cf6","אחר":"#94a3b8"};
+const DTYPES = ["חשבונית מס","חשבונית מס קבלה","תעודת משלוח","קבלה"];
+const FIXED_CATS = ["שכירות","חשמל","מים","ארנונה","אינטרנט","טלפון","ביטוח","הנהלת חשבונות","רישיונות","משכורות","שיווק","אבטחה","תחזוקה","אחר"];
+const FIXED_FREQ = ["חודשי","דו-חודשי","רבעוני","חצי שנתי","שנתי"];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
+const todayStr = () => new Date().toLocaleDateString("he-IL",{day:"2-digit",month:"2-digit",year:"numeric"});
+const fmt = n => Number(n||0).toLocaleString("he-IL",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtCurr = n => "₪" + fmt(n);
+const now = new Date();
+const parseD = d => { try { return new Date(String(d).split("/").reverse().join("-")); } catch { return null; } };
+const isToday = d => { const p=parseD(d); return p && p.toDateString()===now.toDateString(); };
+const isWeek = d => { const p=parseD(d); if(!p) return false; const diff=(now-p)/864e5; return diff>=0&&diff<7; };
+const isMonth = d => { const p=parseD(d); return p && p.getMonth()===now.getMonth() && p.getFullYear()===now.getFullYear(); };
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(()=>el.style.opacity='0', 2500);
+  setTimeout(()=>el.remove(), 3000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AI: OpenAI
+// ═══════════════════════════════════════════════════════════════════════════
+async function scanInvoice(base64, mime) {
+  if (!CFG.apiKey) throw new Error("חסר API Key — הכנס אותו בהגדרות");
+  if (!CFG.apiKey.startsWith("sk-")) throw new Error("מפתח לא תקין — חייב להתחיל ב-sk-");
+
+  const prompt = `אתה מערכת OCR לירקניה בכפר מעש.
+קרא את המסמך והחזר JSON בלבד, בלי טקסט נוסף, בלי backticks.
+
+{"date":"DD/MM/YYYY","supplier":"שם הספק","total_amount":0.00,"vat_amount":0.00,"amount_before_vat":0.00,"category":"ירקות","document_type":"חשבונית מס","document_number":"","notes":""}
+
+קטגוריות: ירקות, פירות, עשבי תיבול, פטריות, תוצרת יבשה, אריזות, ציוד, הובלה, שיווק, שירותים, אחר
+סוגי מסמך: חשבונית מס, חשבונית מס קבלה, תעודת משלוח, קבלה.`;
+
+  let r;
+  try {
+    r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+CFG.apiKey},
+      body: JSON.stringify({
+        model:"gpt-4o", max_tokens:600,
+        messages:[{role:"user",content:[
+          {type:"text",text:prompt},
+          {type:"image_url",image_url:{url:`data:${mime};base64,${base64}`}}
+        ]}]
+      })
+    });
+  } catch(netErr) {
+    throw new Error("בעיית רשת: "+netErr.message);
+  }
+
+  if (!r.ok) {
+    let errMsg;
+    try { errMsg = (await r.json()).error?.message || 'unknown'; } catch { errMsg = await r.text(); }
+    if (r.status === 401) throw new Error("מפתח שגוי (401)");
+    if (r.status === 429) throw new Error("חרגת ממכסה (429)");
+    if (errMsg.includes("quota") || errMsg.includes("billing")) throw new Error("אין יתרה ב-OpenAI");
+    throw new Error(`OpenAI ${r.status}: ${errMsg.slice(0,150)}`);
+  }
+
+  const d = await r.json();
+  const txt = (d.choices?.[0]?.message?.content || "").trim();
+  if (!txt) throw new Error("תשובה ריקה");
+
+  let depth=0, start=-1;
+  for (let i=0;i<txt.length;i++) {
+    if(txt[i]==="{"){if(start<0)start=i; depth++;}
+    else if(txt[i]==="}"){depth--;if(depth===0)return JSON.parse(txt.slice(start,i+1));}
+  }
+  throw new Error("לא נמצא JSON: "+txt.slice(0,80));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// APP STATE
+// ═══════════════════════════════════════════════════════════════════════════
+let state = {
+  tab: 'scan',
+  scanStage: 'idle', scanImg: null, scanB64: null, scanMime: null, scanForm: null, scanErr: '',
+  listSearch: '', listCat: 'הכל', listPer: 'הכל', listOpen: null,
+  reportPer: 'חודש',
+  installOpen: null, fixedAdding: false, fixedForm: null, installAdding: false, installForm: null,
+};
+function setState(patch) { Object.assign(state, patch); render(); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ICONS & TABS
+// ═══════════════════════════════════════════════════════════════════════════
+const ICONS = {
+  scan: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>',
+  list: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+  fixed: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+  installments: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
+  reports: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+  add: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  settings: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+};
+
+const TABS = [
+  {id:'scan',label:'סריקה'},{id:'list',label:'שוטף'},{id:'fixed',label:'קבועות'},
+  {id:'installments',label:'תשלומים'},{id:'reports',label:'דוחות'},
+  {id:'add',label:'הוספה'},{id:'settings',label:'הגדרות'},
+];
+
+function renderNav() {
+  document.getElementById('nav').innerHTML = TABS.map(t=>`
+    <button class="${state.tab===t.id?'active':''}" onclick="setState({tab:'${t.id}'})">
+      ${ICONS[t.id]}<span>${t.label}</span>
+    </button>`).join('');
+}
+
+function updateHeader() {
+  const mt = DB.expenses.filter(e=>isMonth(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
+  const el = document.getElementById('month-total');
+  if (el) el.textContent = fmtCurr(mt);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — SCAN
+// ═══════════════════════════════════════════════════════════════════════════
+function renderScan() {
+  if (state.scanStage === 'idle') {
+    return `
+      <div style="padding:32px 24px;text-align:center" class="fade-up">
+        <div style="position:relative;width:140px;height:140px;margin:0 auto 28px">
+          <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(143,198,80,0.13) 0%,transparent 70%)"></div>
+          <div style="position:absolute;inset:20px;border-radius:24px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;box-shadow:0 20px 40px -20px rgba(143,198,80,0.27);font-size:42px">📄</div>
+          <div class="pulse" style="position:absolute;top:50%;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent)"></div>
+        </div>
+        <h1 class="display" style="font-size:28px;margin:0 0 6px">סרוק חשבונית</h1>
+        <p style="color:var(--textDim);font-size:14px;margin-bottom:32px;margin-top:0">ה-AI יחלץ את כל הפרטים בעברית</p>
+        <input type="file" accept="image/*" capture="environment" id="camInput" onchange="handleFile(this.files[0])" style="display:none">
+        <input type="file" accept="image/*" id="galInput" onchange="handleFile(this.files[0])" style="display:none">
+        <button class="btn-primary" onclick="document.getElementById('camInput').click()">📷 &nbsp;צלם עכשיו</button>
+        <button class="btn-secondary" onclick="document.getElementById('galInput').click()">🖼️ &nbsp;העלה מהגלריה</button>
+        ${!CFG.apiKey ? `<div onclick="setState({tab:'settings'})" style="margin-top:24px;padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(244,185,66,0.07),rgba(244,185,66,0.03));border:1px solid rgba(244,185,66,0.2);cursor:pointer;text-align:right;line-height:1.6"><div style="color:var(--amber);font-weight:700;font-size:14px;margin-bottom:4px">⚠️ נדרשת הגדרה ראשונית</div><div style="font-size:12px;color:var(--textDim)">הוסף OpenAI API Key כדי לאפשר סריקה אוטומטית →</div></div>` : ''}
+        ${!CFG.webAppUrl ? `<div onclick="setState({tab:'settings'})" style="margin-top:12px;padding:14px;border-radius:14px;background:rgba(212,165,116,0.05);border:1px solid rgba(212,165,116,0.2);cursor:pointer;text-align:right;line-height:1.6"><div style="color:var(--accent2);font-weight:700;font-size:13px;margin-bottom:2px">💾 הנתונים נשמרים רק בטלפון</div><div style="font-size:11px;color:var(--textDim)">חבר ל-Google Sheets כדי לקבל גיבוי אוטומטי →</div></div>` : ''}
+      </div>`;
+  }
+  if (state.scanStage === 'preview') {
+    return `
+      <div style="padding:20px" class="fade-up">
+        <div style="position:relative;margin-bottom:16px;border-radius:16px;overflow:hidden;border:1px solid var(--border)"><img src="${state.scanImg}" alt="" style="width:100%;max-height:360px;object-fit:contain;background:#000;display:block"></div>
+        ${state.scanErr ? `<div class="err">⚠️ ${esc(state.scanErr)}</div>` : ''}
+        <button class="btn-primary" onclick="runScan()">✨ &nbsp;קרא עם AI</button>
+        <button class="btn-secondary" onclick="manualForm()">✏️ &nbsp;הזן ידנית</button>
+        <button class="btn-ghost" onclick="setState({scanStage:'idle',scanImg:null,scanErr:''})">ביטול</button>
+      </div>`;
+  }
+  if (state.scanStage === 'scanning') {
+    return `
+      <div style="padding:80px 20px;text-align:center" class="fade-up">
+        <div style="position:relative;width:80px;height:80px;margin:0 auto 24px">
+          <div class="spin" style="position:absolute;inset:0;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent)"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:28px">🌿</div>
+        </div>
+        <div class="display" style="font-size:20px;color:var(--text);margin-bottom:6px">קורא את המסמך</div>
+        <div style="font-size:13px;color:var(--textDim)">ה-AI מנתח את החשבונית...</div>
+      </div>`;
+  }
+  if (state.scanStage === 'confirm' && state.scanForm) {
+    const f = state.scanForm;
+    return `
+      <div style="padding:20px" class="fade-up">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:10px 14px;border-radius:12px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2)">
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;color:#0a1505">✓</div>
+          <div style="color:var(--accent);font-weight:700;font-size:14px">נחלצו הפרטים — בדוק ושמור</div>
+        </div>
+        ${f.image ? `<div style="border-radius:14px;overflow:hidden;border:1px solid var(--border);margin-bottom:18px"><img src="${f.image}" style="width:100%;max-height:180px;object-fit:contain;background:#000;display:block"></div>` : ''}
+        <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.scanForm.supplier=this.value"></div>
+        <div class="field"><label class="label">תאריך</label><input class="input" value="${esc(f.date)}" oninput="state.scanForm.date=this.value"></div>
+        <div class="row">
+          <div class="field"><label class="label">סכום כולל ₪</label><input class="input" type="number" value="${f.total_amount}" oninput="state.scanForm.total_amount=+this.value"></div>
+          <div class="field"><label class="label">מע"מ ₪</label><input class="input" type="number" value="${f.vat_amount}" oninput="state.scanForm.vat_amount=+this.value"></div>
+        </div>
+        <div class="field"><label class="label">קטגוריה</label><select class="input" onchange="state.scanForm.category=this.value">${CATS.map(c=>`<option ${c===f.category?'selected':''}>${c}</option>`).join('')}</select></div>
+        <div class="field"><label class="label">סוג מסמך</label><select class="input" onchange="state.scanForm.document_type=this.value">${DTYPES.map(d=>`<option ${d===f.document_type?'selected':''}>${d}</option>`).join('')}</select></div>
+        <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(f.document_number)}" oninput="state.scanForm.document_number=this.value"></div>
+        <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.scanForm.notes=this.value"></div>
+        <button class="btn-primary" onclick="saveScanResult()">💾 &nbsp;שמור הוצאה</button>
+        <button class="btn-ghost" onclick="setState({scanStage:'idle',scanImg:null})">ביטול</button>
+      </div>`;
+  }
+  return '';
+}
+
+function handleFile(file) {
+  if (!file) return;
+  const rd = new FileReader();
+  rd.onload = e => {
+    const full = e.target.result;
+    setState({scanImg:full,scanB64:full.split(',')[1],scanMime:file.type,scanStage:'preview',scanErr:''});
+  };
+  rd.readAsDataURL(file);
+}
+
+async function runScan() {
+  setState({scanStage:'scanning',scanErr:''});
+  try {
+    const data = await scanInvoice(state.scanB64, state.scanMime);
+    setState({
+      scanStage:'confirm',
+      scanForm: {
+        id: uid(), image: state.scanImg,
+        date: data.date||todayStr(), supplier: data.supplier||'',
+        total_amount: +data.total_amount||0, vat_amount: +data.vat_amount||0,
+        amount_before_vat: +data.amount_before_vat||0,
+        category: data.category||'אחר', document_type: data.document_type||'חשבונית מס',
+        document_number: data.document_number||'', notes: data.notes||'',
+      }
+    });
+  } catch(e) { setState({scanErr:e.message,scanStage:'preview'}); }
+}
+
+function manualForm() {
+  setState({scanStage:'confirm', scanForm:{id:uid(),image:state.scanImg,date:todayStr(),supplier:'',total_amount:0,vat_amount:0,amount_before_vat:0,category:'אחר',document_type:'חשבונית מס',document_number:'',notes:''}});
+}
+
+async function saveScanResult() {
+  const item = state.scanForm;
+  await queueAndSync('add_expense', {payload: item}, () => {
+    DB.expenses.unshift({...item, image: item.image}); // keep image locally too
+  });
+  toast('נשמר בהצלחה', 'success');
+  setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — LIST
+// ═══════════════════════════════════════════════════════════════════════════
+function renderList() {
+  const rows = DB.expenses.filter(e=>{
+    const mq = !state.listSearch || [e.supplier,e.document_number,e.notes].join(' ').toLowerCase().includes(state.listSearch.toLowerCase());
+    const mc = state.listCat==='הכל' || e.category===state.listCat;
+    const mp = state.listPer==='הכל' || (state.listPer==='היום'&&isToday(e.date)) || (state.listPer==='שבוע'&&isWeek(e.date)) || (state.listPer==='חודש'&&isMonth(e.date));
+    return mq && mc && mp;
+  }).sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+  const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
+
+  return `
+    <div style="padding:16px 16px 90px" class="fade-up">
+      <div style="position:relative;margin-bottom:14px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--textDim)" stroke-width="2" style="position:absolute;right:14px;top:50%;transform:translateY(-50%)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input class="input" style="padding-right:40px" placeholder="חיפוש ספק, מספר מסמך..." value="${esc(state.listSearch)}" oninput="state.listSearch=this.value;render()">
+      </div>
+      <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;padding-bottom:2px">${['הכל','היום','שבוע','חודש'].map(p=>`<button class="pill ${state.listPer===p?'active':''}" onclick="setState({listPer:'${p}'})">${p}</button>`).join('')}</div>
+      <div style="display:flex;gap:5px;overflow-x:auto;margin-bottom:18px;padding-bottom:2px">
+        <button class="pill ${state.listCat==='הכל'?'active':''}" onclick="setState({listCat:'הכל'})">הכל</button>
+        ${CATS.map(c=>`<button class="pill ${state.listCat===c?'active':''}" onclick="setState({listCat:'${c}'})">${c}</button>`).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;padding:0 4px">
+        <span style="font-size:12px;color:var(--textDim);font-weight:600;letter-spacing:0.04em;text-transform:uppercase">${rows.length} רשומות</span>
+        <span class="display" style="font-size:22px;color:var(--accent)">${fmtCurr(total)}</span>
+      </div>
+      ${rows.length===0 ? `<div style="text-align:center;padding:60px 20px;color:var(--textMuted)"><div style="font-size:48px;margin-bottom:10px;opacity:0.5">📭</div><div style="font-size:14px">אין תוצאות</div></div>` : ''}
+      ${rows.map((e,i)=>{
+        const c = CAT_COLORS[e.category]||'var(--accent)';
+        const isOpen = state.listOpen===e.id;
+        return `
+          <div style="margin-bottom:8px" class="fade-up">
+            <div onclick="setState({listOpen: state.listOpen==='${e.id}'?null:'${e.id}'})" style="background:var(--surface);border:1px solid ${isOpen?c+'66':'var(--border)'};border-radius:${isOpen?'14px 14px 0 0':'14px'};padding:14px 16px;cursor:pointer;position:relative;overflow:hidden">
+              <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${c}"></div>
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div style="flex:1;min-width:0;margin-right:8px">
+                  <div style="font-weight:600;color:var(--text);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px">${esc(e.supplier||'ספק לא ידוע')}</div>
+                  <div style="display:flex;gap:8px;align-items:center"><span style="background:${c}22;color:${c};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${esc(e.category)}</span><span style="font-size:11px;color:var(--textDim)">${esc(e.date)}</span></div>
+                </div>
+                <div style="text-align:left;flex-shrink:0">
+                  <div class="display" style="color:var(--text);font-size:17px">${fmtCurr(e.total_amount)}</div>
+                  <div style="font-size:10px;color:var(--textDim);margin-top:2px">${esc(e.document_type||'')}</div>
+                </div>
+              </div>
+            </div>
+            ${isOpen ? `
+              <div class="fade-up" style="background:var(--surface);border:1px solid ${c}66;border-top:none;border-radius:0 0 14px 14px;padding:16px;position:relative">
+                <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${c}"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+                  <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">לפני מע"מ</div><div style="font-size:13px;color:var(--text)">${fmtCurr(e.amount_before_vat)}</div></div>
+                  <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">מע"מ</div><div style="font-size:13px;color:var(--text)">${fmtCurr(e.vat_amount)}</div></div>
+                  <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">מספר מסמך</div><div style="font-size:13px;color:var(--text)">${esc(e.document_number||'—')}</div></div>
+                  <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">הערות</div><div style="font-size:13px;color:var(--text)">${esc(e.notes||'—')}</div></div>
+                </div>
+                ${e.image ? (typeof e.image==='string' && e.image.startsWith('http') ? `<a href="${e.image}" target="_blank" style="display:block;margin-bottom:12px;text-align:center;color:var(--accent);font-size:13px;text-decoration:none;padding:10px;border:1px solid var(--border);border-radius:8px">📷 צפה בתמונת החשבונית</a>` : `<div style="border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:12px"><img src="${e.image}" style="width:100%;max-height:200px;object-fit:contain;background:#000;display:block"></div>`) : ''}
+                <button onclick="deleteExpense('${e.id}')" style="width:100%;border:1px solid rgba(220,98,98,0.2);border-radius:10px;padding:10px;background:rgba(220,98,98,0.07);color:var(--danger);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">🗑️ מחק רשומה</button>
+              </div>` : ''}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+async function deleteExpense(id) {
+  await queueAndSync('delete_expense', {id}, () => {
+    DB.expenses = DB.expenses.filter(e=>e.id!==id);
+  });
+  setState({listOpen:null});
+  toast('נמחק', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — ADD
+// ═══════════════════════════════════════════════════════════════════════════
+let addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:""};
+
+function renderAdd() {
+  return `
+    <div style="padding:20px" class="fade-up">
+      <h2 class="display" style="font-size:24px;margin:0 0 18px">הוספה ידנית</h2>
+      <div class="field"><label class="label">ספק *</label><input class="input" placeholder="שם הספק" value="${esc(addForm.supplier)}" oninput="addForm.supplier=this.value"></div>
+      <div class="field"><label class="label">תאריך</label><input class="input" value="${esc(addForm.date)}" oninput="addForm.date=this.value"></div>
+      <div class="row">
+        <div class="field"><label class="label">סכום כולל ₪ *</label><input class="input" type="number" placeholder="0.00" value="${addForm.total_amount}" oninput="addTotal(this.value)"></div>
+        <div class="field"><label class="label">מע"מ</label><input class="input" type="number" placeholder="אוטו" value="${addForm.vat_amount}" oninput="addForm.vat_amount=this.value"></div>
+      </div>
+      <div class="field"><label class="label">קטגוריה</label><select class="input" onchange="addForm.category=this.value">${CATS.map(c=>`<option ${c===addForm.category?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="field"><label class="label">סוג מסמך</label><select class="input" onchange="addForm.document_type=this.value">${DTYPES.map(d=>`<option ${d===addForm.document_type?'selected':''}>${d}</option>`).join('')}</select></div>
+      <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(addForm.document_number)}" oninput="addForm.document_number=this.value"></div>
+      <div class="field"><label class="label">הערות</label><input class="input" value="${esc(addForm.notes)}" oninput="addForm.notes=this.value"></div>
+      <button class="btn-primary" onclick="submitAdd()" ${!addForm.supplier||!addForm.total_amount?'disabled':''}>שמור הוצאה</button>
+    </div>`;
+}
+
+function addTotal(v) {
+  addForm.total_amount = v;
+  if (v) {
+    const t = +v; const vat = Math.round(t/1.17*0.17*100)/100;
+    addForm.vat_amount = vat; addForm.amount_before_vat = Math.round((t-vat)*100)/100;
+    render();
+  }
+}
+
+async function submitAdd() {
+  if (!addForm.supplier || !addForm.total_amount) return;
+  const item = {...addForm, id:uid(), total_amount:+addForm.total_amount, vat_amount:+addForm.vat_amount||0, amount_before_vat:+addForm.amount_before_vat||0};
+  await queueAndSync('add_expense', {payload: item}, () => DB.expenses.unshift(item));
+  addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:""};
+  toast('נשמר!', 'success');
+  setState({tab:'list'});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — FIXED
+// ═══════════════════════════════════════════════════════════════════════════
+function renderFixed() {
+  if (state.fixedAdding) {
+    const f = state.fixedForm;
+    return `
+      <div style="padding:20px" class="fade-up">
+        <h2 class="display" style="font-size:24px;margin:0 0 18px">${f.id?'עריכת הוצאה':'הוצאה קבועה חדשה'}</h2>
+        <div class="field"><label class="label">שם ההוצאה *</label><input class="input" placeholder="למשל: שכירות החנות" value="${esc(f.name)}" oninput="state.fixedForm.name=this.value"></div>
+        <div class="row">
+          <div class="field"><label class="label">סכום ₪ *</label><input class="input" type="number" value="${f.amount}" oninput="state.fixedForm.amount=this.value"></div>
+          <div class="field"><label class="label">יום בחודש</label><input class="input" type="number" min="1" max="31" value="${f.day}" oninput="state.fixedForm.day=this.value"></div>
+        </div>
+        <div class="field"><label class="label">תדירות</label><select class="input" onchange="state.fixedForm.frequency=this.value">${FIXED_FREQ.map(c=>`<option ${c===f.frequency?'selected':''}>${c}</option>`).join('')}</select></div>
+        <div class="field"><label class="label">קטגוריה</label><select class="input" onchange="state.fixedForm.category=this.value">${FIXED_CATS.map(c=>`<option ${c===f.category?'selected':''}>${c}</option>`).join('')}</select></div>
+        <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.fixedForm.supplier=this.value"></div>
+        <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.fixedForm.notes=this.value"></div>
+        <button class="btn-primary" onclick="saveFixed()" ${!f.name||!f.amount?'disabled':''}>💾 שמור</button>
+        <button class="btn-ghost" onclick="setState({fixedAdding:false,fixedForm:null})">ביטול</button>
+      </div>`;
+  }
+  const monthly = DB.fixed.filter(x=>x.active).reduce((s,x)=>{
+    const mult = x.frequency==='חודשי'?1 : x.frequency==='דו-חודשי'?0.5 : x.frequency==='רבעוני'?(1/3) : x.frequency==='חצי שנתי'?(1/6) : (1/12);
+    return s + (+x.amount||0)*mult;
+  },0);
+
+  return `
+    <div style="padding:16px 16px 90px" class="fade-up">
+      <div style="padding:24px 20px;margin-bottom:14px;border-radius:18px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
+        <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(212,165,116,0.13),transparent 70%)"></div>
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;position:relative">הוצאות קבועות חודשיות</div>
+        <div class="display" style="font-size:36px;color:var(--text);margin-bottom:4px;position:relative">${fmtCurr(monthly)}</div>
+        <div style="font-size:12px;color:var(--textDim);position:relative">שנתי: ${fmtCurr(monthly*12)} · ${DB.fixed.filter(x=>x.active).length} פעילות</div>
+      </div>
+      <button class="btn-primary" onclick="startFixed()">+ &nbsp;הוצאה קבועה חדשה</button>
+      ${DB.fixed.length===0 ? `<div style="text-align:center;padding:40px 20px;color:var(--textMuted)"><div style="font-size:48px;margin-bottom:10px;opacity:0.4">🏠</div><div style="font-size:14px">אין הוצאות קבועות עדיין</div></div>` : ''}
+      ${DB.fixed.map(x=>`
+        <div style="margin-bottom:8px;padding:16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);opacity:${x.active?1:0.55}" class="fade-up">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;color:var(--text);font-size:15px;margin-bottom:5px">${esc(x.name)}</div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <span style="background:rgba(212,165,116,0.13);color:var(--accent2);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${esc(x.category)}</span>
+                <span style="background:var(--border);color:var(--textDim);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${esc(x.frequency)}</span>
+                ${x.day?`<span style="font-size:11px;color:var(--textDim)">ב-${esc(x.day)} לחודש</span>`:''}
+              </div>
+            </div>
+            <div style="text-align:left;flex-shrink:0;margin-right:8px">
+              <div class="display" style="color:var(--text);font-size:18px">${fmtCurr(x.amount)}</div>
+              ${x.supplier?`<div style="font-size:11px;color:var(--textDim);margin-top:2px">${esc(x.supplier)}</div>`:''}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="toggleFixed('${x.id}')" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:8px;font-size:11px;font-weight:600;background:transparent;color:${x.active?'var(--amber)':'var(--accent)'};cursor:pointer;font-family:inherit">${x.active?'⏸️ השהה':'▶️ הפעל'}</button>
+            <button onclick="editFixed('${x.id}')" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:8px;font-size:11px;font-weight:600;background:transparent;color:var(--text);cursor:pointer;font-family:inherit">✏️ ערוך</button>
+            <button onclick="delFixed('${x.id}','${esc(x.name).replace(/'/g,'')}')" style="flex:1;padding:7px;border:1px solid rgba(220,98,98,0.2);border-radius:8px;font-size:11px;font-weight:600;background:rgba(220,98,98,0.05);color:var(--danger);cursor:pointer;font-family:inherit">🗑️</button>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function startFixed() { setState({fixedAdding:true, fixedForm:{name:"",amount:"",category:"שכירות",frequency:"חודשי",day:"1",supplier:"",notes:"",active:true}}); }
+function editFixed(id) { const item = DB.fixed.find(x=>x.id===id); if(item) setState({fixedAdding:true, fixedForm:{...item,amount:String(item.amount)}}); }
+
+async function saveFixed() {
+  const f = state.fixedForm;
+  if (!f.name||!f.amount) return;
+  const item = {...f, amount:+f.amount};
+  if (f.id) {
+    await queueAndSync('update_fixed', {payload: item}, () => DB.fixed = DB.fixed.map(x=>x.id===f.id?item:x));
+  } else {
+    item.id = uid();
+    await queueAndSync('add_fixed', {payload: item}, () => DB.fixed.unshift(item));
+  }
+  setState({fixedAdding:false, fixedForm:null});
+  toast('נשמר', 'success');
+}
+
+async function toggleFixed(id) {
+  const item = DB.fixed.find(x=>x.id===id);
+  if (!item) return;
+  const updated = {...item, active: !item.active};
+  await queueAndSync('update_fixed', {payload: updated}, () => DB.fixed = DB.fixed.map(x=>x.id===id?updated:x));
+}
+
+async function delFixed(id, name) {
+  if (!confirm("למחוק את "+name+"?")) return;
+  await queueAndSync('delete_fixed', {id}, () => DB.fixed = DB.fixed.filter(x=>x.id!==id));
+  toast('נמחק', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — INSTALLMENTS
+// ═══════════════════════════════════════════════════════════════════════════
+function renderInstallments() {
+  if (state.installAdding) {
+    const f = state.installForm;
+    const perInstall = (+f.total && +f.installments) ? (+f.total)/(+f.installments) : 0;
+    return `
+      <div style="padding:20px" class="fade-up">
+        <h2 class="display" style="font-size:24px;margin:0 0 18px">${f.id?'עריכה':'השקעה בתשלומים'}</h2>
+        <div class="field"><label class="label">שם ההשקעה *</label><input class="input" placeholder="למשל: מקרר תעשייתי" value="${esc(f.name)}" oninput="state.installForm.name=this.value"></div>
+        <div class="row">
+          <div class="field"><label class="label">סכום כולל ₪ *</label><input class="input" type="number" placeholder="12000" value="${f.total}" oninput="state.installForm.total=this.value;render()"></div>
+          <div class="field"><label class="label">מספר תשלומים *</label><input class="input" type="number" placeholder="12" value="${f.installments}" oninput="state.installForm.installments=this.value;render()"></div>
+        </div>
+        ${perInstall ? `<div style="padding:10px 14px;margin-bottom:14px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2);border-radius:10px;font-size:13px;color:var(--accent)">💡 תשלום חודשי: ${fmtCurr(perInstall)}</div>` : ''}
+        <div class="field"><label class="label">תשלומים ששולמו</label><input class="input" type="number" value="${f.paid}" oninput="state.installForm.paid=this.value"></div>
+        <div class="field"><label class="label">תאריך תשלום ראשון</label><input class="input" value="${esc(f.first_date)}" oninput="state.installForm.first_date=this.value"></div>
+        <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.installForm.supplier=this.value"></div>
+        <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.installForm.notes=this.value"></div>
+        <button class="btn-primary" onclick="saveInstall()" ${!f.name||!f.total||!f.installments?'disabled':''}>💾 שמור</button>
+        <button class="btn-ghost" onclick="setState({installAdding:false,installForm:null})">ביטול</button>
+      </div>`;
+  }
+  const totalInvested = DB.installments.reduce((s,x)=>s+(+x.total||0),0);
+  const totalPaidAmount = DB.installments.reduce((s,x)=>s+(+x.total/(+x.installments||1)*(+x.paid||0)),0);
+  const monthlyBurden = DB.installments.filter(x=>+x.paid<+x.installments).reduce((s,x)=>s+(+x.total/(+x.installments||1)),0);
+
+  return `
+    <div style="padding:16px 16px 90px" class="fade-up">
+      <div style="padding:22px 20px;margin-bottom:12px;border-radius:18px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
+        <div style="position:absolute;top:-50px;right:-50px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(244,185,66,0.13),transparent 70%)"></div>
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;position:relative">סך השקעות</div>
+        <div class="display" style="font-size:34px;color:var(--text);margin-bottom:8px;position:relative">${fmtCurr(totalInvested)}</div>
+        <div style="display:flex;gap:16px;position:relative;flex-wrap:wrap">
+          <div><div style="font-size:10px;color:var(--textDim)">שולם</div><div style="font-size:14px;color:var(--accent);font-weight:700">${fmtCurr(totalPaidAmount)}</div></div>
+          <div><div style="font-size:10px;color:var(--textDim)">נותר</div><div style="font-size:14px;color:var(--amber);font-weight:700">${fmtCurr(totalInvested-totalPaidAmount)}</div></div>
+          <div><div style="font-size:10px;color:var(--textDim)">חודשי</div><div style="font-size:14px;color:var(--accent2);font-weight:700">${fmtCurr(monthlyBurden)}</div></div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="startInstall()">+ &nbsp;השקעה חדשה</button>
+      ${DB.installments.length===0 ? `<div style="text-align:center;padding:40px 20px;color:var(--textMuted)"><div style="font-size:48px;margin-bottom:10px;opacity:0.4">💳</div><div style="font-size:14px">אין השקעות בתשלומים</div></div>` : ''}
+      ${DB.installments.map(x=>{
+        const perInstall = (+x.total)/(+x.installments||1);
+        const paid = +x.paid||0;
+        const paidAmount = perInstall*paid;
+        const pct = (paid/(+x.installments||1))*100;
+        const done = paid >= +x.installments;
+        const isOpen = state.installOpen===x.id;
+        const c = done ? 'var(--accent)' : 'var(--amber)';
+        return `
+          <div style="margin-bottom:10px" class="fade-up">
+            <div onclick="setState({installOpen: state.installOpen==='${x.id}'?null:'${x.id}'})" style="background:var(--surface);border:1px solid ${isOpen?'rgba(244,185,66,0.4)':'var(--border)'};border-radius:${isOpen?'14px 14px 0 0':'14px'};padding:16px;cursor:pointer;position:relative;overflow:hidden">
+              <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${c}"></div>
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+                <div style="flex:1;min-width:0;margin-right:8px">
+                  <div style="font-weight:600;color:var(--text);font-size:15px;margin-bottom:5px">${esc(x.name)}</div>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                    ${done ? `<span style="background:rgba(143,198,80,0.13);color:var(--accent);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">✓ שולם במלואו</span>` : `<span style="background:rgba(244,185,66,0.13);color:var(--amber);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${paid}/${x.installments}</span>`}
+                  </div>
+                </div>
+                <div style="text-align:left;flex-shrink:0">
+                  <div class="display" style="color:var(--text);font-size:17px">${fmtCurr(x.total)}</div>
+                  <div style="font-size:10px;color:var(--textDim);margin-top:2px">${fmtCurr(perInstall)}/חודש</div>
+                </div>
+              </div>
+              <div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${done?'linear-gradient(90deg,var(--accent),#6fa83a)':'linear-gradient(90deg,var(--amber),var(--accent2))'}"></div></div>
+              <div style="display:flex;justify-content:space-between;margin-top:6px">
+                <span style="font-size:10px;color:var(--textDim)">שולם: ${fmtCurr(paidAmount)}</span>
+                <span style="font-size:10px;color:var(--textDim)">נותר: ${fmtCurr((+x.total)-paidAmount)}</span>
+              </div>
+            </div>
+            ${isOpen ? `
+              <div class="fade-up" style="background:var(--surface);border:1px solid rgba(244,185,66,0.4);border-top:none;border-radius:0 0 14px 14px;padding:16px;position:relative">
+                <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${c}"></div>
+                <div style="display:flex;gap:8px;margin-bottom:8px">
+                  <button onclick="markPaid('${x.id}',-1)" ${paid===0?'disabled':''} style="flex:1;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;background:transparent;color:${paid===0?'var(--textMuted)':'var(--text)'};cursor:${paid===0?'not-allowed':'pointer'};font-family:inherit">− הסר תשלום</button>
+                  <button onclick="markPaid('${x.id}',1)" ${done?'disabled':''} style="flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;background:${done?'var(--border)':'linear-gradient(135deg,var(--accent),#6fa83a)'};color:${done?'var(--textMuted)':'#0a1505'};cursor:${done?'not-allowed':'pointer'};font-family:inherit">+ סמן תשלום</button>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <button onclick="editInstall('${x.id}')" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;background:transparent;color:var(--text);cursor:pointer;font-family:inherit">✏️ ערוך</button>
+                  <button onclick="delInstall('${x.id}','${esc(x.name).replace(/'/g,'')}')" style="flex:1;padding:8px;border:1px solid rgba(220,98,98,0.2);border-radius:8px;font-size:12px;font-weight:600;background:rgba(220,98,98,0.05);color:var(--danger);cursor:pointer;font-family:inherit">🗑️ מחק</button>
+                </div>
+              </div>` : ''}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function startInstall() { setState({installAdding:true, installForm:{name:"",total:"",installments:"",paid:"0",first_date:todayStr(),supplier:"",notes:""}}); }
+function editInstall(id) { const item = DB.installments.find(x=>x.id===id); if(item) setState({installAdding:true, installForm:{...item,total:String(item.total),installments:String(item.installments),paid:String(item.paid)}}); }
+
+async function saveInstall() {
+  const f = state.installForm;
+  if (!f.name||!f.total||!f.installments) return;
+  const item = {...f, total:+f.total, installments:+f.installments, paid:+f.paid||0};
+  if (f.id) {
+    await queueAndSync('update_installment', {payload: item}, () => DB.installments = DB.installments.map(x=>x.id===f.id?item:x));
+  } else {
+    item.id = uid();
+    await queueAndSync('add_installment', {payload: item}, () => DB.installments.unshift(item));
+  }
+  setState({installAdding:false, installForm:null});
+  toast('נשמר', 'success');
+}
+
+async function markPaid(id, delta) {
+  const item = DB.installments.find(x=>x.id===id);
+  if (!item) return;
+  const np = Math.max(0, Math.min(+item.installments, (+item.paid||0)+delta));
+  const updated = {...item, paid: np};
+  await queueAndSync('update_installment', {payload: updated}, () => DB.installments = DB.installments.map(x=>x.id===id?updated:x));
+}
+
+async function delInstall(id, name) {
+  if (!confirm("למחוק את "+name+"?")) return;
+  await queueAndSync('delete_installment', {id}, () => DB.installments = DB.installments.filter(x=>x.id!==id));
+  toast('נמחק', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — REPORTS
+// ═══════════════════════════════════════════════════════════════════════════
+function renderReports() {
+  const rows = DB.expenses.filter(e=>state.reportPer==='הכל'?true:state.reportPer==='היום'?isToday(e.date):state.reportPer==='שבוע'?isWeek(e.date):isMonth(e.date));
+  const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
+  const totalVat = rows.reduce((s,e)=>s+(+e.vat_amount||0),0);
+  const byCat = CATS.map(c=>({name:c,v:rows.filter(e=>e.category===c).reduce((s,e)=>s+(+e.total_amount||0),0)})).filter(c=>c.v>0).sort((a,b)=>b.v-a.v);
+  const suppMap = {};
+  rows.forEach(e=>{const s=e.supplier||"לא ידוע"; suppMap[s]=(suppMap[s]||0)+(+e.total_amount||0);});
+  const bySupp = Object.entries(suppMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxC = byCat[0]?.v||1;
+  const maxS = bySupp[0]?.[1]||1;
+
+  return `
+    <div style="padding:16px 16px 90px" class="fade-up">
+      <div style="display:flex;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:3px;margin-bottom:18px">
+        ${['היום','שבוע','חודש','הכל'].map(p=>`<button onclick="setState({reportPer:'${p}'})" style="flex:1;padding:9px 4px;border-radius:9px;border:none;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;background:${state.reportPer===p?'linear-gradient(135deg,var(--accent),#6fa83a)':'transparent'};color:${state.reportPer===p?'#0a1505':'var(--textDim)'}">${p}</button>`).join('')}
+      </div>
+      <div style="padding:24px 20px;margin-bottom:14px;border-radius:18px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
+        <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(143,198,80,0.13),transparent 70%)"></div>
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;position:relative">סה״כ הוצאות</div>
+        <div class="display" style="font-size:38px;color:var(--text);margin-bottom:4px;position:relative">${fmtCurr(total)}</div>
+        <div style="font-size:12px;color:var(--textDim);position:relative">${rows.length} רשומות · ${fmtCurr(totalVat)} מע"מ</div>
+      </div>
+      <div class="row" style="margin-bottom:18px">
+        <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border)"><div style="font-size:18px;margin-bottom:6px">💰</div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">לפני מע״מ</div><div style="font-size:15px;font-weight:700;color:var(--accent2)">${fmtCurr(total-totalVat)}</div></div>
+        <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border)"><div style="font-size:18px;margin-bottom:6px">🧾</div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">מע"מ</div><div style="font-size:15px;font-weight:700;color:var(--amber)">${fmtCurr(totalVat)}</div></div>
+      </div>
+      ${byCat.length>0 ? `
+        <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><div style="width:4px;height:18px;background:var(--accent);border-radius:2px"></div><h3 class="display" style="font-size:16px;color:var(--text);margin:0">לפי קטגוריה</h3></div>
+          ${byCat.map(c=>{const color = CAT_COLORS[c.name]||'var(--accent)'; return `<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:13px;color:var(--text);font-weight:500">${c.name}</span><span style="font-size:13px;font-weight:700;color:var(--text)">${fmtCurr(c.v)}</span></div><div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden"><div style="height:100%;width:${(c.v/maxC)*100}%;background:linear-gradient(90deg,${color},${color}cc);border-radius:4px"></div></div></div>`;}).join('')}
+        </div>` : ''}
+      ${bySupp.length>0 ? `
+        <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><div style="width:4px;height:18px;background:var(--accent2);border-radius:2px"></div><h3 class="display" style="font-size:16px;color:var(--text);margin:0">ספקים מובילים</h3></div>
+          ${bySupp.map(([name,v],i)=>`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:13px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(212,165,116,0.13);color:var(--accent2);font-size:10px;font-weight:700;text-align:center;line-height:18px;margin-left:6px">${i+1}</span>${esc(name)}</span><span style="font-size:13px;font-weight:700;color:var(--text)">${fmtCurr(v)}</span></div><div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden"><div style="height:100%;width:${(v/maxS)*100}%;background:linear-gradient(90deg,var(--accent2),rgba(212,165,116,0.8));border-radius:4px"></div></div></div>`).join('')}
+        </div>` : ''}
+      ${rows.length===0 ? `<div style="text-align:center;padding:60px 20px;color:var(--textMuted)"><div style="font-size:48px;margin-bottom:10px;opacity:0.4">📉</div><div style="font-size:14px">אין נתונים</div></div>` : ''}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — SETTINGS
+// ═══════════════════════════════════════════════════════════════════════════
+function renderSettings() {
+  return `
+    <div style="padding:20px" class="fade-up">
+      <h2 class="display" style="font-size:24px;margin:0 0 18px">הגדרות</h2>
+
+      <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,rgba(143,198,80,0.13),rgba(212,165,116,0.13));display:flex;align-items:center;justify-content:center;font-size:18px">☁️</div>
+          <div>
+            <div style="font-size:15px;font-weight:700;color:var(--text)">חיבור ל-Google Sheets</div>
+            <div style="font-size:11px;color:var(--textDim)">גיבוי וסנכרון אוטומטי</div>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--textDim);line-height:1.7;margin:12px 0">הדבק את כתובת ה-Web App שקיבלת אחרי deployment ב-Google Apps Script.</p>
+        <input class="input" id="urlInput" value="${esc(CFG.webAppUrl)}" placeholder="https://script.google.com/macros/s/.../exec">
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn-secondary" style="margin:0" onclick="testConnection()">🔍 בדוק</button>
+          <button class="btn-primary" style="margin:0" onclick="saveWebApp()">💾 שמור</button>
+        </div>
+        ${CFG.webAppUrl ? `<div style="margin-top:12px;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:rgba(143,198,80,0.07)"><div style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></div><span style="font-size:12px;color:var(--accent)">מחובר</span><button onclick="syncAll()" style="margin-right:auto;background:transparent;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;text-decoration:underline">סנכרן עכשיו</button></div>` : ''}
+      </div>
+
+      <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,rgba(143,198,80,0.13),rgba(212,165,116,0.13));display:flex;align-items:center;justify-content:center;font-size:18px">🔑</div>
+          <div>
+            <div style="font-size:15px;font-weight:700;color:var(--text)">OpenAI API Key</div>
+            <div style="font-size:11px;color:var(--textDim)">לסריקה אוטומטית של חשבוניות</div>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--textDim);line-height:1.7;margin:12px 0"><a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:600">← קבל מפתח כאן</a></p>
+        <input class="input" type="password" id="keyInput" value="${esc(CFG.apiKey)}" placeholder="sk-proj-...">
+        <button class="btn-primary" style="margin-top:12px" onclick="saveApiKey()">💾 &nbsp;שמור מפתח</button>
+        ${CFG.apiKey ? `<div style="margin-top:12px;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:rgba(143,198,80,0.07)"><div style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></div><span style="font-size:12px;color:var(--accent);font-family:monospace">${CFG.apiKey.slice(0,7)}···${CFG.apiKey.slice(-4)}</span></div>` : ''}
+      </div>
+
+      <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px">נתונים</div>
+        <div class="display" style="font-size:26px;color:var(--text)">${DB.expenses.length} רשומות</div>
+        <div style="font-size:12px;color:var(--textDim);margin-top:4px">${DB.fixed.length} קבועות · ${DB.installments.length} תשלומים · ${PENDING.length} ממתינות לסנכרון</div>
+      </div>
+
+      <button onclick="syncAll()" class="btn-secondary">🔄 סנכרן עכשיו</button>
+    </div>`;
+}
+
+function saveWebApp() {
+  const val = document.getElementById('urlInput').value.trim();
+  CFG.webAppUrl = val;
+  localStorage.setItem('tari_webapp_url', val);
+  toast('נשמר', 'success');
+  if (val) syncAll();
+  else render();
+}
+
+async function testConnection() {
+  const val = document.getElementById('urlInput').value.trim();
+  if (!val) { toast('הדבק כתובת קודם', 'error'); return; }
+  CFG.webAppUrl = val;
+  try {
+    setSyncStatus('syncing');
+    await cloudCall('ping', {});
+    setSyncStatus('ok');
+    toast('✅ החיבור עובד!', 'success');
+  } catch(e) {
+    setSyncStatus('offline');
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function saveApiKey() {
+  CFG.apiKey = document.getElementById('keyInput').value.trim();
+  localStorage.setItem('tari_apikey_v1', CFG.apiKey);
+  toast('המפתח נשמר', 'success');
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN RENDER
+// ═══════════════════════════════════════════════════════════════════════════
+function render() {
+  const main = document.getElementById('main');
+  let content = '';
+  switch(state.tab) {
+    case 'scan': content = renderScan(); break;
+    case 'list': content = renderList(); break;
+    case 'fixed': content = renderFixed(); break;
+    case 'installments': content = renderInstallments(); break;
+    case 'reports': content = renderReports(); break;
+    case 'add': content = renderAdd(); break;
+    case 'settings': content = renderSettings(); break;
+  }
+  main.innerHTML = content;
+  renderNav();
+  updateHeader();
+}
+
+// Initial render + sync
+render();
+setSyncStatus(CFG.webAppUrl ? 'syncing' : 'local');
+if (CFG.webAppUrl) syncAll();
+</script>
+</body>
+</html>
