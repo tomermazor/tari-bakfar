@@ -1062,6 +1062,11 @@ render();
 setSyncStatus(CFG.webAppUrl ? 'syncing' : 'local');
 if (CFG.webAppUrl) syncAll();
 
+// Re-sync whenever the user returns to the app (tab focus, phone unlock, etc.)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && CFG.webAppUrl) syncAll();
+});
+
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
