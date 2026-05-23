@@ -859,6 +859,13 @@ function renderReports() {
   const bySupp = Object.entries(suppMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const maxC = byCat[0]?.v||1;
   const maxS = bySupp[0]?.[1]||1;
+  const _today = new Date();
+  const _fmt = d => d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const _fmtS = d => d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'});
+  let dateLabel = '';
+  if(state.reportPer==='היום') dateLabel = _fmt(_today);
+  else if(state.reportPer==='שבוע'){const sun=new Date();sun.setDate(sun.getDate()-sun.getDay());sun.setHours(0,0,0,0);dateLabel=_fmtS(sun)+' — '+_fmt(_today);}
+  else if(state.reportPer==='חודש') dateLabel = _today.toLocaleDateString('he-IL',{month:'long',year:'numeric'});
 
   return `
     <div style="padding:16px 16px 90px" class="fade-up">
@@ -866,6 +873,7 @@ function renderReports() {
         ${['היום','שבוע','חודש','הכל','מותאם'].map(p=>`<button onclick="setState({reportPer:'${p}'})" style="flex:1;padding:9px 2px;border-radius:9px;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;background:${state.reportPer===p?'linear-gradient(135deg,var(--accent),#6fa83a)':'transparent'};color:${state.reportPer===p?'#0a1505':'var(--textDim)'}">${p}</button>`).join('')}
       </div>
       ${state.reportPer==='מותאם'?`<div style="display:flex;gap:8px;margin-bottom:18px"><div style="flex:1"><div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">מ-</div><input type="date" value="${state.reportDateFrom}" onchange="setState({reportDateFrom:this.value})" style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surfaceHi);color:var(--text);font-size:14px;font-family:inherit"></div><div style="flex:1"><div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">עד-</div><input type="date" value="${state.reportDateTo}" onchange="setState({reportDateTo:this.value})" style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surfaceHi);color:var(--text);font-size:14px;font-family:inherit"></div></div>`:''}
+      ${dateLabel?`<div style="text-align:center;font-size:12px;color:var(--textMuted);margin:-6px 0 14px;letter-spacing:0.02em">${dateLabel}</div>`:''}
       <div style="padding:24px 20px;margin-bottom:14px;border-radius:18px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
         <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(143,198,80,0.13),transparent 70%)"></div>
         <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;position:relative">סה״כ הוצאות</div>
