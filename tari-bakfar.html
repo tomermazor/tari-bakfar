@@ -96,6 +96,7 @@ input::-webkit-inner-spin-button, input::-webkit-outer-spin-button { -webkit-app
   <nav class="nav" id="nav"></nav>
 </div>
 <div id="toast-container"></div>
+<div id="modal-container"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
@@ -235,7 +236,7 @@ const fmt = n => Number(n||0).toLocaleString("he-IL",{minimumFractionDigits:2,ma
 const fmtCurr = n => "₪" + fmt(n);
 const parseD = d => { try { return new Date(String(d).split("/").reverse().join("-")); } catch { return null; } };
 const isToday = d => { const p=parseD(d); const n=new Date(); return p && p.toDateString()===n.toDateString(); };
-const isWeek = d => { const p=parseD(d); if(!p) return false; const diff=(new Date()-p)/864e5; return diff>=0&&diff<7; };
+const isWeek = d => { const p=parseD(d); if(!p) return false; const sun=new Date(); sun.setDate(sun.getDate()-sun.getDay()); sun.setHours(0,0,0,0); return p>=sun && p<=new Date(); };
 const isMonth = d => { const p=parseD(d); const n=new Date(); return p && p.getMonth()===n.getMonth() && p.getFullYear()===n.getFullYear(); };
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -308,7 +309,8 @@ let state = {
   tab: 'scan',
   scanStage: 'idle', scanImg: null, scanB64: null, scanMime: null, scanForm: null, scanErr: '',
   listSearch: '', listCat: 'הכל', listPer: 'הכל', listOpen: null,
-  reportPer: 'חודש',
+  reportPer: 'חודש', reportDateFrom: '', reportDateTo: '',
+  editId: null, editForm: null,
   installOpen: null, fixedAdding: false, fixedForm: null, installAdding: false, installForm: null,
 };
 function setState(patch) { Object.assign(state, patch); render(); }
@@ -359,10 +361,8 @@ function renderScan() {
         </div>
         <h1 class="display" style="font-size:28px;margin:0 0 6px">סרוק חשבונית</h1>
         <p style="color:var(--textDim);font-size:14px;margin-bottom:32px;margin-top:0">ה-AI יחלץ את כל הפרטים בעברית</p>
-        <input type="file" accept="image/*" capture="environment" id="camInput" onchange="handleFile(this.files[0])" style="display:none">
-        <input type="file" accept="image/*" id="galInput" onchange="handleFile(this.files[0])" style="display:none">
-        <button class="btn-primary" onclick="document.getElementById('camInput').click()">📷 &nbsp;צלם עכשיו</button>
-        <button class="btn-secondary" onclick="document.getElementById('galInput').click()">🖼️ &nbsp;העלה מהגלריה</button>
+        <input type="file" accept="image/*,application/pdf" id="galInput" onchange="handleFile(this.files[0])" style="display:none">
+        <button class="btn-primary" onclick="document.getElementById('galInput').click()">🖼️ &nbsp;העלה מגלריה / קובץ</button>
         ${!CFG.apiKey ? `<div onclick="setState({tab:'settings'})" style="margin-top:24px;padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(244,185,66,0.07),rgba(244,185,66,0.03));border:1px solid rgba(244,185,66,0.2);cursor:pointer;text-align:right;line-height:1.6"><div style="color:var(--amber);font-weight:700;font-size:14px;margin-bottom:4px">⚠️ נדרשת הגדרה ראשונית</div><div style="font-size:12px;color:var(--textDim)">הוסף OpenAI API Key כדי לאפשר סריקה אוטומטית →</div></div>` : ''}
         ${!CFG.webAppUrl ? `<div onclick="setState({tab:'settings'})" style="margin-top:12px;padding:14px;border-radius:14px;background:rgba(212,165,116,0.05);border:1px solid rgba(212,165,116,0.2);cursor:pointer;text-align:right;line-height:1.6"><div style="color:var(--accent2);font-weight:700;font-size:13px;margin-bottom:2px">💾 הנתונים נשמרים רק בטלפון</div><div style="font-size:11px;color:var(--textDim)">חבר ל-Google Sheets כדי לקבל גיבוי אוטומטי →</div></div>` : ''}
       </div>`;
@@ -513,11 +513,65 @@ function renderList() {
                   <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">הערות</div><div style="font-size:13px;color:var(--text)">${esc(e.notes||'—')}</div></div>
                 </div>
                 ${e.image ? (typeof e.image==='string' && e.image.startsWith('http') ? `<a href="${e.image}" target="_blank" style="display:block;margin-bottom:12px;text-align:center;color:var(--accent);font-size:13px;text-decoration:none;padding:10px;border:1px solid var(--border);border-radius:8px">📷 צפה בתמונת החשבונית</a>` : `<div style="border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:12px"><img src="${e.image}" style="width:100%;max-height:200px;object-fit:contain;background:#000;display:block"></div>`) : ''}
-                <button onclick="deleteExpense('${e.id}')" style="width:100%;border:1px solid rgba(220,98,98,0.2);border-radius:10px;padding:10px;background:rgba(220,98,98,0.07);color:var(--danger);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">🗑️ מחק רשומה</button>
+                <div style="display:flex;gap:8px">
+                  <button onclick="openEditExpense('${e.id}')" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;background:transparent;color:var(--text);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">✏️ ערוך</button>
+                  <button onclick="deleteExpense('${e.id}')" style="flex:1;border:1px solid rgba(220,98,98,0.2);border-radius:10px;padding:10px;background:rgba(220,98,98,0.07);color:var(--danger);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">🗑️ מחק</button>
+                </div>
               </div>` : ''}
           </div>`;
       }).join('')}
     </div>`;
+}
+
+function openEditExpense(id) {
+  const e = DB.expenses.find(x => x.id === id);
+  if (!e) return;
+  setState({ editId: id, editForm: {
+    supplier: e.supplier||'', date: e.date||'', category: e.category||CATS[0],
+    document_type: e.document_type||DTYPES[0], document_number: e.document_number||'',
+    notes: e.notes||'', total_amount: e.total_amount||0, vat_amount: e.vat_amount||0
+  }});
+}
+
+function renderEditModal() {
+  const f = state.editForm;
+  return `
+    <div onclick="setState({editId:null,editForm:null})" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
+      <div onclick="event.stopPropagation()" style="background:var(--surface);border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:20px;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));max-height:85vh;overflow-y:auto;border-top:1px solid var(--border)">
+        <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px"></div>
+        <h2 class="display" style="font-size:18px;margin:0 0 20px">✏️ עריכת הוצאה</h2>
+        <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.editForm.supplier=this.value"></div>
+        <div class="field"><label class="label">תאריך</label><input class="input" value="${esc(f.date)}" oninput="state.editForm.date=this.value"></div>
+        <div class="row">
+          <div class="field"><label class="label">סכום כולל ₪</label><input class="input" type="number" value="${f.total_amount}" oninput="state.editForm.total_amount=+this.value"></div>
+          <div class="field"><label class="label">מע"מ ₪</label><input class="input" type="number" value="${f.vat_amount}" oninput="state.editForm.vat_amount=+this.value"></div>
+        </div>
+        <div class="field"><label class="label">קטגוריה</label><select class="input" onchange="state.editForm.category=this.value">${CATS.map(c=>`<option ${c===f.category?'selected':''}>${c}</option>`).join('')}</select></div>
+        <div class="field"><label class="label">סוג מסמך</label><select class="input" onchange="state.editForm.document_type=this.value">${DTYPES.map(d=>`<option ${d===f.document_type?'selected':''}>${d}</option>`).join('')}</select></div>
+        <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(f.document_number)}" oninput="state.editForm.document_number=this.value"></div>
+        <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.editForm.notes=this.value"></div>
+        <button class="btn-primary" style="width:100%;border:none;padding:14px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;border-radius:14px;margin-bottom:10px" onclick="saveEditExpense()">💾 שמור שינויים</button>
+        <button onclick="setState({editId:null,editForm:null})" style="width:100%;border:1px solid var(--border);border-radius:14px;padding:13px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:transparent;color:var(--textDim)">ביטול</button>
+      </div>
+    </div>`;
+}
+
+async function saveEditExpense() {
+  if (!state.editForm || !state.editId) return;
+  const f = state.editForm;
+  const updated = {
+    ...(DB.expenses.find(e => e.id === state.editId) || {}),
+    supplier: f.supplier, date: f.date, category: f.category,
+    document_type: f.document_type, document_number: f.document_number,
+    total_amount: +f.total_amount||0, vat_amount: +f.vat_amount||0,
+    amount_before_vat: (+f.total_amount||0)-(+f.vat_amount||0), notes: f.notes
+  };
+  await queueAndSync('delete_expense', {id: state.editId}, () => {
+    DB.expenses = DB.expenses.map(e => e.id === state.editId ? updated : e);
+  });
+  if (CFG.webAppUrl) await queueAndSync('add_expense', {payload: updated}, () => {});
+  setState({editId: null, editForm: null, listOpen: null});
+  toast('עודכן ✓', 'success');
 }
 
 async function deleteExpense(id) {
@@ -785,7 +839,14 @@ async function delInstall(id, name) {
 // VIEWS — REPORTS
 // ═══════════════════════════════════════════════════════════════════════════
 function renderReports() {
-  const rows = DB.expenses.filter(e=>state.reportPer==='הכל'?true:state.reportPer==='היום'?isToday(e.date):state.reportPer==='שבוע'?isWeek(e.date):isMonth(e.date));
+  const rows = DB.expenses.filter(e=>{
+    if(state.reportPer==='הכל') return true;
+    if(state.reportPer==='היום') return isToday(e.date);
+    if(state.reportPer==='שבוע') return isWeek(e.date);
+    if(state.reportPer==='חודש') return isMonth(e.date);
+    if(state.reportPer==='מותאם'){const p=parseD(e.date);if(!p)return false;const from=state.reportDateFrom?new Date(state.reportDateFrom):null;const to=state.reportDateTo?new Date(state.reportDateTo):null;return(!from||p>=from)&&(!to||p<=to);}
+    return true;
+  });
   const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
   const totalVat = rows.reduce((s,e)=>s+(+e.vat_amount||0),0);
   const byCat = CATS.map(c=>({name:c,v:rows.filter(e=>e.category===c).reduce((s,e)=>s+(+e.total_amount||0),0)})).filter(c=>c.v>0).sort((a,b)=>b.v-a.v);
@@ -797,9 +858,10 @@ function renderReports() {
 
   return `
     <div style="padding:16px 16px 90px" class="fade-up">
-      <div style="display:flex;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:3px;margin-bottom:18px">
-        ${['היום','שבוע','חודש','הכל'].map(p=>`<button onclick="setState({reportPer:'${p}'})" style="flex:1;padding:9px 4px;border-radius:9px;border:none;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;background:${state.reportPer===p?'linear-gradient(135deg,var(--accent),#6fa83a)':'transparent'};color:${state.reportPer===p?'#0a1505':'var(--textDim)'}">${p}</button>`).join('')}
+      <div style="display:flex;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:3px;margin-bottom:${state.reportPer==='מותאם'?'8px':'18px'}">
+        ${['היום','שבוע','חודש','הכל','מותאם'].map(p=>`<button onclick="setState({reportPer:'${p}'})" style="flex:1;padding:9px 2px;border-radius:9px;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;background:${state.reportPer===p?'linear-gradient(135deg,var(--accent),#6fa83a)':'transparent'};color:${state.reportPer===p?'#0a1505':'var(--textDim)'}">${p}</button>`).join('')}
       </div>
+      ${state.reportPer==='מותאם'?`<div style="display:flex;gap:8px;margin-bottom:18px"><div style="flex:1"><div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">מ-</div><input type="date" value="${state.reportDateFrom}" onchange="setState({reportDateFrom:this.value})" style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surfaceHi);color:var(--text);font-size:14px;font-family:inherit"></div><div style="flex:1"><div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">עד-</div><input type="date" value="${state.reportDateTo}" onchange="setState({reportDateTo:this.value})" style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surfaceHi);color:var(--text);font-size:14px;font-family:inherit"></div></div>`:''}
       <div style="padding:24px 20px;margin-bottom:14px;border-radius:18px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
         <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(143,198,80,0.13),transparent 70%)"></div>
         <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;position:relative">סה״כ הוצאות</div>
@@ -978,6 +1040,7 @@ function render() {
     case 'settings': content = renderSettings(); break;
   }
   main.innerHTML = content;
+  document.getElementById('modal-container').innerHTML = state.editId ? renderEditModal() : '';
   renderNav();
   updateHeader();
 }
