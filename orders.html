@@ -90,6 +90,10 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .unit-badge.units { background:rgba(91,156,246,0.12); color:var(--blue); border:1px solid rgba(91,156,246,0.3); }
 .del-btn { width:30px; height:30px; border:none; border-radius:8px; background:rgba(220,98,98,0.1); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--danger); flex-shrink:0; }
 .del-btn:active { background:rgba(220,98,98,0.2); }
+.move-btns { display:flex; flex-direction:column; gap:2px; flex-shrink:0; }
+.move-btn { width:26px; height:20px; border:none; border-radius:5px; background:rgba(255,255,255,0.05); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--textDim); padding:0; }
+.move-btn:active { background:rgba(255,255,255,0.12); color:var(--text); }
+.move-btn[disabled] { opacity:0.2; pointer-events:none; }
 .add-form { background:rgba(143,198,80,0.04); border:1px dashed rgba(143,198,80,0.2); border-radius:14px; padding:16px; margin-top:4px; }
 .unit-pills { display:flex; gap:8px; margin-bottom:12px; }
 .unit-pill { flex:1; border:1px solid var(--border); border-radius:10px; padding:10px; font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); text-align:center; }
@@ -473,7 +477,7 @@ function renderManage() {
     <div class="section-title">מוצרים (${sup.products.length})</div>
 
     <div id="product-list">
-      ${sup.products.length ? sup.products.map((p, i) => productRow(p, i)).join('') :
+      ${sup.products.length ? sup.products.map((p, i) => productRow(p, i, sup.products.length)).join('') :
         '<p style="color:var(--textDim);font-size:13px;text-align:center;padding:16px 0">אין מוצרים — הוסף למטה</p>'}
     </div>
 
@@ -498,10 +502,14 @@ function renderManage() {
   newProductUnit = 'קרטון';
 }
 
-function productRow(p, i) {
+function productRow(p, i, total) {
   const isCarton = p.defaultUnit === 'קרטון';
   return `
     <div class="manage-row fade-up" id="mr-${p.id}" style="animation-delay:${i*.03}s">
+      <div class="move-btns">
+        <button class="move-btn" ${i===0?'disabled':''} onclick="moveProduct('${p.id}',-1)">▲</button>
+        <button class="move-btn" ${i===total-1?'disabled':''} onclick="moveProduct('${p.id}',1)">▼</button>
+      </div>
       <span class="manage-row-name" onclick="editProductName('${p.id}')" title="לחץ לעריכה">${esc(p.name)}</span>
       <span class="unit-badge ${isCarton ? 'carton' : 'units'}"
             onclick="toggleDefaultUnit('${p.id}')" title="לחץ לשנות יחידה">
@@ -562,6 +570,17 @@ function toggleDefaultUnit(pid) {
       badge.className = 'unit-badge ' + (isCarton ? 'carton' : 'units');
     }
   }
+}
+
+function moveProduct(pid, dir) {
+  const sup = findSupplier(currentSupplierId);
+  if (!sup) return;
+  const idx = sup.products.findIndex(p => p.id === pid);
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= sup.products.length) return;
+  [sup.products[idx], sup.products[newIdx]] = [sup.products[newIdx], sup.products[idx]];
+  saveDb();
+  renderManage();
 }
 
 function deleteProduct(pid) {
