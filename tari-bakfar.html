@@ -645,7 +645,7 @@ function renderFixed() {
         <div class="field"><label class="label">קטגוריה</label><select class="input" onchange="state.fixedForm.category=this.value">${FIXED_CATS.map(c=>`<option ${c===f.category?'selected':''}>${c}</option>`).join('')}</select></div>
         <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.fixedForm.supplier=this.value"></div>
         <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.fixedForm.notes=this.value"></div>
-        <button class="btn-primary" onclick="saveFixed()" ${!f.name||!f.amount?'disabled':''}>💾 שמור</button>
+        <button class="btn-primary" onclick="saveFixed()" ${!f.name||f.amount===''||f.amount===null?'disabled':''}>💾 שמור</button>
         <button class="btn-ghost" onclick="setState({fixedAdding:false,fixedForm:null})">ביטול</button>
       </div>`;
   }
