@@ -90,10 +90,9 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .unit-badge.units { background:rgba(91,156,246,0.12); color:var(--blue); border:1px solid rgba(91,156,246,0.3); }
 .del-btn { width:30px; height:30px; border:none; border-radius:8px; background:rgba(220,98,98,0.1); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--danger); flex-shrink:0; }
 .del-btn:active { background:rgba(220,98,98,0.2); }
-.move-btns { display:flex; flex-direction:column; gap:2px; flex-shrink:0; }
-.move-btn { width:26px; height:20px; border:none; border-radius:5px; background:rgba(255,255,255,0.05); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--textDim); padding:0; }
-.move-btn:active { background:rgba(255,255,255,0.12); color:var(--text); }
-.move-btn[disabled] { opacity:0.2; pointer-events:none; }
+.drag-handle { color:var(--textMuted); font-size:17px; letter-spacing:1px; cursor:grab; padding:4px 10px 4px 2px; flex-shrink:0; touch-action:none; user-select:none; -webkit-user-select:none; line-height:1; }
+.drag-handle:active { cursor:grabbing; color:var(--textDim); }
+.manage-row.dragging { background:var(--surfaceHi); border-color:rgba(143,198,80,0.45); box-shadow:0 10px 32px rgba(0,0,0,0.55); position:relative; z-index:20; }
 .add-form { background:rgba(143,198,80,0.04); border:1px dashed rgba(143,198,80,0.2); border-radius:14px; padding:16px; margin-top:4px; }
 .unit-pills { display:flex; gap:8px; margin-bottom:12px; }
 .unit-pill { flex:1; border:1px solid var(--border); border-radius:10px; padding:10px; font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); text-align:center; }
@@ -572,16 +571,14 @@ function renderManage() {
     </div>
   `;
   newProductUnit = 'קרטון';
+  initDragDrop();
 }
 
 function productRow(p, i, total) {
   const isCarton = p.defaultUnit === 'קרטון';
   return `
     <div class="manage-row fade-up" id="mr-${p.id}" style="animation-delay:${i*.03}s">
-      <div class="move-btns">
-        <button class="move-btn" ${i===0?'disabled':''} onclick="moveProduct('${p.id}',-1)">▲</button>
-        <button class="move-btn" ${i===total-1?'disabled':''} onclick="moveProduct('${p.id}',1)">▼</button>
-      </div>
+      <div class="drag-handle" title="גרור לסידור מחדש">⠿</div>
       <span class="manage-row-name" onclick="editProductName('${p.id}')" title="לחץ לעריכה">${esc(p.name)}</span>
       <span class="unit-badge ${isCarton ? 'carton' : 'units'}"
             onclick="toggleDefaultUnit('${p.id}')" title="לחץ לשנות יחידה">
@@ -644,15 +641,83 @@ function toggleDefaultUnit(pid) {
   }
 }
 
-function moveProduct(pid, dir) {
-  const sup = findSupplier(currentSupplierId);
-  if (!sup) return;
-  const idx = sup.products.findIndex(p => p.id === pid);
-  const newIdx = idx + dir;
-  if (newIdx < 0 || newIdx >= sup.products.length) return;
-  [sup.products[idx], sup.products[newIdx]] = [sup.products[newIdx], sup.products[idx]];
-  saveDb(true); pushSuppliers();
-  renderManage();
+// ─── Drag & Drop reorder ──────────────────────────────────────────────────
+var _dragging = null;
+
+function initDragDrop() {
+  document.querySelectorAll('#product-list .manage-row').forEach(function(row) {
+    var handle = row.querySelector('.drag-handle');
+    if (!handle) return;
+    handle.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      startDrag(row, e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+    handle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      startDrag(row, e.clientX, e.clientY);
+    });
+  });
+}
+
+function startDrag(row, startX, startY) {
+  if (_dragging) return;
+  _dragging = row;
+  row.classList.add('dragging');
+
+  function swapToPosition(clientX, clientY) {
+    _dragging.style.pointerEvents = 'none';
+    var el = document.elementFromPoint(clientX, clientY);
+    _dragging.style.pointerEvents = '';
+    if (!el) return;
+    var target = el.closest('#product-list .manage-row');
+    if (!target || target === _dragging) return;
+    var parent = document.getElementById('product-list');
+    var rows = Array.from(parent.querySelectorAll('.manage-row'));
+    var fromIdx = rows.indexOf(_dragging);
+    var toIdx = rows.indexOf(target);
+    if (fromIdx < toIdx) {
+      parent.insertBefore(_dragging, target.nextSibling);
+    } else {
+      parent.insertBefore(_dragging, target);
+    }
+  }
+
+  function endDrag() {
+    if (!_dragging) return;
+    _dragging.classList.remove('dragging');
+    var parent = document.getElementById('product-list');
+    var domRows = Array.from(parent.querySelectorAll('.manage-row'));
+    var sup = findSupplier(currentSupplierId);
+    if (sup) {
+      var oldProducts = sup.products.slice();
+      var newOrder = domRows.map(function(r) { return r.id.replace('mr-', ''); });
+      sup.products = newOrder.map(function(id) {
+        return oldProducts.find(function(p) { return p.id === id; });
+      }).filter(Boolean);
+      saveDb(true);
+      pushSuppliers();
+    }
+    _dragging = null;
+    renderManage();
+  }
+
+  function onTouchMove(e) { e.preventDefault(); swapToPosition(e.touches[0].clientX, e.touches[0].clientY); }
+  function onTouchEnd() {
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
+    endDrag();
+  }
+  function onMouseMove(e) { swapToPosition(e.clientX, e.clientY); }
+  function onMouseUp() {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    endDrag();
+  }
+
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('touchend', onTouchEnd);
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
 }
 
 function deleteProduct(pid) {
