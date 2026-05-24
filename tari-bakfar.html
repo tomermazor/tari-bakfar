@@ -645,7 +645,7 @@ function renderFixed() {
         <div class="field"><label class="label">קטגוריה</label><select class="input" onchange="state.fixedForm.category=this.value">${FIXED_CATS.map(c=>`<option ${c===f.category?'selected':''}>${c}</option>`).join('')}</select></div>
         <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.fixedForm.supplier=this.value"></div>
         <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.fixedForm.notes=this.value"></div>
-        <button class="btn-primary" onclick="saveFixed()" ${!f.name||f.amount===''||f.amount===null?'disabled':''}>💾 שמור</button>
+        <button class="btn-primary" onclick="saveFixed()">💾 שמור</button>
         <button class="btn-ghost" onclick="setState({fixedAdding:false,fixedForm:null})">ביטול</button>
       </div>`;
   }
@@ -694,7 +694,8 @@ function editFixed(id) { const item = DB.fixed.find(x=>x.id===id); if(item) setS
 
 async function saveFixed() {
   const f = state.fixedForm;
-  if (!f.name||!f.amount) return;
+  if (!f.name) { toast('נא למלא שם הוצאה', 'error'); return; }
+  if (f.amount===''||f.amount===null||f.amount===undefined) { toast('נא למלא סכום', 'error'); return; }
   const item = {...f, amount:+f.amount};
   if (f.id) {
     await queueAndSync('update_fixed', {payload: item}, () => DB.fixed = DB.fixed.map(x=>x.id===f.id?item:x));
