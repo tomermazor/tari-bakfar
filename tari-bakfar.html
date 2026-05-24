@@ -732,15 +732,15 @@ function renderInstallments() {
         <h2 class="display" style="font-size:24px;margin:0 0 18px">${f.id?'עריכה':'השקעה בתשלומים'}</h2>
         <div class="field"><label class="label">שם ההשקעה *</label><input class="input" placeholder="למשל: מקרר תעשייתי" value="${esc(f.name)}" oninput="state.installForm.name=this.value"></div>
         <div class="row">
-          <div class="field"><label class="label">סכום כולל ₪ *</label><input class="input" type="number" placeholder="12000" value="${f.total}" oninput="state.installForm.total=this.value;render()"></div>
-          <div class="field"><label class="label">מספר תשלומים *</label><input class="input" type="number" placeholder="12" value="${f.installments}" oninput="state.installForm.installments=this.value;render()"></div>
+          <div class="field"><label class="label">סכום כולל ₪ *</label><input class="input" type="number" placeholder="12000" value="${f.total}" oninput="state.installForm.total=this.value;updatePerInstall()"></div>
+          <div class="field"><label class="label">מספר תשלומים *</label><input class="input" type="number" placeholder="12" value="${f.installments}" oninput="state.installForm.installments=this.value;updatePerInstall()"></div>
         </div>
-        ${perInstall ? `<div style="padding:10px 14px;margin-bottom:14px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2);border-radius:10px;font-size:13px;color:var(--accent)">💡 תשלום חודשי: ${fmtCurr(perInstall)}</div>` : ''}
+        <div id="per-install-display" style="padding:10px 14px;margin-bottom:14px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2);border-radius:10px;font-size:13px;color:var(--accent);${perInstall?'':'display:none'}">💡 תשלום חודשי: <span id="per-install-val">${perInstall?fmtCurr(perInstall):''}</span></div>
         <div class="field"><label class="label">תשלומים ששולמו</label><input class="input" type="number" value="${f.paid}" oninput="state.installForm.paid=this.value"></div>
         <div class="field"><label class="label">תאריך תשלום ראשון</label><input class="input" value="${esc(f.first_date)}" oninput="state.installForm.first_date=this.value"></div>
         <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.installForm.supplier=this.value"></div>
         <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.installForm.notes=this.value"></div>
-        <button class="btn-primary" onclick="saveInstall()" ${!f.name||!f.total||!f.installments?'disabled':''}>💾 שמור</button>
+        <button class="btn-primary" onclick="saveInstall()">💾 שמור</button>
         <button class="btn-ghost" onclick="setState({installAdding:false,installForm:null})">ביטול</button>
       </div>`;
   }
@@ -812,9 +812,21 @@ function renderInstallments() {
 function startInstall() { setState({installAdding:true, installForm:{name:"",total:"",installments:"",paid:"0",first_date:todayStr(),supplier:"",notes:""}}); }
 function editInstall(id) { const item = DB.installments.find(x=>x.id===id); if(item) setState({installAdding:true, installForm:{...item,total:String(item.total),installments:String(item.installments),paid:String(item.paid)}}); }
 
+function updatePerInstall() {
+  const f = state.installForm;
+  const per = (+f.total && +f.installments) ? (+f.total)/(+f.installments) : 0;
+  const box = document.getElementById('per-install-display');
+  const val = document.getElementById('per-install-val');
+  if (!box) return;
+  box.style.display = per ? '' : 'none';
+  if (val && per) val.textContent = fmtCurr(per);
+}
+
 async function saveInstall() {
   const f = state.installForm;
-  if (!f.name||!f.total||!f.installments) return;
+  if (!f.name) { toast('נא למלא שם', 'error'); return; }
+  if (!f.total) { toast('נא למלא סכום', 'error'); return; }
+  if (!f.installments) { toast('נא למלא מספר תשלומים', 'error'); return; }
   const item = {...f, total:+f.total, installments:+f.installments, paid:+f.paid||0};
   if (f.id) {
     await queueAndSync('update_installment', {payload: item}, () => DB.installments = DB.installments.map(x=>x.id===f.id?item:x));
