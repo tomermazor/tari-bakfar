@@ -373,7 +373,7 @@ function renderScan() {
   }
   if (state.scanStage === 'preview') {
     return `
-      <div style="padding:20px" class="fade-up">
+      <div style="padding:20px 20px 100px" class="fade-up">
         <div style="position:relative;margin-bottom:16px;border-radius:16px;overflow:hidden;border:1px solid var(--border)"><img src="${state.scanImg}" alt="" style="width:100%;max-height:360px;object-fit:contain;background:#000;display:block"></div>
         ${state.scanErr ? `<div class="err">⚠️ ${esc(state.scanErr)}</div>` : ''}
         <button class="btn-primary" onclick="runScan()">✨ &nbsp;קרא עם AI</button>
@@ -395,7 +395,7 @@ function renderScan() {
   if (state.scanStage === 'confirm' && state.scanForm) {
     const f = state.scanForm;
     return `
-      <div style="padding:20px" class="fade-up">
+      <div style="padding:20px 20px 100px" class="fade-up">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:10px 14px;border-radius:12px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2)">
           <div style="width:24px;height:24px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;color:#0a1505">✓</div>
           <div style="color:var(--accent);font-weight:700;font-size:14px">נחלצו הפרטים — בדוק ושמור</div>
@@ -593,7 +593,7 @@ let addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_
 
 function renderAdd() {
   return `
-    <div style="padding:20px" class="fade-up">
+    <div style="padding:20px 20px 100px" class="fade-up">
       <h2 class="display" style="font-size:24px;margin:0 0 18px">הוספה ידנית</h2>
       <div class="field"><label class="label">ספק *</label><input class="input" placeholder="שם הספק" value="${esc(addForm.supplier)}" oninput="addForm.supplier=this.value"></div>
       <div class="field"><label class="label">תאריך</label><input class="input" value="${esc(addForm.date)}" oninput="addForm.date=this.value"></div>
@@ -634,7 +634,7 @@ function renderFixed() {
   if (state.fixedAdding) {
     const f = state.fixedForm;
     return `
-      <div style="padding:20px" class="fade-up">
+      <div style="padding:20px 20px 100px" class="fade-up">
         <h2 class="display" style="font-size:24px;margin:0 0 18px">${f.id?'עריכת הוצאה':'הוצאה קבועה חדשה'}</h2>
         <div class="field"><label class="label">שם ההוצאה *</label><input class="input" placeholder="למשל: שכירות החנות" value="${esc(f.name)}" oninput="state.fixedForm.name=this.value"></div>
         <div class="row">
@@ -728,7 +728,7 @@ function renderInstallments() {
     const f = state.installForm;
     const perInstall = (+f.total && +f.installments) ? (+f.total)/(+f.installments) : 0;
     return `
-      <div style="padding:20px" class="fade-up">
+      <div style="padding:20px 20px 100px" class="fade-up">
         <h2 class="display" style="font-size:24px;margin:0 0 18px">${f.id?'עריכה':'השקעה בתשלומים'}</h2>
         <div class="field"><label class="label">שם ההשקעה *</label><input class="input" placeholder="למשל: מקרר תעשייתי" value="${esc(f.name)}" oninput="state.installForm.name=this.value"></div>
         <div class="row">
@@ -904,7 +904,7 @@ function renderReports() {
 // ═══════════════════════════════════════════════════════════════════════════
 function renderSettings() {
   return `
-    <div style="padding:20px" class="fade-up">
+    <div style="padding:20px 20px 100px" class="fade-up">
       <h2 class="display" style="font-size:24px;margin:0 0 18px">הגדרות</h2>
 
       <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
