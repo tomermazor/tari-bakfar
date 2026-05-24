@@ -930,6 +930,16 @@ loadDb();
 renderHome();
 syncSuppliers();
 document.addEventListener('visibilitychange', () => { if (!document.hidden) syncSuppliers(); });
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').then(function(reg) {
+    reg.update();
+    var refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      if (!refreshing) { refreshing = true; window.location.reload(); }
+    });
+  }).catch(function() {});
+}
 </script>
 </body>
 </html>

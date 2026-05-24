@@ -1145,7 +1145,15 @@ document.addEventListener('visibilitychange', () => {
 });
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    // Force-check for a newer SW on every load
+    reg.update();
+    // When a new SW takes over → reload the page automatically to get latest code
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) { refreshing = true; window.location.reload(); }
+    });
+  }).catch(() => {});
 }
 </script>
 </body>
