@@ -167,7 +167,10 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
         <h1 class="display">הזמנות</h1>
         <div class="sub" id="home-sub">ניהול ספקים</div>
       </div>
-      <button class="icon-btn" onclick="openHistory()" title="היסטוריה">📋</button>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="sync-dot" title="מסנכרן..." style="width:8px;height:8px;border-radius:50%;background:#f4b942;flex-shrink:0"></div>
+        <button class="icon-btn" onclick="openHistory()" title="היסטוריה">📋</button>
+      </div>
     </header>
     <div class="main" id="home-main"></div>
     <button class="fab" onclick="openAddSupplier()">
@@ -274,22 +277,39 @@ async function cloudCallOrders(action, payload) {
 }
 
 async function pushSuppliers() {
-  try { await cloudCallOrders('save_suppliers', { payload: db.suppliers }); }
-  catch(e) { console.log('Push suppliers failed:', e.message); }
+  try {
+    setSyncDot('syncing');
+    await cloudCallOrders('save_suppliers', { payload: db.suppliers });
+    setSyncDot('ok');
+  } catch(e) {
+    setSyncDot('err');
+    toast('סנכרון נכשל: ' + e.message, 'error');
+  }
 }
 
 async function syncSuppliers() {
   try {
+    setSyncDot('syncing');
     const cloud = await cloudCallOrders('list_suppliers', {});
     if (cloud && cloud.length > 0) {
       db.suppliers = cloud;
       saveDb();
       renderHome();
     } else if (db.suppliers.length > 0) {
-      // First time — upload local data to cloud
-      await pushSuppliers();
+      await cloudCallOrders('save_suppliers', { payload: db.suppliers });
     }
-  } catch(e) { console.log('Sync suppliers failed:', e.message); }
+    setSyncDot('ok');
+  } catch(e) {
+    setSyncDot('err');
+    console.log('Sync failed:', e.message);
+  }
+}
+
+function setSyncDot(status) {
+  const dot = document.getElementById('sync-dot');
+  if (!dot) return;
+  dot.style.background = status === 'ok' ? '#8fc650' : status === 'syncing' ? '#f4b942' : '#dc6262';
+  dot.title = status === 'ok' ? 'מסונכרן' : status === 'syncing' ? 'מסנכרן...' : 'שגיאת סנכרון';
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 

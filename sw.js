@@ -1,8 +1,8 @@
-const CACHE = 'app-v2';
+const CACHE = 'app-v3';
 const SHELL = ['./index.html', './tari-bakfar.html', './orders.html', './manifest.json'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(url => new Request(url, {cache: 'no-store'})))));
   self.skipWaiting();
 });
 
