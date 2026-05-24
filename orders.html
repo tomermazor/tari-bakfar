@@ -283,7 +283,8 @@ async function pushSuppliers() {
     setSyncDot('ok');
   } catch(e) {
     setSyncDot('err');
-    toast('סנכרון נכשל: ' + e.message, 'error');
+    console.warn('Push failed:', e.message);
+    // Don't show error toast — local save succeeded, dot turns red silently
   }
 }
 
