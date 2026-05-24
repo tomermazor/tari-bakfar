@@ -103,6 +103,11 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .unit-badge.units { background:rgba(91,156,246,0.12); color:var(--blue); border:1px solid rgba(91,156,246,0.3); }
 .del-btn { width:30px; height:30px; border:none; border-radius:8px; background:rgba(220,98,98,0.1); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--danger); flex-shrink:0; }
 .del-btn:active { background:rgba(220,98,98,0.2); }
+.active-toggle { width:30px; height:30px; border:none; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex-shrink:0; }
+.active-toggle.on  { background:rgba(143,198,80,0.12); color:var(--accent); }
+.active-toggle.off { background:rgba(120,120,120,0.1); color:var(--textMuted); }
+.active-toggle:active { opacity:0.7; }
+.manage-row.inactive { opacity:0.45; }
 .drag-handle { color:var(--textMuted); font-size:17px; letter-spacing:1px; cursor:grab; padding:4px 10px 4px 2px; flex-shrink:0; touch-action:none; user-select:none; -webkit-user-select:none; line-height:1; }
 .drag-handle:active { cursor:grabbing; color:var(--textDim); }
 .manage-row.dragging { background:var(--surfaceHi); border-color:rgba(143,198,80,0.45); box-shadow:0 10px 32px rgba(0,0,0,0.55); position:relative; z-index:20; }
@@ -402,8 +407,8 @@ function openOrder(supplierId) {
   document.getElementById('order-title').textContent = sup.name;
   document.getElementById('order-date').textContent = fmtDate(new Date());
 
-  // Init order state from product defaults
-  sup.products.forEach(p => {
+  // Init order state from active products only
+  sup.products.filter(p => p.active !== false).forEach(p => {
     orderState[p.id] = { qty: '0', unit: p.defaultUnit };
   });
 
@@ -413,20 +418,22 @@ function openOrder(supplierId) {
 
 function renderOrderProducts(sup) {
   const main = document.getElementById('order-main');
-  if (!sup.products.length) {
+  const activeProducts = sup.products.filter(p => p.active !== false);
+
+  if (!activeProducts.length) {
     main.innerHTML = `
       <div class="empty fade-up">
         <div class="empty-icon">🛒</div>
-        <div class="empty-title">אין מוצרים בספק זה</div>
-        <div class="empty-desc">לחץ ⚙ למעלה כדי להוסיף מוצרים</div>
+        <div class="empty-title">אין מוצרים פעילים</div>
+        <div class="empty-desc">לחץ ⚙ למעלה כדי להוסיף או להפעיל מוצרים</div>
       </div>`;
     return;
   }
 
   main.innerHTML = `
-    <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">${sup.products.length} מוצרים</div>
-    ${sup.products.map((p, i) => {
-      const st = orderState[p.id];
+    <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">${activeProducts.length} מוצרים פעילים</div>
+    ${activeProducts.map((p, i) => {
+      const st = orderState[p.id] || { qty: '0', unit: p.defaultUnit };
       const isCarton = st.unit === 'קרטון';
       const qty = parseInt(st.qty) || 0;
       return `
@@ -590,14 +597,20 @@ function renderManage() {
 
 function productRow(p, i, total) {
   const isCarton = p.defaultUnit === 'קרטון';
+  const isActive = p.active !== false;
   return `
-    <div class="manage-row fade-up" id="mr-${p.id}" style="animation-delay:${i*.03}s">
+    <div class="manage-row fade-up${isActive ? '' : ' inactive'}" id="mr-${p.id}" style="animation-delay:${i*.03}s">
       <div class="drag-handle" title="גרור לסידור מחדש">⠿</div>
       <span class="manage-row-name" onclick="editProductName('${p.id}')" title="לחץ לעריכה">${esc(p.name)}</span>
       <span class="unit-badge ${isCarton ? 'carton' : 'units'}"
             onclick="toggleDefaultUnit('${p.id}')" title="לחץ לשנות יחידה">
         ${p.defaultUnit}
       </span>
+      <button class="active-toggle ${isActive ? 'on' : 'off'}"
+              onclick="toggleProductActive('${p.id}')"
+              title="${isActive ? 'פעיל — לחץ להשבתה' : 'לא פעיל — לחץ להפעלה'}">
+        ${isActive ? '✓' : '✗'}
+      </button>
       <button class="del-btn" onclick="deleteProduct('${p.id}')">✕</button>
     </div>`;
 }
@@ -635,6 +648,17 @@ function editProductName(pid) {
     renderManage();
     toast('עודכן ✓', 'success');
   }
+}
+
+function toggleProductActive(pid) {
+  const sup = findSupplier(currentSupplierId);
+  if (!sup) return;
+  const p = sup.products.find(x => x.id === pid);
+  if (!p) return;
+  p.active = p.active === false ? true : false;
+  saveDb(true); pushSuppliers();
+  renderManage();
+  toast(p.active ? 'מוצר הופעל ✓' : 'מוצר הושבת', p.active ? 'success' : '');
 }
 
 function toggleDefaultUnit(pid) {
