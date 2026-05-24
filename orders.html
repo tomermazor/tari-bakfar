@@ -259,8 +259,13 @@ let db = { suppliers: [] };
 function loadDb() {
   try { const s = localStorage.getItem(STORE_KEY); if (s) db = JSON.parse(s); } catch {}
   if (!db.history) db.history = [];
+  if (!db._localModified) db._localModified = 0;
+  if (!db._lastSynced) db._lastSynced = 0;
 }
-function saveDb() { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
+function saveDb(dirty) {
+  if (dirty) db._localModified = Date.now();
+  localStorage.setItem(STORE_KEY, JSON.stringify(db));
+}
 
 // ─── Cloud Sync (Google Sheets) ────────────────────────────────────────────
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxdXp4ZXpt2EAXYXHSKdjrNZRNFuAIiOEdyXktShtnSlRSYHXLoNlSyOf-LJYJkS7ndjw/exec';
@@ -280,6 +285,8 @@ async function pushSuppliers() {
   try {
     setSyncDot('syncing');
     await cloudCallOrders('save_suppliers', { payload: db.suppliers });
+    db._lastSynced = Date.now();
+    saveDb();
     setSyncDot('ok');
   } catch(e) {
     setSyncDot('err');
@@ -291,13 +298,24 @@ async function pushSuppliers() {
 async function syncSuppliers() {
   try {
     setSyncDot('syncing');
-    const cloud = await cloudCallOrders('list_suppliers', {});
-    if (cloud && cloud.length > 0) {
-      db.suppliers = cloud;
-      saveDb();
-      renderHome();
-    } else if (db.suppliers.length > 0) {
+    // If local has unsaved changes, push to cloud instead of pulling
+    const hasPending = db._localModified > db._lastSynced;
+    if (hasPending) {
       await cloudCallOrders('save_suppliers', { payload: db.suppliers });
+      db._lastSynced = Date.now();
+      saveDb();
+    } else {
+      const cloud = await cloudCallOrders('list_suppliers', {});
+      if (cloud && cloud.length > 0) {
+        db.suppliers = cloud;
+        db._lastSynced = Date.now();
+        saveDb();
+        renderHome();
+      } else if (db.suppliers.length > 0) {
+        await cloudCallOrders('save_suppliers', { payload: db.suppliers });
+        db._lastSynced = Date.now();
+        saveDb();
+      }
     }
     setSyncDot('ok');
   } catch(e) {
@@ -586,7 +604,7 @@ function addProduct() {
   const sup = findSupplier(currentSupplierId);
   if (!sup) return;
   sup.products.push({ id: uid(), name, defaultUnit: newProductUnit });
-  saveDb(); pushSuppliers();
+  saveDb(true); pushSuppliers();
   inp.value = '';
   renderManage();
   toast('מוצר נוסף ✓', 'success');
@@ -602,7 +620,7 @@ function editProductName(pid) {
   const newName = prompt('שם המוצר:', p.name);
   if (newName && newName.trim() && newName.trim() !== p.name) {
     p.name = newName.trim();
-    saveDb(); pushSuppliers();
+    saveDb(true); pushSuppliers();
     renderManage();
     toast('עודכן ✓', 'success');
   }
@@ -614,7 +632,7 @@ function toggleDefaultUnit(pid) {
   const p = sup.products.find(x => x.id === pid);
   if (!p) return;
   p.defaultUnit = p.defaultUnit === 'קרטון' ? 'יחידות' : 'קרטון';
-  saveDb(); pushSuppliers();
+  saveDb(true); pushSuppliers();
   const row = document.getElementById('mr-' + pid);
   if (row) {
     const badge = row.querySelector('.unit-badge');
@@ -633,7 +651,7 @@ function moveProduct(pid, dir) {
   const newIdx = idx + dir;
   if (newIdx < 0 || newIdx >= sup.products.length) return;
   [sup.products[idx], sup.products[newIdx]] = [sup.products[newIdx], sup.products[idx]];
-  saveDb(); pushSuppliers();
+  saveDb(true); pushSuppliers();
   renderManage();
 }
 
@@ -644,7 +662,7 @@ function deleteProduct(pid) {
   if (!p) return;
   if (!confirm(`למחוק את "${p.name}"?`)) return;
   sup.products = sup.products.filter(x => x.id !== pid);
-  saveDb(); pushSuppliers();
+  saveDb(true); pushSuppliers();
   renderManage();
   toast('מוצר נמחק');
 }
@@ -656,7 +674,7 @@ function saveSupplierName() {
   const sup = findSupplier(currentSupplierId);
   if (!sup) return;
   sup.name = name;
-  saveDb(); pushSuppliers();
+  saveDb(true); pushSuppliers();
   toast('שם נשמר ✓', 'success');
 }
 
@@ -665,7 +683,7 @@ function deleteSupplier() {
   if (!sup) return;
   if (!confirm(`למחוק את הספק "${sup.name}" ואת כל המוצרים שלו?`)) return;
   db.suppliers = db.suppliers.filter(s => s.id !== currentSupplierId);
-  saveDb(); pushSuppliers();
+  saveDb(true); pushSuppliers();
   currentSupplierId = null;
   renderHome();
   toast('ספק נמחק');
@@ -683,7 +701,7 @@ function confirmAddSupplier() {
   if (!name) { document.getElementById('new-supplier-name').focus(); return; }
   const sup = { id: uid(), name, products: [] };
   db.suppliers.push(sup);
-  saveDb(); pushSuppliers();
+  saveDb(true); pushSuppliers();
   closeModal('modal-add-supplier');
   renderHome();
   toast('ספק נוסף ✓', 'success');
