@@ -258,6 +258,39 @@ function loadDb() {
   if (!db.history) db.history = [];
 }
 function saveDb() { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
+
+// ─── Cloud Sync (Google Sheets) ────────────────────────────────────────────
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzWpFmhtMf7uAUlRaI28RRlKPNo3nSjBiEWpO2AVJY7ycDIXqnxgCER4zPr-VGNmx9iMQ/exec';
+
+async function cloudCallOrders(action, payload) {
+  const res = await fetch(WEB_APP_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, ...payload }),
+    headers: { 'Content-Type': 'text/plain' }
+  });
+  const json = JSON.parse(await res.text());
+  if (!json.ok) throw new Error(json.error || 'Cloud error');
+  return json.data;
+}
+
+async function pushSuppliers() {
+  try { await cloudCallOrders('save_suppliers', { payload: db.suppliers }); }
+  catch(e) { console.log('Push suppliers failed:', e.message); }
+}
+
+async function syncSuppliers() {
+  try {
+    const cloud = await cloudCallOrders('list_suppliers', {});
+    if (cloud && cloud.length > 0) {
+      db.suppliers = cloud;
+      saveDb();
+      renderHome();
+    } else if (db.suppliers.length > 0) {
+      // First time — upload local data to cloud
+      await pushSuppliers();
+    }
+  } catch(e) { console.log('Sync suppliers failed:', e.message); }
+}
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
 // ─── App State ─────────────────────────────────────────────────────────────
@@ -532,7 +565,7 @@ function addProduct() {
   const sup = findSupplier(currentSupplierId);
   if (!sup) return;
   sup.products.push({ id: uid(), name, defaultUnit: newProductUnit });
-  saveDb();
+  saveDb(); pushSuppliers();
   inp.value = '';
   renderManage();
   toast('מוצר נוסף ✓', 'success');
@@ -548,7 +581,7 @@ function editProductName(pid) {
   const newName = prompt('שם המוצר:', p.name);
   if (newName && newName.trim() && newName.trim() !== p.name) {
     p.name = newName.trim();
-    saveDb();
+    saveDb(); pushSuppliers();
     renderManage();
     toast('עודכן ✓', 'success');
   }
@@ -560,7 +593,7 @@ function toggleDefaultUnit(pid) {
   const p = sup.products.find(x => x.id === pid);
   if (!p) return;
   p.defaultUnit = p.defaultUnit === 'קרטון' ? 'יחידות' : 'קרטון';
-  saveDb();
+  saveDb(); pushSuppliers();
   const row = document.getElementById('mr-' + pid);
   if (row) {
     const badge = row.querySelector('.unit-badge');
@@ -579,7 +612,7 @@ function moveProduct(pid, dir) {
   const newIdx = idx + dir;
   if (newIdx < 0 || newIdx >= sup.products.length) return;
   [sup.products[idx], sup.products[newIdx]] = [sup.products[newIdx], sup.products[idx]];
-  saveDb();
+  saveDb(); pushSuppliers();
   renderManage();
 }
 
@@ -590,7 +623,7 @@ function deleteProduct(pid) {
   if (!p) return;
   if (!confirm(`למחוק את "${p.name}"?`)) return;
   sup.products = sup.products.filter(x => x.id !== pid);
-  saveDb();
+  saveDb(); pushSuppliers();
   renderManage();
   toast('מוצר נמחק');
 }
@@ -602,7 +635,7 @@ function saveSupplierName() {
   const sup = findSupplier(currentSupplierId);
   if (!sup) return;
   sup.name = name;
-  saveDb();
+  saveDb(); pushSuppliers();
   toast('שם נשמר ✓', 'success');
 }
 
@@ -611,7 +644,7 @@ function deleteSupplier() {
   if (!sup) return;
   if (!confirm(`למחוק את הספק "${sup.name}" ואת כל המוצרים שלו?`)) return;
   db.suppliers = db.suppliers.filter(s => s.id !== currentSupplierId);
-  saveDb();
+  saveDb(); pushSuppliers();
   currentSupplierId = null;
   renderHome();
   toast('ספק נמחק');
@@ -629,7 +662,7 @@ function confirmAddSupplier() {
   if (!name) { document.getElementById('new-supplier-name').focus(); return; }
   const sup = { id: uid(), name, products: [] };
   db.suppliers.push(sup);
-  saveDb();
+  saveDb(); pushSuppliers();
   closeModal('modal-add-supplier');
   renderHome();
   toast('ספק נוסף ✓', 'success');
@@ -736,6 +769,8 @@ function clearHistory() {
 // ─── Init ──────────────────────────────────────────────────────────────────
 loadDb();
 renderHome();
+syncSuppliers();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncSuppliers(); });
 </script>
 </body>
 </html>

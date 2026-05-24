@@ -952,6 +952,12 @@ function renderSettings() {
       </div>
 
       <button onclick="syncAll()" class="btn-secondary">🔄 סנכרן עכשיו</button>
+
+      <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-top:14px">
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px">עדכון גרסה</div>
+        <p style="font-size:12px;color:var(--textDim);line-height:1.6;margin:0 0 12px">אם האפליקציה לא מתעדכנת לגרסה האחרונה, לחץ כאן לניקוי ה-cache וטעינה מחדש.</p>
+        <button onclick="clearCacheAndReload()" style="width:100%;padding:11px;border:1px solid var(--borderHi);border-radius:10px;font-size:13px;font-weight:600;background:transparent;color:var(--textDim);cursor:pointer;font-family:inherit">🔃 נקה cache וטען מחדש</button>
+      </div>
     </div>`;
 }
 
@@ -977,6 +983,20 @@ async function testConnection() {
     setSyncStatus('offline');
     toast('❌ ' + e.message, 'error');
   }
+}
+
+async function clearCacheAndReload() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+  } catch(e) {}
+  location.reload(true);
 }
 
 function saveApiKey() {

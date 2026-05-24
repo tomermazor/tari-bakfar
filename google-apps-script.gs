@@ -13,14 +13,16 @@ const DRIVE_FOLDER_NAME = 'טרי בכפר - חשבוניות';
 const SHEETS = {
   expenses: 'הוצאות',
   fixed: 'הוצאות קבועות',
-  installments: 'תשלומים'
+  installments: 'תשלומים',
+  suppliers: 'ספקים'
 };
 
 // כותרות עמודות לכל גיליון
 const HEADERS = {
   expenses: ['id','תאריך','ספק','סכום כולל','מע"מ','לפני מע"מ','קטגוריה','סוג מסמך','מספר מסמך','הערות','קישור לתמונה','נוצר ב'],
   fixed: ['id','שם','סכום','קטגוריה','תדירות','יום בחודש','ספק','הערות','פעיל','נוצר ב'],
-  installments: ['id','שם','סכום כולל','מספר תשלומים','תשלומים ששולמו','תאריך התחלה','ספק','הערות','נוצר ב']
+  installments: ['id','שם','סכום כולל','מספר תשלומים','תשלומים ששולמו','תאריך התחלה','ספק','הערות','נוצר ב'],
+  suppliers: ['supplier_id','supplier_name','product_id','product_name','default_unit']
 };
 
 // ─── Entry point - הפונקציה הראשית שמקבלת בקשות ─────────────────────────────
@@ -49,6 +51,10 @@ function doPost(e) {
       case 'add_installment':   result = addRow('installments', data.payload); break;
       case 'update_installment':result = updateRow('installments', data.payload); break;
       case 'delete_installment':result = deleteRow('installments', data.id); break;
+
+      // ספקים (מערכת הזמנות)
+      case 'list_suppliers':   result = listSuppliers(); break;
+      case 'save_suppliers':   result = saveSuppliers(data.payload); break;
 
       // העלאת תמונה
       case 'upload_image':     result = uploadImage(data.base64, data.mime, data.filename); break;
@@ -246,6 +252,48 @@ function uploadImage(base64, mime, filename) {
   // הופך את הקובץ לציבורי-קריאה (כל מי שיש לו לינק יכול לראות)
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return file.getUrl();
+}
+
+// ─── ספקים (מערכת הזמנות) ───────────────────────────────────────────────────
+function listSuppliers() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('ספקים');
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
+  const suppMap = {};
+  const suppOrder = [];
+  data.forEach(row => {
+    const [suppId, suppName, prodId, prodName, unit] = row;
+    if (!suppId) return;
+    if (!suppMap[suppId]) { suppMap[suppId] = { id: suppId, name: suppName, products: [] }; suppOrder.push(suppId); }
+    if (prodId) suppMap[suppId].products.push({ id: String(prodId), name: String(prodName), defaultUnit: String(unit) });
+  });
+  return suppOrder.map(id => suppMap[id]);
+}
+
+function saveSuppliers(suppliers) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('ספקים');
+  if (!sheet) {
+    sheet = ss.insertSheet('ספקים');
+    const hdr = sheet.getRange(1, 1, 1, 5);
+    hdr.setValues([HEADERS.suppliers]);
+    hdr.setFontWeight('bold');
+    hdr.setBackground('#5b9cf6');
+    hdr.setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+  }
+  if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
+  const rows = [];
+  (suppliers || []).forEach(sup => {
+    if (!sup.products || sup.products.length === 0) {
+      rows.push([sup.id, sup.name, '', '', '']);
+    } else {
+      sup.products.forEach(p => rows.push([sup.id, sup.name, p.id, p.name, p.defaultUnit]));
+    }
+  });
+  if (rows.length > 0) sheet.getRange(2, 1, rows.length, 5).setValues(rows);
+  return { ok: true, rows: rows.length };
 }
 
 // ─── פונקציית התקנה ראשונית - הרץ פעם אחת בלבד ───────────────────────────────
