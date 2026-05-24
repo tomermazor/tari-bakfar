@@ -260,7 +260,7 @@ function loadDb() {
 function saveDb() { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
 
 // ─── Cloud Sync (Google Sheets) ────────────────────────────────────────────
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzWpFmhtMf7uAUlRaI28RRlKPNo3nSjBiEWpO2AVJY7ycDIXqnxgCER4zPr-VGNmx9iMQ/exec';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxdXp4ZXpt2EAXYXHSKdjrNZRNFuAIiOEdyXktShtnSlRSYHXLoNlSyOf-LJYJkS7ndjw/exec';
 
 async function cloudCallOrders(action, payload) {
   const res = await fetch(WEB_APP_URL, {
