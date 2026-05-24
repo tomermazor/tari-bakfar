@@ -19,6 +19,19 @@
   --text:#e8efe5; --textDim:#7a8a82; --textMuted:#475259;
   --accent:#8fc650; --accent2:#d4a574; --amber:#f4b942; --danger:#dc6262; --blue:#5b9cf6;
 }
+[data-theme="light"] {
+  --bg:#f0f5ee; --surface:#ffffff; --surfaceHi:#e6ede1;
+  --border:#c4d4bc; --borderHi:#a8c09a;
+  --text:#1a2a14; --textDim:#4a6040; --textMuted:#7a9470;
+  --accent:#4a8818; --accent2:#9a5e20; --amber:#a87008; --danger:#b83030; --blue:#1a5cb8;
+}
+[data-theme="light"] .app-switcher { background:rgba(240,246,238,0.97); }
+[data-theme="light"] .header { background:rgba(240,246,238,0.95); }
+[data-theme="light"] .order-footer { background:rgba(240,246,238,0.97); }
+[data-theme="light"] .modal { background:var(--surface); }
+[data-theme="light"] .overlay { background:rgba(0,0,0,0.45); }
+[data-theme="light"] .toast { box-shadow:0 4px 20px rgba(0,0,0,0.15); }
+.theme-toggle-btn { background:transparent; border:none; padding:7px 10px; cursor:pointer; font-size:17px; flex-shrink:0; border-radius:10px; line-height:1; }
 * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
 [hidden] { display:none !important; }
 html,body { margin:0; padding:0; min-height:100%; background:var(--bg); color:var(--text); font-family:'Heebo',-apple-system,sans-serif; overscroll-behavior:none; }
@@ -157,6 +170,7 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
   <div class="app-switcher">
     <span class="sw-btn active">📦 הזמנות</span>
     <a href="tari-bakfar.html" class="sw-btn">💰 ניהול הוצאות</a>
+    <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" title="שנה עיצוב"></button>
   </div>
 
   <!-- ═══ VIEW: HOME ═══ -->
@@ -870,7 +884,24 @@ function clearHistory() {
   toast('ההיסטוריה נמחקה');
 }
 
+// ─── Theme ────────────────────────────────────────────────────────────────
+function initTheme() {
+  var t = localStorage.getItem('app-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  var btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  var next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('app-theme', next);
+  var btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
+}
+
 // ─── Init ──────────────────────────────────────────────────────────────────
+initTheme();
 loadDb();
 renderHome();
 syncSuppliers();
