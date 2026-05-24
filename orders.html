@@ -278,7 +278,8 @@ function loadDb() {
   try { const s = localStorage.getItem(STORE_KEY); if (s) db = JSON.parse(s); } catch {}
   if (!db.history) db.history = [];
   if (!db._localModified) db._localModified = 0;
-  if (!db._lastSynced) db._lastSynced = 0;
+  // First time with new sync code: treat as synced so we PULL, not push
+  if (!db._lastSynced) db._lastSynced = db._localModified || Date.now();
 }
 function saveDb(dirty) {
   if (dirty) db._localModified = Date.now();
@@ -327,11 +328,13 @@ async function syncSuppliers() {
       if (cloud && cloud.length > 0) {
         db.suppliers = cloud;
         db._lastSynced = Date.now();
+        db._localModified = db._lastSynced; // mark as in sync
         saveDb();
         renderHome();
       } else if (db.suppliers.length > 0) {
         await cloudCallOrders('save_suppliers', { payload: db.suppliers });
         db._lastSynced = Date.now();
+        db._localModified = db._lastSynced;
         saveDb();
       }
     }
