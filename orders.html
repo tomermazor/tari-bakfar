@@ -32,6 +32,10 @@
 [data-theme="light"] .overlay { background:rgba(0,0,0,0.45); }
 [data-theme="light"] .toast { box-shadow:0 4px 20px rgba(0,0,0,0.15); }
 .theme-toggle-btn { background:transparent; border:none; padding:7px 10px; cursor:pointer; font-size:17px; flex-shrink:0; border-radius:10px; line-height:1; }
+.sw-icon-btn { background:transparent; border:none; padding:7px 8px; cursor:pointer; font-size:16px; flex-shrink:0; border-radius:10px; line-height:1; color:var(--textDim); }
+.sw-icon-btn:active { background:rgba(255,255,255,0.08); }
+[data-theme="light"] .sw-icon-btn:active { background:rgba(0,0,0,0.05); }
+.sw-icon-btn.spinning { animation:fadeUp 0s, spin 0.8s linear infinite; display:inline-block; }
 * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
 [hidden] { display:none !important; }
 html,body { margin:0; padding:0; min-height:100%; background:var(--bg); color:var(--text); font-family:'Heebo',-apple-system,sans-serif; overscroll-behavior:none; }
@@ -174,8 +178,9 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 
   <div class="app-switcher">
     <span class="sw-btn active">📦 הזמנות</span>
-    <a href="tari-bakfar.html" class="sw-btn">💰 ניהול הוצאות</a>
-    <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" title="שנה עיצוב"></button>
+    <a href="tari-bakfar.html" class="sw-btn">💰 הוצאות</a>
+    <button class="sw-icon-btn" id="sync-top-btn" onclick="triggerTopSync()" title="סנכרן עכשיו">🔄</button>
+    <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" title="עיצוב"></button>
   </div>
 
   <!-- ═══ VIEW: HOME ═══ -->
@@ -909,6 +914,26 @@ function clearHistory() {
   saveDb();
   renderHistory();
   toast('ההיסטוריה נמחקה');
+}
+
+// ─── Manual Sync ──────────────────────────────────────────────────────────
+async function triggerTopSync() {
+  var btn = document.getElementById('sync-top-btn');
+  if (btn) btn.classList.add('spinning');
+  try {
+    setSyncDot('syncing');
+    await cloudCallOrders('save_suppliers', { payload: db.suppliers });
+    db._lastSynced = Date.now();
+    db._localModified = db._lastSynced;
+    saveDb();
+    setSyncDot('ok');
+    if (btn) { btn.classList.remove('spinning'); btn.textContent = '✓'; setTimeout(function(){ btn.textContent = '🔄'; }, 1500); }
+    toast('סנכרון הושלם ✓', 'success');
+  } catch(e) {
+    setSyncDot('err');
+    if (btn) { btn.classList.remove('spinning'); }
+    toast('סנכרון נכשל', 'error');
+  }
 }
 
 // ─── Theme ────────────────────────────────────────────────────────────────
