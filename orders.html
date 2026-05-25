@@ -123,6 +123,10 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .drag-handle { color:var(--textMuted); font-size:17px; letter-spacing:1px; cursor:grab; padding:4px 10px 4px 2px; flex-shrink:0; touch-action:none; user-select:none; -webkit-user-select:none; line-height:1; }
 .drag-handle:active { cursor:grabbing; color:var(--textDim); }
 .manage-row.dragging { background:var(--surfaceHi); border-color:rgba(143,198,80,0.45); box-shadow:0 10px 32px rgba(0,0,0,0.55); position:relative; z-index:20; }
+.draft-banner { background:rgba(143,198,80,0.07); border:1px solid rgba(143,198,80,0.22); border-radius:12px; padding:9px 14px; font-size:12px; color:var(--accent); font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.draft-banner-text { flex:1; }
+.draft-clear-btn { background:none; border:none; color:var(--textMuted); font-size:13px; cursor:pointer; padding:2px 4px; border-radius:6px; font-family:inherit; }
+.draft-clear-btn:active { background:rgba(0,0,0,0.08); }
 .manage-search { position:relative; margin-bottom:10px; }
 .manage-search input { width:100%; padding:10px 42px 10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:12px; color:var(--text); font-size:14px; font-family:inherit; outline:none; }
 .manage-search input:focus { border-color:var(--accent); }
@@ -373,7 +377,7 @@ async function syncSuppliers() {
         db._lastSynced = Date.now();
         db._localModified = db._lastSynced; // mark as in sync
         saveDb();
-        renderHome();
+        if (currentView === 'home') renderHome(); // never interrupt an active order
       } else if (db.suppliers.length > 0) {
         await cloudCallOrders('save_suppliers', { payload: db.suppliers });
         db._lastSynced = Date.now();
@@ -403,7 +407,9 @@ let orderState = {};           // { productId: { qty, unit } }
 let newProductUnit = 'קרטון'; // selected default unit in add-product form
 
 // ─── View Routing ──────────────────────────────────────────────────────────
+var currentView = 'home';
 function show(view) {
+  currentView = view;
   ['home','order','manage','history'].forEach(v =>
     document.getElementById('view-' + v).hidden = (v !== view)
   );
@@ -447,30 +453,56 @@ function renderHome() {
 
 function goHome() { renderHome(); }
 
+// ─── Order Draft (persist across navigation) ───────────────────────────────
+var DRAFT_KEY = 'order-draft';
+
+function saveDraft() {
+  localStorage.setItem(DRAFT_KEY, JSON.stringify({ supplierId: currentSupplierId, state: orderState, ts: Date.now() }));
+}
+function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
+function loadDraft(supplierId) {
+  try {
+    var raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    var d = JSON.parse(raw);
+    return d.supplierId === supplierId ? d.state : null;
+  } catch(e) { return null; }
+}
+
 // ─── ORDER ─────────────────────────────────────────────────────────────────
 function openOrder(supplierId) {
   currentSupplierId = supplierId;
-  orderState = {};
   const sup = findSupplier(supplierId);
   if (!sup) return;
 
+  // Try to restore saved draft for this supplier
+  const draft = loadDraft(supplierId);
+  if (draft) {
+    orderState = draft;
+    // Add any new active products missing from draft
+    sup.products.filter(p => p.active !== false).forEach(p => {
+      if (!orderState[p.id]) {
+        orderState[p.id] = p.defaultUnit === 'both'
+          ? { unit: 'both', carton: '0', units: '0' }
+          : { qty: '0', unit: p.defaultUnit };
+      }
+    });
+  } else {
+    orderState = {};
+    sup.products.filter(p => p.active !== false).forEach(p => {
+      orderState[p.id] = p.defaultUnit === 'both'
+        ? { unit: 'both', carton: '0', units: '0' }
+        : { qty: '0', unit: p.defaultUnit };
+    });
+  }
+
   document.getElementById('order-title').textContent = sup.name;
   document.getElementById('order-date').textContent = fmtDate(new Date());
-
-  // Init order state from active products only
-  sup.products.filter(p => p.active !== false).forEach(p => {
-    if (p.defaultUnit === 'both') {
-      orderState[p.id] = { unit: 'both', carton: '0', units: '0' };
-    } else {
-      orderState[p.id] = { qty: '0', unit: p.defaultUnit };
-    }
-  });
-
   show('order');
-  renderOrderProducts(sup);
+  renderOrderProducts(sup, !!draft);
 }
 
-function renderOrderProducts(sup) {
+function renderOrderProducts(sup, hasDraft) {
   const main = document.getElementById('order-main');
   const activeProducts = sup.products.filter(p => p.active !== false);
 
@@ -485,6 +517,7 @@ function renderOrderProducts(sup) {
   }
 
   main.innerHTML = `
+    ${hasDraft ? `<div class="draft-banner"><span class="draft-banner-text">📋 ממשיך הזמנה שמורה</span><button class="draft-clear-btn" onclick="clearOrder()" title="נקה הכל">✕ נקה</button></div>` : ''}
     <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">${activeProducts.length} מוצרים פעילים</div>
     ${activeProducts.length > 4 ? `<div class="manage-search" style="margin-bottom:12px">
       <input type="search" id="order-search" placeholder="🔍 חיפוש מוצר..." oninput="filterOrderProducts(this.value)" autocomplete="off">
@@ -548,6 +581,7 @@ function toggleUnit(pid) {
     btn.textContent = isCarton ? '📦 קרטון' : '🔢 יחידות';
     btn.className = 'unit-toggle ' + (isCarton ? 'is-carton' : 'is-units');
   }
+  saveDraft();
 }
 
 function stepQty(pid, delta) {
@@ -561,6 +595,7 @@ function stepQty(pid, delta) {
     el.textContent = next;
     el.className = 'step-val' + (next === 0 ? ' zero' : '');
   }
+  saveDraft();
 }
 
 function stepQtyBoth(pid, type, delta) {
@@ -575,6 +610,7 @@ function stepQtyBoth(pid, type, delta) {
     el.textContent = next;
     el.className = 'step-val' + (next === 0 ? ' zero' : '');
   }
+  saveDraft();
 }
 
 function clearOrder() {
@@ -599,6 +635,7 @@ function clearOrder() {
       }
     }
   });
+  clearDraft();
   toast('ההזמנה נוקתה');
 }
 
@@ -632,6 +669,7 @@ function exportOrder() {
     dateStr, timestamp: Date.now(), items: orderedItems, text });
   if (db.history.length > 200) db.history = db.history.slice(0, 200);
   saveDb();
+  clearDraft(); // order saved to history — draft no longer needed
 
   document.getElementById('export-text').textContent = text;
   document.getElementById('modal-export').hidden = false;
