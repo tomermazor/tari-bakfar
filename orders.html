@@ -109,6 +109,10 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .unit-badge { font-size:11px; font-weight:700; padding:4px 9px; border-radius:7px; cursor:pointer; flex-shrink:0; }
 .unit-badge.carton { background:rgba(212,165,116,0.12); color:var(--accent2); border:1px solid rgba(212,165,116,0.3); }
 .unit-badge.units { background:rgba(91,156,246,0.12); color:var(--blue); border:1px solid rgba(91,156,246,0.3); }
+.unit-badge.both { background:rgba(143,198,80,0.1); color:var(--accent); border:1px solid rgba(143,198,80,0.3); }
+.product-row-both { display:flex; flex-direction:column; gap:8px; }
+.both-unit-row { display:flex; align-items:center; justify-content:space-between; }
+.both-unit-label { font-size:13px; font-weight:700; color:var(--textDim); flex-shrink:0; }
 .del-btn { width:30px; height:30px; border:none; border-radius:8px; background:rgba(220,98,98,0.1); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--danger); flex-shrink:0; }
 .del-btn:active { background:rgba(220,98,98,0.2); }
 .active-toggle { width:30px; height:30px; border:none; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex-shrink:0; }
@@ -455,7 +459,11 @@ function openOrder(supplierId) {
 
   // Init order state from active products only
   sup.products.filter(p => p.active !== false).forEach(p => {
-    orderState[p.id] = { qty: '0', unit: p.defaultUnit };
+    if (p.defaultUnit === 'both') {
+      orderState[p.id] = { unit: 'both', carton: '0', units: '0' };
+    } else {
+      orderState[p.id] = { qty: '0', unit: p.defaultUnit };
+    }
   });
 
   show('order');
@@ -482,7 +490,33 @@ function renderOrderProducts(sup) {
       <input type="search" id="order-search" placeholder="🔍 חיפוש מוצר..." oninput="filterOrderProducts(this.value)" autocomplete="off">
     </div>` : ''}
     ${activeProducts.map((p, i) => {
-      const st = orderState[p.id] || { qty: '0', unit: p.defaultUnit };
+      const st = orderState[p.id] || (p.defaultUnit === 'both' ? { unit:'both', carton:'0', units:'0' } : { qty:'0', unit:p.defaultUnit });
+      if (st.unit === 'both') {
+        const qc = parseInt(st.carton) || 0;
+        const qu = parseInt(st.units) || 0;
+        return `
+          <div class="product-row fade-up" id="pr-${p.id}" style="animation-delay:${i*.04}s">
+            <div class="product-row-name">${esc(p.name)}</div>
+            <div class="product-row-both">
+              <div class="both-unit-row">
+                <span class="both-unit-label">📦 קרטון</span>
+                <div class="stepper">
+                  <button class="step-btn" onclick="stepQtyBoth('${p.id}','carton',-1)">−</button>
+                  <span class="step-val${qc===0?' zero':''}" id="qc-${p.id}">${qc}</span>
+                  <button class="step-btn" onclick="stepQtyBoth('${p.id}','carton',1)">+</button>
+                </div>
+              </div>
+              <div class="both-unit-row">
+                <span class="both-unit-label">🔢 יחידות</span>
+                <div class="stepper">
+                  <button class="step-btn" onclick="stepQtyBoth('${p.id}','units',-1)">−</button>
+                  <span class="step-val${qu===0?' zero':''}" id="qu-${p.id}">${qu}</span>
+                  <button class="step-btn" onclick="stepQtyBoth('${p.id}','units',1)">+</button>
+                </div>
+              </div>
+            </div>
+          </div>`;
+      }
       const isCarton = st.unit === 'קרטון';
       const qty = parseInt(st.qty) || 0;
       return `
@@ -529,18 +563,40 @@ function stepQty(pid, delta) {
   }
 }
 
+function stepQtyBoth(pid, type, delta) {
+  const st = orderState[pid];
+  if (!st) return;
+  const cur = parseInt(st[type]) || 0;
+  const next = Math.max(0, cur + delta);
+  st[type] = String(next);
+  const elId = type === 'carton' ? 'qc-' : 'qu-';
+  const el = document.getElementById(elId + pid);
+  if (el) {
+    el.textContent = next;
+    el.className = 'step-val' + (next === 0 ? ' zero' : '');
+  }
+}
+
 function clearOrder() {
   const sup = findSupplier(currentSupplierId);
   if (!sup) return;
   sup.products.forEach(p => {
-    orderState[p.id] = { qty: '0', unit: p.defaultUnit };
-    const el = document.getElementById('qd-' + p.id);
-    if (el) { el.textContent = '0'; el.className = 'step-val zero'; }
-    const btn = document.getElementById('ut-' + p.id);
-    if (btn) {
-      const isCarton = p.defaultUnit === 'קרטון';
-      btn.textContent = isCarton ? '📦 קרטון' : '🔢 יחידות';
-      btn.className = 'unit-toggle ' + (isCarton ? 'is-carton' : 'is-units');
+    if (p.defaultUnit === 'both') {
+      orderState[p.id] = { unit: 'both', carton: '0', units: '0' };
+      ['qc-','qu-'].forEach(pre => {
+        const el = document.getElementById(pre + p.id);
+        if (el) { el.textContent = '0'; el.className = 'step-val zero'; }
+      });
+    } else {
+      orderState[p.id] = { qty: '0', unit: p.defaultUnit };
+      const el = document.getElementById('qd-' + p.id);
+      if (el) { el.textContent = '0'; el.className = 'step-val zero'; }
+      const btn = document.getElementById('ut-' + p.id);
+      if (btn) {
+        const isCarton = p.defaultUnit === 'קרטון';
+        btn.textContent = isCarton ? '📦 קרטון' : '🔢 יחידות';
+        btn.className = 'unit-toggle ' + (isCarton ? 'is-carton' : 'is-units');
+      }
     }
   });
   toast('ההזמנה נוקתה');
@@ -549,9 +605,20 @@ function clearOrder() {
 function exportOrder() {
   const sup = findSupplier(currentSupplierId);
   if (!sup) return;
-  const orderedItems = sup.products
-    .filter(p => orderState[p.id]?.qty && parseInt(orderState[p.id].qty) > 0)
-    .map(p => ({ name: p.name, qty: orderState[p.id].qty, unit: orderState[p.id].unit }));
+  const orderedItems = [];
+  sup.products.forEach(p => {
+    const st = orderState[p.id];
+    if (!st) return;
+    if (st.unit === 'both') {
+      const qc = parseInt(st.carton) || 0;
+      const qu = parseInt(st.units) || 0;
+      if (qc > 0) orderedItems.push({ name: p.name, qty: String(qc), unit: 'קרטון' });
+      if (qu > 0) orderedItems.push({ name: p.name, qty: String(qu), unit: 'יחידות' });
+    } else {
+      const qty = parseInt(st.qty) || 0;
+      if (qty > 0) orderedItems.push({ name: p.name, qty: st.qty, unit: st.unit });
+    }
+  });
 
   if (!orderedItems.length) { toast('אין פריטים בהזמנה', 'error'); return; }
 
@@ -648,16 +715,18 @@ function renderManage() {
   initDragDrop();
 }
 
+function unitBadgeClass(u) { return u==='קרטון'?'carton':u==='יחידות'?'units':'both'; }
+function unitBadgeText(u) { return u==='both'?'📦+🔢':u; }
+
 function productRow(p, i, total) {
-  const isCarton = p.defaultUnit === 'קרטון';
   const isActive = p.active !== false;
   return `
     <div class="manage-row fade-up${isActive ? '' : ' inactive'}" id="mr-${p.id}" style="animation-delay:${i*.03}s">
       <div class="drag-handle" title="גרור לסידור מחדש">⠿</div>
       <span class="manage-row-name" onclick="editProductName('${p.id}')" title="לחץ לעריכה">${esc(p.name)}</span>
-      <span class="unit-badge ${isCarton ? 'carton' : 'units'}"
+      <span class="unit-badge ${unitBadgeClass(p.defaultUnit)}"
             onclick="toggleDefaultUnit('${p.id}')" title="לחץ לשנות יחידה">
-        ${p.defaultUnit}
+        ${unitBadgeText(p.defaultUnit)}
       </span>
       <button class="active-toggle ${isActive ? 'on' : 'off'}"
               onclick="toggleProductActive('${p.id}')"
@@ -719,15 +788,17 @@ function toggleDefaultUnit(pid) {
   if (!sup) return;
   const p = sup.products.find(x => x.id === pid);
   if (!p) return;
-  p.defaultUnit = p.defaultUnit === 'קרטון' ? 'יחידות' : 'קרטון';
+  // Cycle: קרטון → יחידות → גם וגם → קרטון
+  if (p.defaultUnit === 'קרטון') p.defaultUnit = 'יחידות';
+  else if (p.defaultUnit === 'יחידות') p.defaultUnit = 'both';
+  else p.defaultUnit = 'קרטון';
   saveDb(true); pushSuppliers();
   const row = document.getElementById('mr-' + pid);
   if (row) {
     const badge = row.querySelector('.unit-badge');
-    const isCarton = p.defaultUnit === 'קרטון';
     if (badge) {
-      badge.textContent = p.defaultUnit;
-      badge.className = 'unit-badge ' + (isCarton ? 'carton' : 'units');
+      badge.textContent = unitBadgeText(p.defaultUnit);
+      badge.className = 'unit-badge ' + unitBadgeClass(p.defaultUnit);
     }
   }
 }
