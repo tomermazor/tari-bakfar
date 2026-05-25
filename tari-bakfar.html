@@ -159,6 +159,7 @@ const DB = {
   expenses: JSON.parse(localStorage.getItem('tari_expenses_v2')||'[]'),
   fixed: JSON.parse(localStorage.getItem('tari_fixed_v1')||'[]'),
   installments: JSON.parse(localStorage.getItem('tari_installments_v1')||'[]'),
+  income: JSON.parse(localStorage.getItem('tari_income_v1')||'[]'),
 };
 
 const PENDING = JSON.parse(localStorage.getItem('tari_pending_v1')||'[]'); // pending sync operations
@@ -167,6 +168,7 @@ function persistLocal() {
   localStorage.setItem('tari_expenses_v2', JSON.stringify(DB.expenses));
   localStorage.setItem('tari_fixed_v1', JSON.stringify(DB.fixed));
   localStorage.setItem('tari_installments_v1', JSON.stringify(DB.installments));
+  localStorage.setItem('tari_income_v1', JSON.stringify(DB.income));
   localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
   updateHeader();
 }
@@ -364,6 +366,7 @@ let state = {
   reportPer: 'חודש', reportDateFrom: '', reportDateTo: '',
   editId: null, editForm: null,
   installOpen: null, fixedAdding: false, fixedForm: null, installAdding: false, installForm: null,
+  incomeForm: {type: 'מכירות אונליין', amount: '', date: null, notes: ''},
 };
 function setState(patch) { Object.assign(state, patch); render(); }
 
@@ -376,6 +379,7 @@ const ICONS = {
   fixed: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
   installments: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
   reports: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+  income: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
   add: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
   settings: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
 };
@@ -383,7 +387,7 @@ const ICONS = {
 const TABS = [
   {id:'scan',label:'סריקה'},{id:'list',label:'שוטף'},{id:'fixed',label:'קבועות'},
   {id:'installments',label:'תשלומים'},{id:'reports',label:'דוחות'},
-  {id:'add',label:'הוספה'},
+  {id:'income',label:'הכנסות'},{id:'add',label:'הוספה'},
 ];
 
 function renderNav() {
@@ -910,6 +914,121 @@ async function delInstall(id, name) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — INCOME
+// ═══════════════════════════════════════════════════════════════════════════
+const INCOME_TYPES = ['מכירות אונליין', 'הזמנות קופה', 'אחר'];
+const INCOME_COLORS = {'מכירות אונליין': '#5b9cf6', 'הזמנות קופה': 'var(--accent)', 'אחר': 'var(--accent2)'};
+const INCOME_BG     = {'מכירות אונליין': 'rgba(91,156,246,0.1)',  'הזמנות קופה': 'rgba(143,198,80,0.1)', 'אחר': 'rgba(212,165,116,0.1)'};
+const INCOME_ICONS  = {'מכירות אונליין': '🛒', 'הזמנות קופה': '🏪', 'אחר': '💵'};
+
+function renderIncome() {
+  const now = new Date();
+  const sun = new Date(now); sun.setDate(sun.getDate() - sun.getDay()); sun.setHours(0,0,0,0);
+  const weekLabel = sun.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'}) + ' — ' + now.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric'});
+
+  const weekEntries  = DB.income.filter(e => { const p = parseD(e.date); return p && p >= sun && p <= now; });
+  const weekOnline   = weekEntries.filter(e => e.type === 'מכירות אונליין').reduce((s,e) => s+(+e.amount||0), 0);
+  const weekKupa     = weekEntries.filter(e => e.type === 'הזמנות קופה').reduce((s,e) => s+(+e.amount||0), 0);
+  const weekOther    = weekEntries.filter(e => e.type === 'אחר').reduce((s,e) => s+(+e.amount||0), 0);
+  const weekTotal    = weekOnline + weekKupa + weekOther;
+
+  const monthTotal   = DB.income.filter(e => isMonth(e.date)).reduce((s,e) => s+(+e.amount||0), 0);
+
+  const f = state.incomeForm;
+  const fDate = f.date || todayStr();
+  const sorted = [...DB.income].sort((a,b) => String(b.id).localeCompare(String(a.id)));
+
+  const typeBtn = (type) => {
+    const sel = f.type === type;
+    const color = INCOME_COLORS[type]; const bg = INCOME_BG[type]; const icon = INCOME_ICONS[type];
+    return `<button onclick="state.incomeForm.type='${type}';render()" style="flex:1;padding:10px 6px;border-radius:10px;border:1px solid ${sel ? color.replace(')',',0.5)').replace('rgb','rgba') : 'var(--border)'};background:${sel ? bg : 'transparent'};color:${sel ? color : 'var(--textDim)'};cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;line-height:1.3;text-align:center">${icon}<br>${type}</button>`;
+  };
+
+  return `
+    <div style="padding:16px 16px 90px" class="fade-up">
+
+      <!-- Weekly summary card -->
+      <div style="padding:20px;margin-bottom:14px;border-radius:18px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
+        <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(143,198,80,0.13),transparent 70%)"></div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;position:relative;margin-bottom:4px">
+          <div>
+            <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:2px">הכנסות השבוע</div>
+            <div style="font-size:10px;color:var(--textMuted)">${weekLabel}</div>
+          </div>
+          <div style="text-align:left">
+            <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:2px">החודש</div>
+            <div class="display" style="font-size:16px;color:var(--textDim)">${fmtCurr(monthTotal)}</div>
+          </div>
+        </div>
+        <div class="display" style="font-size:38px;color:var(--accent);margin:10px 0;position:relative">${fmtCurr(weekTotal)}</div>
+        <div style="display:flex;gap:8px;position:relative">
+          <div style="flex:1;padding:10px;border-radius:10px;background:rgba(91,156,246,0.08);border:1px solid rgba(91,156,246,0.2)">
+            <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:3px">🛒 אונליין</div>
+            <div style="font-size:15px;font-weight:700;color:#5b9cf6">${fmtCurr(weekOnline)}</div>
+          </div>
+          <div style="flex:1;padding:10px;border-radius:10px;background:rgba(143,198,80,0.08);border:1px solid rgba(143,198,80,0.2)">
+            <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:3px">🏪 קופה</div>
+            <div style="font-size:15px;font-weight:700;color:var(--accent)">${fmtCurr(weekKupa)}</div>
+          </div>
+          ${weekOther > 0 ? `<div style="flex:1;padding:10px;border-radius:10px;background:rgba(212,165,116,0.08);border:1px solid rgba(212,165,116,0.2)"><div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:3px">💵 אחר</div><div style="font-size:15px;font-weight:700;color:var(--accent2)">${fmtCurr(weekOther)}</div></div>` : ''}
+        </div>
+      </div>
+
+      <!-- Add form -->
+      <div style="padding:16px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">+ הוספת הכנסה</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          ${INCOME_TYPES.map(typeBtn).join('')}
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:12px">
+          <div style="flex:1"><label class="label">סכום ₪ *</label><input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${f.amount}" oninput="state.incomeForm.amount=this.value"></div>
+          <div style="flex:1"><label class="label">תאריך</label><input class="input" value="${fDate}" oninput="state.incomeForm.date=this.value"></div>
+        </div>
+        <div style="margin-bottom:14px"><label class="label">הערות</label><input class="input" placeholder="אופציונלי" value="${esc(f.notes)}" oninput="state.incomeForm.notes=this.value"></div>
+        <button class="btn-primary" onclick="addIncome()" ${!f.amount ? 'disabled' : ''} style="margin-bottom:0">💾 שמור הכנסה</button>
+      </div>
+
+      <!-- History -->
+      ${sorted.length === 0 ? `<div style="text-align:center;padding:40px 20px;color:var(--textMuted)"><div style="font-size:44px;margin-bottom:10px;opacity:0.4">📈</div><div style="font-size:14px">עדיין אין הכנסות מוזנות</div></div>` : `
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:10px">היסטוריה</div>
+        ${sorted.map(e => {
+          const color = INCOME_COLORS[e.type] || 'var(--accent)';
+          const bg    = INCOME_BG[e.type]    || 'rgba(143,198,80,0.1)';
+          const icon  = INCOME_ICONS[e.type] || '💵';
+          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px" class="fade-up">
+            <div style="width:36px;height:36px;border-radius:9px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${icon}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:700;color:${color};margin-bottom:2px">${esc(e.type)}</div>
+              <div style="font-size:11px;color:var(--textDim)">${esc(e.date)}${e.notes ? ' · ' + esc(e.notes) : ''}</div>
+            </div>
+            <div class="display" style="font-size:16px;color:var(--text);flex-shrink:0;margin-left:8px">${fmtCurr(e.amount)}</div>
+            <button onclick="deleteIncome('${e.id}')" style="width:28px;height:28px;border:none;border-radius:7px;background:rgba(220,98,98,0.1);color:var(--danger);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">✕</button>
+          </div>`;
+        }).join('')}
+      `}
+    </div>`;
+}
+
+function addIncome() {
+  const f = state.incomeForm;
+  if (!f.amount) return;
+  const item = { id: uid(), date: f.date || todayStr(), type: f.type, amount: +f.amount, notes: f.notes || '' };
+  DB.income.unshift(item);
+  persistLocal();
+  state.incomeForm = { type: f.type, amount: '', date: null, notes: '' };
+  render();
+  toast('הכנסה נשמרה ✓', 'success');
+}
+
+function deleteIncome(id) {
+  if (!confirm('למחוק הכנסה זו?')) return;
+  DB.income = DB.income.filter(e => e.id !== id);
+  persistLocal();
+  render();
+  toast('נמחק', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — REPORTS
 // ═══════════════════════════════════════════════════════════════════════════
 function renderReports() {
@@ -923,6 +1042,19 @@ function renderReports() {
   });
   const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
   const totalVat = rows.reduce((s,e)=>s+(+e.vat_amount||0),0);
+
+  // Income rows for same period
+  const incomeRows = DB.income.filter(e=>{
+    if(state.reportPer==='הכל') return true;
+    if(state.reportPer==='היום') return isToday(e.date);
+    if(state.reportPer==='שבוע') return isWeek(e.date);
+    if(state.reportPer==='חודש') return isMonth(e.date);
+    if(state.reportPer==='מותאם'){const p=parseD(e.date);if(!p)return false;const from=state.reportDateFrom?new Date(state.reportDateFrom):null;const to=state.reportDateTo?new Date(state.reportDateTo):null;return(!from||p>=from)&&(!to||p<=to);}
+    return true;
+  });
+  const totalIncome = incomeRows.reduce((s,e)=>s+(+e.amount||0),0);
+  const profit = totalIncome - total;
+
   const byCat = CATS.map(c=>({name:c,v:rows.filter(e=>e.category===c).reduce((s,e)=>s+(+e.total_amount||0),0)})).filter(c=>c.v>0).sort((a,b)=>b.v-a.v);
   const suppMap = {};
   rows.forEach(e=>{const s=e.supplier||"לא ידוע"; suppMap[s]=(suppMap[s]||0)+(+e.total_amount||0);});
@@ -950,10 +1082,40 @@ function renderReports() {
         <div class="display" style="font-size:38px;color:var(--text);margin-bottom:4px;position:relative">${fmtCurr(total)}</div>
         <div style="font-size:12px;color:var(--textDim);position:relative">${rows.length} רשומות · ${fmtCurr(totalVat)} מע"מ</div>
       </div>
-      <div class="row" style="margin-bottom:18px">
+      <div class="row" style="margin-bottom:${totalIncome > 0 ? '12px' : '18px'}">
         <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border)"><div style="font-size:18px;margin-bottom:6px">💰</div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">לפני מע״מ</div><div style="font-size:15px;font-weight:700;color:var(--accent2)">${fmtCurr(total-totalVat)}</div></div>
         <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border)"><div style="font-size:18px;margin-bottom:6px">🧾</div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">מע"מ</div><div style="font-size:15px;font-weight:700;color:var(--amber)">${fmtCurr(totalVat)}</div></div>
       </div>
+      ${totalIncome > 0 ? `
+      <div style="padding:18px;margin-bottom:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+          <div style="width:4px;height:18px;background:var(--accent);border-radius:2px"></div>
+          <h3 class="display" style="font-size:16px;color:var(--text);margin:0">הכנסות מול הוצאות</h3>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:12px">
+          <div style="flex:1;padding:12px;border-radius:12px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2)">
+            <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:4px">הכנסות</div>
+            <div class="display" style="font-size:20px;color:var(--accent)">${fmtCurr(totalIncome)}</div>
+            <div style="font-size:10px;color:var(--textDim);margin-top:2px">${incomeRows.length} רשומות</div>
+          </div>
+          <div style="flex:1;padding:12px;border-radius:12px;background:rgba(220,98,98,0.07);border:1px solid rgba(220,98,98,0.15)">
+            <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:4px">הוצאות</div>
+            <div class="display" style="font-size:20px;color:var(--danger)">${fmtCurr(total)}</div>
+            <div style="font-size:10px;color:var(--textDim);margin-top:2px">${rows.length} רשומות</div>
+          </div>
+        </div>
+        <div style="padding:14px;border-radius:12px;background:${profit>=0?'rgba(143,198,80,0.1)':'rgba(220,98,98,0.08)'};border:1px solid ${profit>=0?'rgba(143,198,80,0.3)':'rgba(220,98,98,0.2)'};display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:13px;font-weight:700;color:${profit>=0?'var(--accent)':'var(--danger)'}">רווח גולמי</div>
+          <div class="display" style="font-size:22px;color:${profit>=0?'var(--accent)':'var(--danger)'}">${profit>=0?'+':''}${fmtCurr(profit)}</div>
+        </div>
+        <div style="margin-top:10px">
+          ${INCOME_TYPES.filter(t=>incomeRows.some(e=>e.type===t)).map(t=>{
+            const v=incomeRows.filter(e=>e.type===t).reduce((s,e)=>s+(+e.amount||0),0);
+            const color=INCOME_COLORS[t]||'var(--accent)';
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;color:var(--textDim)">${INCOME_ICONS[t]} ${t}</span><span style="font-size:13px;font-weight:700;color:${color}">${fmtCurr(v)}</span></div>`;
+          }).join('')}
+        </div>
+      </div>` : ''}
       ${byCat.length>0 ? `
         <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><div style="width:4px;height:18px;background:var(--accent);border-radius:2px"></div><h3 class="display" style="font-size:16px;color:var(--text);margin:0">לפי קטגוריה</h3></div>
@@ -1151,6 +1313,7 @@ function render() {
     case 'fixed': content = renderFixed(); break;
     case 'installments': content = renderInstallments(); break;
     case 'reports': content = renderReports(); break;
+    case 'income': content = renderIncome(); break;
     case 'add': content = renderAdd(); break;
     case 'settings': content = renderSettings(); break;
   }
