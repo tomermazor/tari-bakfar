@@ -119,6 +119,11 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .drag-handle { color:var(--textMuted); font-size:17px; letter-spacing:1px; cursor:grab; padding:4px 10px 4px 2px; flex-shrink:0; touch-action:none; user-select:none; -webkit-user-select:none; line-height:1; }
 .drag-handle:active { cursor:grabbing; color:var(--textDim); }
 .manage-row.dragging { background:var(--surfaceHi); border-color:rgba(143,198,80,0.45); box-shadow:0 10px 32px rgba(0,0,0,0.55); position:relative; z-index:20; }
+.manage-search { position:relative; margin-bottom:10px; }
+.manage-search input { width:100%; padding:10px 42px 10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:12px; color:var(--text); font-size:14px; font-family:inherit; outline:none; }
+.manage-search input:focus { border-color:var(--accent); }
+.manage-search input::placeholder { color:var(--textMuted); }
+.manage-search-icon { position:absolute; left:auto; right:14px; top:50%; transform:translateY(-50%); color:var(--textMuted); font-size:14px; pointer-events:none; }
 .add-form { background:rgba(143,198,80,0.04); border:1px dashed rgba(143,198,80,0.2); border-radius:14px; padding:16px; margin-top:4px; }
 .unit-pills { display:flex; gap:8px; margin-bottom:12px; }
 .unit-pill { flex:1; border:1px solid var(--border); border-radius:10px; padding:10px; font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); text-align:center; }
@@ -584,6 +589,10 @@ function renderManage() {
 
     <div class="section-title">מוצרים (${sup.products.length})</div>
 
+    ${sup.products.length > 4 ? `<div class="manage-search">
+      <input type="search" id="product-search" placeholder="🔍 חיפוש מוצר..." oninput="filterManageProducts(this.value)" autocomplete="off">
+    </div>` : ''}
+
     <div id="product-list">
       ${sup.products.length ? sup.products.map((p, i) => productRow(p, i, sup.products.length)).join('') :
         '<p style="color:var(--textDim);font-size:13px;text-align:center;padding:16px 0">אין מוצרים — הוסף למטה</p>'}
@@ -846,6 +855,14 @@ function startSupplierDrag(card, startX, startY) {
   document.addEventListener('touchend', onTouchEnd);
   document.addEventListener('mousemove', onMouseMove);
   document.addEventListener('mouseup', onMouseUp);
+}
+
+function filterManageProducts(query) {
+  const q = (query || '').trim().toLowerCase();
+  document.querySelectorAll('#product-list .manage-row').forEach(function(row) {
+    const name = (row.querySelector('.manage-row-name') || {}).textContent || '';
+    row.hidden = !!(q && !name.toLowerCase().includes(q));
+  });
 }
 
 function deleteProduct(pid) {
