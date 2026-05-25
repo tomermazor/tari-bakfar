@@ -414,11 +414,13 @@ async function syncSuppliers() {
     } else {
       const cloud = await cloudCallOrders('list_suppliers', {});
       if (cloud && cloud.length > 0) {
+        const prevStr = JSON.stringify(db.suppliers);
         db.suppliers = cloud;
         db._lastSynced = Date.now();
         db._localModified = db._lastSynced; // mark as in sync
         saveDb();
-        if (currentView === 'home') renderHome(); // never interrupt an active order
+        // Only re-render if data actually changed, and without animation to avoid jump
+        if (currentView === 'home' && JSON.stringify(db.suppliers) !== prevStr) renderHome(false);
       } else if (db.suppliers.length > 0) {
         await cloudCallOrders('save_suppliers', { payload: db.suppliers });
         db._lastSynced = Date.now();
@@ -459,16 +461,19 @@ function show(view) {
 // ─── HOME ──────────────────────────────────────────────────────────────────
 const ICONS = ['🍎','🥦','🍋','🧅','🥕','🍇','🥬','🍓','🌽','🧄','🧀','🥚','🐟','🥩','🫙'];
 
-function renderHome() {
+function renderHome(animated) {
+  if (animated === undefined) animated = true;
   show('home');
   const { suppliers } = db;
   document.getElementById('home-sub').textContent =
     suppliers.length ? suppliers.length + ' ספקים' : 'אין ספקים עדיין';
 
   const main = document.getElementById('home-main');
+  const savedScroll = main.scrollTop; // preserve scroll position
+
   if (!suppliers.length) {
     main.innerHTML = `
-      <div class="empty fade-up">
+      <div class="empty${animated ? ' fade-up' : ''}">
         <div class="empty-icon">📦</div>
         <div class="empty-title">אין ספקים עדיין</div>
         <div class="empty-desc">הוסף ספק ראשון כדי<br>להתחיל לרשום הזמנות</div>
@@ -478,7 +483,7 @@ function renderHome() {
 
   const activeCount = (db.activeOrders || []).length;
   const banner = activeCount > 0 ? `
-    <div class="active-orders-banner fade-up" onclick="openActiveOrders()">
+    <div class="active-orders-banner${animated ? ' fade-up' : ''}" onclick="openActiveOrders()">
       <div class="ao-banner-icon">🚚</div>
       <div class="ao-banner-text">
         <div class="ao-banner-title">${activeCount} הזמנ${activeCount === 1 ? 'ה' : 'ות'} בתהליך</div>
@@ -488,7 +493,7 @@ function renderHome() {
     </div>` : '';
 
   main.innerHTML = banner + suppliers.map((s, i) => `
-    <div class="supplier-card fade-up" id="sc-${s.id}" style="animation-delay:${i*.05}s">
+    <div class="supplier-card${animated ? ' fade-up' : ''}" id="sc-${s.id}"${animated ? ` style="animation-delay:${i*.05}s"` : ''}>
       <div class="supplier-drag" title="גרור לשינוי סדר">⠿</div>
       <div class="supplier-body" onclick="openOrder('${s.id}')">
         <div class="supplier-icon">${ICONS[i % ICONS.length]}</div>
@@ -501,6 +506,7 @@ function renderHome() {
     </div>
   `).join('');
   initSupplierDrag();
+  main.scrollTop = savedScroll; // restore scroll position
 }
 
 function goHome() { renderHome(); }
