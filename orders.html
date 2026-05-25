@@ -453,12 +453,15 @@ function renderOrderProducts(sup) {
 
   main.innerHTML = `
     <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">${activeProducts.length} מוצרים פעילים</div>
+    ${activeProducts.length > 4 ? `<div class="manage-search" style="margin-bottom:12px">
+      <input type="search" id="order-search" placeholder="🔍 חיפוש מוצר..." oninput="filterOrderProducts(this.value)" autocomplete="off">
+    </div>` : ''}
     ${activeProducts.map((p, i) => {
       const st = orderState[p.id] || { qty: '0', unit: p.defaultUnit };
       const isCarton = st.unit === 'קרטון';
       const qty = parseInt(st.qty) || 0;
       return `
-        <div class="product-row fade-up" style="animation-delay:${i*.04}s">
+        <div class="product-row fade-up" id="pr-${p.id}" style="animation-delay:${i*.04}s">
           <div class="product-row-name">${esc(p.name)}</div>
           <div class="product-row-controls">
             <button class="unit-toggle ${isCarton ? 'is-carton' : 'is-units'}"
@@ -861,6 +864,14 @@ function filterManageProducts(query) {
   const q = (query || '').trim().toLowerCase();
   document.querySelectorAll('#product-list .manage-row').forEach(function(row) {
     const name = (row.querySelector('.manage-row-name') || {}).textContent || '';
+    row.hidden = !!(q && !name.toLowerCase().includes(q));
+  });
+}
+
+function filterOrderProducts(query) {
+  const q = (query || '').trim().toLowerCase();
+  document.querySelectorAll('#order-main .product-row').forEach(function(row) {
+    const name = (row.querySelector('.product-row-name') || {}).textContent || '';
     row.hidden = !!(q && !name.toLowerCase().includes(q));
   });
 }
