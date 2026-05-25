@@ -153,6 +153,34 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .btn-copy:active { transform:scale(0.98); }
 .btn-close-modal { width:100%; border:1px solid var(--border); border-radius:14px; padding:13px; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); }
 
+/* Active orders button on home */
+.active-orders-banner { background:linear-gradient(135deg,rgba(244,185,66,0.1),rgba(244,185,66,0.05)); border:1px solid rgba(244,185,66,0.3); border-radius:14px; padding:14px 16px; display:flex; align-items:center; gap:12px; margin-bottom:14px; cursor:pointer; }
+.active-orders-banner:active { background:rgba(244,185,66,0.14); }
+.ao-banner-icon { font-size:22px; flex-shrink:0; }
+.ao-banner-text { flex:1; min-width:0; }
+.ao-banner-title { font-size:14px; font-weight:700; color:var(--amber); }
+.ao-banner-sub { font-size:12px; color:var(--textDim); margin-top:1px; }
+.ao-banner-arrow { color:var(--textMuted); font-size:16px; }
+
+/* Active order cards */
+.ao-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; margin-bottom:12px; overflow:hidden; }
+.ao-card-header { padding:14px 16px 10px; display:flex; align-items:flex-start; gap:10px; }
+.ao-card-icon { font-size:20px; flex-shrink:0; margin-top:1px; }
+.ao-card-info { flex:1; min-width:0; }
+.ao-card-supplier { font-size:15px; font-weight:700; margin-bottom:2px; }
+.ao-card-date { font-size:11px; color:var(--textDim); }
+.ao-card-del { width:28px; height:28px; border:none; background:rgba(220,98,98,0.1); border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--danger); flex-shrink:0; }
+.ao-card-del:active { background:rgba(220,98,98,0.2); }
+.ao-items { padding:0 16px 10px; font-size:12px; color:var(--textDim); line-height:1.7; }
+.ao-img-wrap { margin:0 16px 12px; border-radius:10px; overflow:hidden; border:1px solid var(--border); max-height:180px; }
+.ao-img-wrap img { width:100%; max-height:180px; object-fit:contain; background:#000; display:block; }
+.ao-actions { padding:10px 16px 14px; border-top:1px solid var(--border); display:flex; gap:8px; }
+.ao-photo-btn { flex:1; border:1px solid var(--border); border-radius:11px; padding:10px 8px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; background:var(--surfaceHi); color:var(--textDim); text-align:center; position:relative; overflow:hidden; }
+.ao-photo-btn:active { background:var(--border); }
+.ao-photo-btn input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+.ao-expense-btn { flex:1; border:none; border-radius:11px; padding:10px 8px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; background:linear-gradient(135deg,var(--accent),#6fa83a); color:#0a1505; }
+.ao-expense-btn:active { transform:scale(0.98); }
+
 /* Empty state */
 .empty { text-align:center; padding:60px 20px; }
 .empty-icon { font-size:52px; margin-bottom:16px; }
@@ -284,6 +312,18 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
     <div class="main" id="history-main"></div>
   </div>
 
+  <!-- ═══ VIEW: ACTIVE ORDERS ═══ -->
+  <div id="view-active" hidden>
+    <header class="header">
+      <button class="icon-btn" onclick="goHome()">←</button>
+      <div class="header-title">
+        <h1 class="display" style="font-size:17px">הזמנות בתהליך</h1>
+        <div class="sub" id="active-sub"></div>
+      </div>
+    </header>
+    <div class="main" id="active-main"></div>
+  </div>
+
 </div>
 
 <!-- ═══ MODAL: Add Supplier ═══ -->
@@ -324,6 +364,7 @@ let db = { suppliers: [] };
 function loadDb() {
   try { const s = localStorage.getItem(STORE_KEY); if (s) db = JSON.parse(s); } catch {}
   if (!db.history) db.history = [];
+  if (!db.activeOrders) db.activeOrders = [];
   if (!db._localModified) db._localModified = 0;
   // First time with new sync code: treat as synced so we PULL, not push
   if (!db._lastSynced) db._lastSynced = db._localModified || Date.now();
@@ -410,7 +451,7 @@ let newProductUnit = 'קרטון'; // selected default unit in add-product form
 var currentView = 'home';
 function show(view) {
   currentView = view;
-  ['home','order','manage','history'].forEach(v =>
+  ['home','order','manage','history','active'].forEach(v =>
     document.getElementById('view-' + v).hidden = (v !== view)
   );
 }
@@ -435,7 +476,18 @@ function renderHome() {
     return;
   }
 
-  main.innerHTML = suppliers.map((s, i) => `
+  const activeCount = (db.activeOrders || []).length;
+  const banner = activeCount > 0 ? `
+    <div class="active-orders-banner fade-up" onclick="openActiveOrders()">
+      <div class="ao-banner-icon">🚚</div>
+      <div class="ao-banner-text">
+        <div class="ao-banner-title">${activeCount} הזמנ${activeCount === 1 ? 'ה' : 'ות'} בתהליך</div>
+        <div class="ao-banner-sub">לחץ לסימון קבלה ותיעוד</div>
+      </div>
+      <div class="ao-banner-arrow">←</div>
+    </div>` : '';
+
+  main.innerHTML = banner + suppliers.map((s, i) => `
     <div class="supplier-card fade-up" id="sc-${s.id}" style="animation-delay:${i*.05}s">
       <div class="supplier-drag" title="גרור לשינוי סדר">⠿</div>
       <div class="supplier-body" onclick="openOrder('${s.id}')">
@@ -668,6 +720,11 @@ function exportOrder() {
   db.history.unshift({ id: uid(), supplierId: sup.id, supplierName: sup.name,
     dateStr, timestamp: Date.now(), items: orderedItems, text });
   if (db.history.length > 200) db.history = db.history.slice(0, 200);
+
+  // Add to active orders (in-progress tracking)
+  if (!db.activeOrders) db.activeOrders = [];
+  db.activeOrders.unshift({ id: uid(), supplierId: sup.id, supplierName: sup.name,
+    dateOrdered: dateStr, timestamp: Date.now(), items: orderedItems, deliveryNoteImage: null });
   saveDb();
   clearDraft(); // order saved to history — draft no longer needed
 
@@ -1194,6 +1251,102 @@ function toggleTheme() {
   localStorage.setItem('app-theme', next);
   var btn = document.getElementById('theme-btn');
   if (btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
+}
+
+// ─── Active Orders (הזמנות בתהליך) ────────────────────────────────────────
+function openActiveOrders() {
+  show('active');
+  renderActiveOrders();
+}
+
+function renderActiveOrders() {
+  const orders = db.activeOrders || [];
+  const sub = document.getElementById('active-sub');
+  const main = document.getElementById('active-main');
+  if (sub) sub.textContent = orders.length ? orders.length + ' הזמנות ממתינות' : '';
+
+  if (!orders.length) {
+    main.innerHTML = `
+      <div class="empty fade-up">
+        <div class="empty-icon">🚚</div>
+        <div class="empty-title">אין הזמנות בתהליך</div>
+        <div class="empty-desc">לאחר ייצוא הזמנה לווטסאפ<br>היא תופיע כאן עד לקבלתה</div>
+      </div>`;
+    return;
+  }
+
+  main.innerHTML = orders.map((o, i) => {
+    const itemsSummary = o.items.map(it => `${it.name}: ${it.qty} ${it.unit}`).join(' · ');
+    return `
+    <div class="ao-card fade-up" style="animation-delay:${i*.05}s">
+      <div class="ao-card-header">
+        <div class="ao-card-icon">🚚</div>
+        <div class="ao-card-info">
+          <div class="ao-card-supplier">${esc(o.supplierName)}</div>
+          <div class="ao-card-date">הוזמן ${esc(o.dateOrdered)}</div>
+        </div>
+        <button class="ao-card-del" onclick="deleteActiveOrder('${o.id}')">✕</button>
+      </div>
+      <div class="ao-items">${esc(itemsSummary)}</div>
+      ${o.deliveryNoteImage ? `<div class="ao-img-wrap"><img src="${o.deliveryNoteImage}" alt="תעודת משלוח"></div>` : ''}
+      <div class="ao-actions">
+        <label class="ao-photo-btn">
+          ${o.deliveryNoteImage ? '📷 החלף תמונה' : '📷 תעודת משלוח'}
+          <input type="file" accept="image/*" capture="environment" onchange="uploadDeliveryNote(event,'${o.id}')">
+        </label>
+        <button class="ao-expense-btn" onclick="addOrderToExpenses('${o.id}')">➕ הוסף להוצאות</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function deleteActiveOrder(id) {
+  if (!confirm('למחוק הזמנה זו מהרשימה?')) return;
+  db.activeOrders = (db.activeOrders || []).filter(o => o.id !== id);
+  saveDb();
+  renderActiveOrders();
+}
+
+function uploadDeliveryNote(event, orderId) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const order = (db.activeOrders || []).find(o => o.id === orderId);
+    if (!order) return;
+    // Compress image if large
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) { const r = Math.min(MAX/w, MAX/h); w = Math.round(w*r); h = Math.round(h*r); }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      order.deliveryNoteImage = canvas.toDataURL('image/jpeg', 0.75);
+      saveDb();
+      renderActiveOrders();
+      toast('תמונה נשמרה ✓', 'success');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function addOrderToExpenses(orderId) {
+  const order = (db.activeOrders || []).find(o => o.id === orderId);
+  if (!order) return;
+  const pending = {
+    supplier: order.supplierName,
+    date: new Date().toISOString().split('T')[0],
+    image: order.deliveryNoteImage || null,
+    notes: order.items.map(it => `${it.name}: ${it.qty} ${it.unit}`).join(', ')
+  };
+  localStorage.setItem('pending-expense', JSON.stringify(pending));
+  // Remove from active orders after passing to expenses
+  db.activeOrders = (db.activeOrders || []).filter(o => o.id !== orderId);
+  saveDb();
+  window.location.href = 'tari-bakfar.html';
 }
 
 // ─── Auth ──────────────────────────────────────────────────────────────────

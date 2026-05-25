@@ -499,7 +499,12 @@ async function runScan() {
 }
 
 function manualForm() {
-  setState({scanStage:'confirm', scanForm:{id:uid(),image:state.scanImg,date:todayStr(),supplier:'',total_amount:0,vat_amount:0,amount_before_vat:0,category:'אחר',document_type:'חשבונית מס',document_number:'',notes:''}});
+  setState({scanStage:'confirm', scanForm:{id:uid(),image:state.scanImg,date:todayStr(),
+    supplier: addForm.supplier || '',   // use pre-filled supplier if came from orders
+    total_amount:0,vat_amount:0,amount_before_vat:0,category:'אחר',
+    document_type:'חשבונית מס',document_number:'',
+    notes: addForm.notes || ''          // use pre-filled notes if came from orders
+  }});
 }
 
 async function saveScanResult() {
@@ -1184,6 +1189,32 @@ async function sha256(msg) {
 
 function initApp() {
   document.getElementById('app').hidden = false;
+
+  // Check for pending expense passed from orders app
+  const pendingRaw = localStorage.getItem('pending-expense');
+  if (pendingRaw) {
+    localStorage.removeItem('pending-expense');
+    try {
+      const p = JSON.parse(pendingRaw);
+      // Pre-fill the add form
+      addForm.supplier = p.supplier || '';
+      addForm.notes = p.notes || '';
+      addForm.date = p.date || todayStr();
+      if (p.image) {
+        // Open scan tab with delivery note image loaded → user can run AI or enter manually
+        const b64 = p.image.split(',')[1] || p.image;
+        const mime = p.image.startsWith('data:') ? p.image.split(';')[0].split(':')[1] : 'image/jpeg';
+        state.tab = 'scan';
+        state.scanImg = p.image;
+        state.scanB64 = b64;
+        state.scanMime = mime;
+        state.scanStage = 'preview';
+      } else {
+        state.tab = 'add';
+      }
+    } catch(e) {}
+  }
+
   render();
   setSyncStatus(CFG.webAppUrl ? 'syncing' : 'local');
   if (CFG.webAppUrl) syncAll();
