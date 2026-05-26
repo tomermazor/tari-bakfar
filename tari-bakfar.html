@@ -162,6 +162,7 @@ const DB = {
   installments: JSON.parse(localStorage.getItem('tari_installments_v1')||'[]'),
   income: JSON.parse(localStorage.getItem('tari_income_v1')||'[]'),
   credits: JSON.parse(localStorage.getItem('tari_credits_v1')||'[]'),
+  workers: JSON.parse(localStorage.getItem('tari_workers_v1')||'[]'),
 };
 
 const PENDING = JSON.parse(localStorage.getItem('tari_pending_v1')||'[]'); // pending sync operations
@@ -172,6 +173,7 @@ function persistLocal() {
   localStorage.setItem('tari_installments_v1', JSON.stringify(DB.installments));
   localStorage.setItem('tari_income_v1', JSON.stringify(DB.income));
   localStorage.setItem('tari_credits_v1', JSON.stringify(DB.credits));
+  localStorage.setItem('tari_workers_v1', JSON.stringify(DB.workers));
   localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
   updateHeader();
 }
@@ -234,11 +236,12 @@ async function syncAll() {
     }
 
     // 2. Pull fresh data — only replace local if cloud has more records or local is empty
-    const [exp, fix, ins, cred] = await Promise.all([
+    const [exp, fix, ins, cred, wrk] = await Promise.all([
       cloudCall('list_expenses', {}),
       cloudCall('list_fixed', {}),
       cloudCall('list_installments', {}),
       cloudCall('list_credits', {}),
+      cloudCall('list_workers', {}),
     ]);
     if ((exp||[]).length > 0 || DB.expenses.length === 0) DB.expenses = exp || [];
     if ((fix||[]).length > 0 || DB.fixed.length === 0) DB.fixed = fix || [];
@@ -249,6 +252,7 @@ async function syncAll() {
       DB.credits.forEach(c => { if (c.image) localImgMap[c.id] = c.image; });
       DB.credits = (cred || []).map(c => localImgMap[c.id] ? {...c, image: localImgMap[c.id]} : c);
     }
+    if ((wrk||[]).length > 0 || DB.workers.length === 0) DB.workers = wrk || [];
     persistLocal();
     setSyncStatus('ok');
     render();
@@ -378,6 +382,7 @@ let state = {
   installOpen: null, fixedAdding: false, fixedForm: null, installAdding: false, installForm: null,
   incomeForm: {type: 'מכירות אונליין', amount: '', date: null, notes: ''},
   creditForm: {supplier: '', amount: '', reason: '', image: null},
+  workerAdding: false, workerForm: null,
 };
 function setState(patch) { Object.assign(state, patch); render(); }
 
@@ -399,7 +404,8 @@ const ICONS = {
 const TABS = [
   {id:'scan',label:'סריקה'},{id:'list',label:'שוטף'},{id:'fixed',label:'קבועות'},
   {id:'installments',label:'תשלומים'},{id:'reports',label:'דוחות'},
-  {id:'income',label:'הכנסות'},{id:'credits',label:'זיכויים'},{id:'add',label:'הוספה'},
+  {id:'income',label:'הכנסות'},{id:'credits',label:'זיכויים'},
+  {id:'workers',label:'עובדים'},{id:'add',label:'הוספה'},
 ];
 
 function renderNav() {
@@ -927,6 +933,147 @@ async function delInstall(id, name) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — CREDITS (זיכויים)
+// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — WORKERS
+// ═══════════════════════════════════════════════════════════════════════════
+const SALARY_TYPES = ['חודשי','שעתי','יומי'];
+const WORKER_ROLES = ['מוכר/ת','קופאי/ת','מחסנאי/ת','נהג/ת','מנהל/ת','אחר'];
+
+function renderWorkers() {
+  const workers = DB.workers || [];
+  const active  = workers.filter(w => w.active !== false);
+  const totalMonthly = active
+    .filter(w => (w.salary_type||'חודשי') === 'חודשי')
+    .reduce((s,w) => s+(+w.salary||0), 0);
+  const wf = state.workerForm;
+  const adding = state.workerAdding;
+
+  const formHtml = (adding || wf) ? `
+    <div style="padding:16px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
+      <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">${wf && wf.id ? '✏️ עריכת עובד' : '+ עובד חדש'}</div>
+      <div class="row">
+        <div class="field" style="flex:2">
+          <label class="label">שם *</label>
+          <input class="input" id="wf-name" placeholder="שם מלא" value="${esc(wf?wf.name:'')}" oninput="state.workerForm=state.workerForm||{}; state.workerForm.name=this.value">
+        </div>
+        <div class="field" style="flex:1">
+          <label class="label">תפקיד</label>
+          <select class="input" id="wf-role" onchange="state.workerForm=state.workerForm||{}; state.workerForm.role=this.value">
+            ${WORKER_ROLES.map(r=>`<option value="${r}" ${(wf&&wf.role===r)?'selected':''}>${r}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:2">
+          <label class="label">שכר ₪</label>
+          <input class="input" id="wf-salary" type="number" inputmode="decimal" placeholder="0" value="${wf?wf.salary||'':''}" oninput="state.workerForm=state.workerForm||{}; state.workerForm.salary=this.value">
+        </div>
+        <div class="field" style="flex:1">
+          <label class="label">סוג</label>
+          <select class="input" id="wf-stype" onchange="state.workerForm=state.workerForm||{}; state.workerForm.salary_type=this.value">
+            ${SALARY_TYPES.map(t=>`<option value="${t}" ${(wf&&wf.salary_type===t)||(!wf&&t==='חודשי')?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label class="label">הערות</label>
+        <input class="input" id="wf-notes" placeholder="ימי עבודה, פרטים נוספים..." value="${esc(wf?wf.notes:'')}" oninput="state.workerForm=state.workerForm||{}; state.workerForm.notes=this.value">
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn-primary" onclick="saveWorker()" style="flex:1;margin-bottom:0">💾 שמור</button>
+        <button onclick="setState({workerAdding:false,workerForm:null})" style="flex:0 0 auto;padding:13px 18px;border:1px solid var(--border);border-radius:12px;background:transparent;color:var(--textDim);font-size:14px;font-family:inherit;cursor:pointer">ביטול</button>
+      </div>
+    </div>` : `
+    <button class="btn-primary" onclick="setState({workerAdding:true,workerForm:{name:'',role:'מוכר/ת',salary:'',salary_type:'חודשי',notes:''}})" style="margin-bottom:16px">+ הוסף עובד</button>`;
+
+  const summaryHtml = active.length > 0 ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div style="padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);text-align:center">
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">עובדים פעילים</div>
+        <div class="display" style="font-size:28px;color:var(--accent)">${active.length}</div>
+      </div>
+      <div style="padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);text-align:center">
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">שכר חודשי כולל</div>
+        <div class="display" style="font-size:22px;color:var(--text)">${fmtCurr(totalMonthly)}</div>
+      </div>
+    </div>` : '';
+
+  const listHtml = workers.length === 0
+    ? `<div style="text-align:center;padding:44px 20px;color:var(--textMuted)"><div style="font-size:44px;margin-bottom:10px;opacity:0.4">👷</div><div style="font-size:14px">אין עובדים ברשימה</div><div style="font-size:12px;margin-top:6px">לחץ "+ הוסף עובד" כדי להתחיל</div></div>`
+    : workers.map(w => {
+        const isActive = w.active !== false;
+        const salaryLabel = `${fmtCurr(+w.salary||0)} / ${w.salary_type||'חודשי'}`;
+        return `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:10px;overflow:hidden;opacity:${isActive?1:0.55}" class="fade-up">
+          <div style="padding:14px 16px;display:flex;align-items:center;gap:12px">
+            <div style="width:42px;height:42px;border-radius:50%;background:rgba(143,198,80,0.15);border:1.5px solid rgba(143,198,80,0.35);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">👤</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:15px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(w.name)}</div>
+              <div style="font-size:12px;color:var(--textDim);margin-top:2px">${esc(w.role||'')}${w.notes?` · ${esc(w.notes)}`:''}${!isActive?' · <span style="color:var(--danger)">לא פעיל</span>':''}</div>
+            </div>
+            <div style="text-align:left;flex-shrink:0">
+              <div class="display" style="font-size:18px;color:var(--accent)">${salaryLabel}</div>
+            </div>
+          </div>
+          <div style="display:flex;border-top:1px solid var(--border)">
+            <button onclick="editWorker('${w.id}')" style="flex:1;padding:11px;border:none;background:transparent;color:var(--textDim);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer">✏️ עריכה</button>
+            <button onclick="toggleWorkerActive('${w.id}')" style="flex:1;padding:11px;border:none;border-right:1px solid var(--border);background:transparent;color:var(--textDim);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer">${isActive?'⏸ השהה':'▶️ הפעל'}</button>
+            <button onclick="deleteWorker('${w.id}','${esc(w.name)}')" style="flex:1;padding:11px;border:none;border-right:1px solid var(--border);background:transparent;color:var(--danger);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer">🗑 מחק</button>
+          </div>
+        </div>`;
+      }).join('');
+
+  return `<div style="padding:16px 16px 90px" class="fade-up">${summaryHtml}${formHtml}${listHtml}</div>`;
+}
+
+async function saveWorker() {
+  const wf = state.workerForm;
+  if (!wf || !wf.name) { toast('נא להזין שם עובד', 'error'); return; }
+  const item = {
+    ...wf,
+    salary: +wf.salary || 0,
+    salary_type: wf.salary_type || 'חודשי',
+    active: wf.active !== false,
+  };
+  if (item.id) {
+    await queueAndSync('update_worker', {payload: item}, () => {
+      DB.workers = DB.workers.map(w => w.id === item.id ? item : w);
+    });
+    toast('עודכן ✓', 'success');
+  } else {
+    item.id = uid();
+    await queueAndSync('add_worker', {payload: item}, () => DB.workers.unshift(item));
+    toast('עובד נוסף ✓', 'success');
+  }
+  setState({workerAdding: false, workerForm: null});
+}
+
+function editWorker(id) {
+  const w = DB.workers.find(x => x.id === id);
+  if (!w) return;
+  setState({workerAdding: false, workerForm: {...w}});
+}
+
+async function toggleWorkerActive(id) {
+  const w = DB.workers.find(x => x.id === id);
+  if (!w) return;
+  const updated = {...w, active: w.active === false};
+  await queueAndSync('update_worker', {payload: updated}, () => {
+    DB.workers = DB.workers.map(x => x.id === id ? updated : x);
+  });
+}
+
+async function deleteWorker(id, name) {
+  if (!confirm(`למחוק את ${name}?`)) return;
+  await queueAndSync('delete_worker', {id}, () => {
+    DB.workers = DB.workers.filter(x => x.id !== id);
+  });
+  toast('נמחק', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — CREDITS
 // ═══════════════════════════════════════════════════════════════════════════
 function renderCredits() {
   const pending = DB.credits || [];
@@ -1530,6 +1677,7 @@ function render() {
     case 'reports': content = renderReports(); break;
     case 'income': content = renderIncome(); break;
     case 'credits': content = renderCredits(); break;
+    case 'workers': content = renderWorkers(); break;
     case 'add': content = renderAdd(); break;
     case 'settings': content = renderSettings(); break;
   }
