@@ -172,7 +172,7 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
       </div>
     </div>
     <div style="text-align:left;flex-shrink:0">
-      <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase">החודש</div>
+      <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase">השבוע</div>
       <div class="display" id="month-total" style="font-size:16px;color:var(--accent);line-height:1.1">₪0.00</div>
     </div>
   </header>
@@ -457,9 +457,9 @@ function renderNav() {
 }
 
 function updateHeader() {
-  const mt = DB.expenses.filter(e=>isMonth(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
+  const wt = DB.expenses.filter(e=>isWeek(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
   const el = document.getElementById('month-total');
-  if (el) el.textContent = fmtCurr(mt);
+  if (el) el.textContent = fmtCurr(wt);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
