@@ -593,8 +593,28 @@ function renderList() {
   }).sort((a,b)=>String(b.id).localeCompare(String(a.id)));
   const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
 
+  const monthTotal = DB.expenses.filter(e=>isMonth(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
+  const weekTotal  = DB.expenses.filter(e=>isWeek(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
+  const monthCount = DB.expenses.filter(e=>isMonth(e.date)).length;
+  const weekCount  = DB.expenses.filter(e=>isWeek(e.date)).length;
+
   return `
     <div style="padding:16px 16px 90px" class="fade-up">
+
+      <!-- Summary strip -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;box-shadow:var(--shadow)">
+          <div style="font-size:10px;color:var(--textDim);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px">החודש</div>
+          <div class="display" style="font-size:22px;color:var(--accent);line-height:1">${fmtCurr(monthTotal)}</div>
+          <div style="font-size:11px;color:var(--textMuted);margin-top:4px">${monthCount} רשומות</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;box-shadow:var(--shadow)">
+          <div style="font-size:10px;color:var(--textDim);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px">השבוע</div>
+          <div class="display" style="font-size:22px;color:var(--text);line-height:1">${fmtCurr(weekTotal)}</div>
+          <div style="font-size:11px;color:var(--textMuted);margin-top:4px">${weekCount} רשומות</div>
+        </div>
+      </div>
+
       <div style="position:relative;margin-bottom:14px">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--textDim)" stroke-width="2" style="position:absolute;right:14px;top:50%;transform:translateY(-50%)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <input class="input" style="padding-right:40px" placeholder="חיפוש ספק, מספר מסמך..." value="${esc(state.listSearch)}" oninput="state.listSearch=this.value;render()">
