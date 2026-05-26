@@ -26,7 +26,7 @@
   --text:#1a2a14; --textDim:#4a6040; --textMuted:#7a9470;
   --accent:#4a8818; --accent2:#9a5e20; --amber:#a87008; --danger:#b83030;
 }
-[data-theme="light"] .app-switcher { background:rgba(240,246,238,0.97); }
+[data-theme="light"] .app-switcher { background:rgba(240,246,238,0.97); padding-top:calc(6px + env(safe-area-inset-top,0px)); }
 [data-theme="light"] .header { background:rgba(240,246,238,0.95); }
 [data-theme="light"] .nav { background:rgba(240,246,238,0.97); }
 [data-theme="light"] .toast { box-shadow:0 4px 20px rgba(0,0,0,0.15); }
@@ -39,10 +39,10 @@ html, body { margin:0; padding:0; min-height:100%; background:var(--bg); color:v
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 .display { font-family:'Frank Ruhl Libre',serif; font-weight:700; letter-spacing:-0.02em; }
 .app { max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; position:relative; }
-.app-switcher { display:flex; gap:6px; padding:6px 10px; background:rgba(10,14,10,0.97); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:20; }
+.app-switcher { display:flex; gap:6px; padding:6px 10px; padding-top:calc(6px + env(safe-area-inset-top,0px)); background:rgba(10,14,10,0.97); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:20; }
 .sw-btn { flex:1; text-align:center; padding:9px 8px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; color:var(--textDim); border:1px solid transparent; display:block; }
 .sw-btn.active { background:rgba(212,165,116,0.1); color:var(--accent2); border-color:rgba(212,165,116,0.3); }
-.header { padding:14px 20px 12px; position:sticky; top:44px; z-index:10; background:rgba(10,14,10,0.95); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.header { padding:14px 20px 12px; position:sticky; top:calc(44px + env(safe-area-inset-top,0px)); z-index:10; background:rgba(10,14,10,0.95); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px; }
 .logo { width:46px; height:46px; border-radius:12px; background:#fff; overflow:hidden; padding:3px; box-shadow:0 4px 16px -4px rgba(143,198,80,0.4), 0 0 0 1px var(--border); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:26px; }
 .sync-badge { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:100px; font-size:10px; font-weight:600; }
 .sync-badge.ok { background:rgba(143,198,80,0.1); color:var(--accent); border:1px solid rgba(143,198,80,0.3); }
