@@ -234,14 +234,21 @@ async function syncAll() {
     }
 
     // 2. Pull fresh data — only replace local if cloud has more records or local is empty
-    const [exp, fix, ins] = await Promise.all([
+    const [exp, fix, ins, cred] = await Promise.all([
       cloudCall('list_expenses', {}),
       cloudCall('list_fixed', {}),
       cloudCall('list_installments', {}),
+      cloudCall('list_credits', {}),
     ]);
     if ((exp||[]).length > 0 || DB.expenses.length === 0) DB.expenses = exp || [];
     if ((fix||[]).length > 0 || DB.fixed.length === 0) DB.fixed = fix || [];
     if ((ins||[]).length > 0 || DB.installments.length === 0) DB.installments = ins || [];
+    // Credits: merge cloud (authoritative) with local images (stored locally only)
+    if ((cred||[]).length > 0 || DB.credits.length === 0) {
+      const localImgMap = {};
+      DB.credits.forEach(c => { if (c.image) localImgMap[c.id] = c.image; });
+      DB.credits = (cred || []).map(c => localImgMap[c.id] ? {...c, image: localImgMap[c.id]} : c);
+    }
     persistLocal();
     setSyncStatus('ok');
     render();
@@ -1019,7 +1026,7 @@ function handleCreditImage(file) {
   rd.readAsDataURL(file);
 }
 
-function addCredit() {
+async function addCredit() {
   const cf = state.creditForm;
   if (!cf.supplier || !cf.amount || !cf.reason) return;
   const dateEl = document.getElementById('credit-date-inp');
@@ -1028,28 +1035,24 @@ function addCredit() {
     supplier: cf.supplier.trim(), amount: +cf.amount,
     reason: cf.reason.trim(), image: cf.image || null
   };
-  DB.credits.unshift(item);
-  persistLocal();
+  // Send to cloud without image (too large; stored locally only)
+  const itemForCloud = {...item, image: null};
+  await queueAndSync('add_credit', {payload: itemForCloud}, () => DB.credits.unshift(item));
   state.creditForm = {supplier: '', amount: '', reason: '', image: null};
-  render();
   toast('בקשת זיכוי נשמרה ✓', 'success');
 }
 
-function receiveCredit(id) {
+async function receiveCredit(id) {
   const c = DB.credits.find(x => x.id === id);
   if (!c) return;
   if (!confirm(`לסמן שקיבלת זיכוי מ-${c.supplier} בסך ${fmtCurr(c.amount)}?\n\nהבקשה תימחק מהרשימה.`)) return;
-  DB.credits = DB.credits.filter(x => x.id !== id);
-  persistLocal();
-  render();
+  await queueAndSync('delete_credit', {id}, () => { DB.credits = DB.credits.filter(x => x.id !== id); });
   toast('זיכוי התקבל ✓ 🎉', 'success');
 }
 
-function deleteCreditRequest(id) {
+async function deleteCreditRequest(id) {
   if (!confirm('למחוק בקשת זיכוי זו?')) return;
-  DB.credits = DB.credits.filter(x => x.id !== id);
-  persistLocal();
-  render();
+  await queueAndSync('delete_credit', {id}, () => { DB.credits = DB.credits.filter(x => x.id !== id); });
   toast('נמחק', 'success');
 }
 
