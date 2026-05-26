@@ -113,6 +113,10 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .product-row-both { display:flex; flex-direction:column; gap:8px; }
 .both-unit-row { display:flex; align-items:center; justify-content:space-between; }
 .both-unit-label { font-size:13px; font-weight:700; color:var(--textDim); flex-shrink:0; }
+.product-row-note { display:block; width:100%; border:none; border-top:1px solid var(--border); background:transparent; color:var(--text); font-size:12px; font-family:inherit; padding:9px 2px 2px; margin-top:10px; outline:none; box-sizing:border-box; }
+.product-row-note::placeholder { color:var(--textMuted); font-style:italic; }
+.product-row-note:focus { border-top-color:var(--borderHi); }
+.product-row-note:not(:placeholder-shown) { color:var(--accent2); font-weight:600; }
 .del-btn { width:30px; height:30px; border:none; border-radius:8px; background:rgba(220,98,98,0.1); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--danger); flex-shrink:0; }
 .del-btn:active { background:rgba(220,98,98,0.2); }
 .active-toggle { width:30px; height:30px; border:none; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex-shrink:0; }
@@ -610,6 +614,7 @@ function renderOrderProducts(sup, hasDraft) {
                 </div>
               </div>
             </div>
+            <input class="product-row-note" id="note-${p.id}" type="text" placeholder="✏️ הערה למוצר..." value="${esc(st.notes||'')}" oninput="setProductNote('${p.id}',this.value)" autocomplete="off">
           </div>`;
       }
       const isCarton = st.unit === 'קרטון';
@@ -628,6 +633,7 @@ function renderOrderProducts(sup, hasDraft) {
               <button class="step-btn" onclick="stepQty('${p.id}', 1)">+</button>
             </div>
           </div>
+          <input class="product-row-note" id="note-${p.id}" type="text" placeholder="✏️ הערה למוצר..." value="${esc(st.notes||'')}" oninput="setProductNote('${p.id}',this.value)" autocomplete="off">
         </div>`;
     }).join('')}
   `;
@@ -660,6 +666,10 @@ function stepQty(pid, delta) {
   saveDraft();
 }
 
+function setProductNote(pid, value) {
+  if (orderState[pid]) { orderState[pid].notes = value; saveDraft(); }
+}
+
 function stepQtyBoth(pid, type, delta) {
   const st = orderState[pid];
   if (!st) return;
@@ -680,13 +690,13 @@ function clearOrder() {
   if (!sup) return;
   sup.products.forEach(p => {
     if (p.defaultUnit === 'both') {
-      orderState[p.id] = { unit: 'both', carton: '0', units: '0' };
+      orderState[p.id] = { unit: 'both', carton: '0', units: '0', notes: '' };
       ['qc-','qu-'].forEach(pre => {
         const el = document.getElementById(pre + p.id);
         if (el) { el.textContent = '0'; el.className = 'step-val zero'; }
       });
     } else {
-      orderState[p.id] = { qty: '0', unit: p.defaultUnit };
+      orderState[p.id] = { qty: '0', unit: p.defaultUnit, notes: '' };
       const el = document.getElementById('qd-' + p.id);
       if (el) { el.textContent = '0'; el.className = 'step-val zero'; }
       const btn = document.getElementById('ut-' + p.id);
@@ -696,6 +706,8 @@ function clearOrder() {
         btn.className = 'unit-toggle ' + (isCarton ? 'is-carton' : 'is-units');
       }
     }
+    const noteEl = document.getElementById('note-' + p.id);
+    if (noteEl) noteEl.value = '';
   });
   clearDraft();
   toast('ההזמנה נוקתה');
@@ -711,18 +723,18 @@ function exportOrder() {
     if (st.unit === 'both') {
       const qc = parseInt(st.carton) || 0;
       const qu = parseInt(st.units) || 0;
-      if (qc > 0) orderedItems.push({ name: p.name, qty: String(qc), unit: 'קרטון' });
-      if (qu > 0) orderedItems.push({ name: p.name, qty: String(qu), unit: 'יחידות' });
+      if (qc > 0) orderedItems.push({ name: p.name, qty: String(qc), unit: 'קרטון', notes: st.notes || '' });
+      if (qu > 0) orderedItems.push({ name: p.name, qty: String(qu), unit: 'יחידות', notes: st.notes || '' });
     } else {
       const qty = parseInt(st.qty) || 0;
-      if (qty > 0) orderedItems.push({ name: p.name, qty: st.qty, unit: st.unit });
+      if (qty > 0) orderedItems.push({ name: p.name, qty: st.qty, unit: st.unit, notes: st.notes || '' });
     }
   });
 
   if (!orderedItems.length) { toast('אין פריטים בהזמנה', 'error'); return; }
 
   const dateStr = fmtDate(new Date());
-  const lines = orderedItems.map(it => `${it.name}: ${it.qty} ${it.unit}`);
+  const lines = orderedItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
   const text = `📋 הזמנה - ${sup.name}\n📅 ${dateStr}\n\n${lines.join('\n')}\n\nתודה!`;
 
   // Save to history
