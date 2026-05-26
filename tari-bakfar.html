@@ -50,8 +50,9 @@ html, body { margin:0; padding:0; min-height:100%; background:var(--bg); color:v
 .sync-badge.offline { background:rgba(220,98,98,0.1); color:var(--danger); border:1px solid rgba(220,98,98,0.3); }
 .sync-badge.local { background:rgba(122,138,130,0.1); color:var(--textDim); border:1px solid var(--border); }
 .main { flex:1; overflow-y:auto; padding-bottom:72px; }
-.nav { position:fixed; bottom:0; right:0; left:0; max-width:480px; margin:0 auto; background:rgba(17,22,26,0.95); backdrop-filter:blur(20px); border-top:1px solid var(--border); display:flex; z-index:20; padding-bottom:env(safe-area-inset-bottom,0px); }
-.nav button { flex:1; padding:10px 2px 8px; border:none; background:transparent; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; font-family:inherit; position:relative; color:var(--textDim); }
+.nav { position:fixed; bottom:0; right:0; left:0; max-width:480px; margin:0 auto; background:rgba(17,22,26,0.95); backdrop-filter:blur(20px); border-top:1px solid var(--border); display:flex; z-index:20; padding-bottom:env(safe-area-inset-bottom,0px); overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.nav::-webkit-scrollbar { display:none; }
+.nav button { flex:0 0 64px; padding:10px 2px 8px; border:none; background:transparent; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; font-family:inherit; position:relative; color:var(--textDim); }
 .nav button.active { color:var(--accent); }
 .nav button.active::before { content:''; position:absolute; top:0; left:30%; right:30%; height:2px; background:var(--accent); border-radius:0 0 2px 2px; }
 .nav button span { font-size:9px; font-weight:600; }
@@ -160,6 +161,7 @@ const DB = {
   fixed: JSON.parse(localStorage.getItem('tari_fixed_v1')||'[]'),
   installments: JSON.parse(localStorage.getItem('tari_installments_v1')||'[]'),
   income: JSON.parse(localStorage.getItem('tari_income_v1')||'[]'),
+  credits: JSON.parse(localStorage.getItem('tari_credits_v1')||'[]'),
 };
 
 const PENDING = JSON.parse(localStorage.getItem('tari_pending_v1')||'[]'); // pending sync operations
@@ -169,6 +171,7 @@ function persistLocal() {
   localStorage.setItem('tari_fixed_v1', JSON.stringify(DB.fixed));
   localStorage.setItem('tari_installments_v1', JSON.stringify(DB.installments));
   localStorage.setItem('tari_income_v1', JSON.stringify(DB.income));
+  localStorage.setItem('tari_credits_v1', JSON.stringify(DB.credits));
   localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
   updateHeader();
 }
@@ -367,6 +370,7 @@ let state = {
   editId: null, editForm: null,
   installOpen: null, fixedAdding: false, fixedForm: null, installAdding: false, installForm: null,
   incomeForm: {type: 'מכירות אונליין', amount: '', date: null, notes: ''},
+  creditForm: {supplier: '', amount: '', reason: '', image: null},
 };
 function setState(patch) { Object.assign(state, patch); render(); }
 
@@ -380,6 +384,7 @@ const ICONS = {
   installments: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
   reports: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
   income: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
+  credits: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
   add: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
   settings: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
 };
@@ -387,7 +392,7 @@ const ICONS = {
 const TABS = [
   {id:'scan',label:'סריקה'},{id:'list',label:'שוטף'},{id:'fixed',label:'קבועות'},
   {id:'installments',label:'תשלומים'},{id:'reports',label:'דוחות'},
-  {id:'income',label:'הכנסות'},{id:'add',label:'הוספה'},
+  {id:'income',label:'הכנסות'},{id:'credits',label:'זיכויים'},{id:'add',label:'הוספה'},
 ];
 
 function renderNav() {
@@ -914,6 +919,141 @@ async function delInstall(id, name) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — CREDITS (זיכויים)
+// ═══════════════════════════════════════════════════════════════════════════
+function renderCredits() {
+  const pending = DB.credits || [];
+  const totalPending = pending.reduce((s,c) => s+(+c.amount||0), 0);
+  const cf = state.creditForm;
+
+  return `
+    <div style="padding:16px 16px 90px" class="fade-up">
+
+      <!-- Summary banner -->
+      ${pending.length > 0 ? `
+      <div style="padding:14px 18px;margin-bottom:14px;border-radius:14px;background:linear-gradient(135deg,rgba(244,185,66,0.1),rgba(244,185,66,0.04));border:1px solid rgba(244,185,66,0.35);display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--amber)">זיכויים ממתינים</div>
+          <div style="font-size:11px;color:var(--textDim);margin-top:2px">${pending.length} בקשות פתוחות</div>
+        </div>
+        <div class="display" style="font-size:26px;color:var(--amber)">${fmtCurr(totalPending)}</div>
+      </div>` : ''}
+
+      <!-- Add credit form -->
+      <div style="padding:16px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">+ בקשת זיכוי חדשה</div>
+        <div class="field">
+          <label class="label">ספק *</label>
+          <input class="input" placeholder="שם הספק" value="${esc(cf.supplier)}" oninput="state.creditForm.supplier=this.value">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label class="label">סכום ₪ *</label>
+            <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${cf.amount}" oninput="state.creditForm.amount=this.value">
+          </div>
+          <div class="field">
+            <label class="label">תאריך</label>
+            <input class="input" value="${todayStr()}" oninput="state.creditForm.date=this.value" id="credit-date-inp">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">סיבת הזיכוי *</label>
+          <input class="input" placeholder="למשל: חיסרון בסחורה, סחורה פגומה..." value="${esc(cf.reason)}" oninput="state.creditForm.reason=this.value">
+        </div>
+        <input type="file" accept="image/*" id="credit-img-input" onchange="handleCreditImage(this.files[0])" style="display:none">
+        ${cf.image ? `
+          <div style="position:relative;margin-bottom:12px;border-radius:10px;overflow:hidden;border:1px solid var(--border)">
+            <img src="${cf.image}" style="width:100%;max-height:150px;object-fit:contain;background:#000;display:block">
+            <button onclick="state.creditForm.image=null;render()" style="position:absolute;top:6px;left:6px;width:26px;height:26px;border:none;border-radius:50%;background:rgba(0,0,0,0.65);color:#fff;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>
+          </div>
+        ` : `
+          <button onclick="document.getElementById('credit-img-input').click()" style="width:100%;padding:11px;border:1px dashed var(--borderHi);border-radius:10px;background:transparent;color:var(--textDim);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;margin-bottom:12px">📎 צרף צילום מסך (אופציונלי)</button>
+        `}
+        <button class="btn-primary" onclick="addCredit()" ${!cf.supplier||!cf.amount||!cf.reason?'disabled':''} style="margin-bottom:0">💾 שמור בקשת זיכוי</button>
+      </div>
+
+      <!-- Pending list -->
+      ${pending.length === 0
+        ? `<div style="text-align:center;padding:44px 20px;color:var(--textMuted)"><div style="font-size:44px;margin-bottom:10px;opacity:0.4">🧾</div><div style="font-size:14px">אין זיכויים ממתינים</div><div style="font-size:12px;margin-top:6px">כשתבקש זיכוי מספק — זה יופיע כאן</div></div>`
+        : pending.map(c => `
+          <div style="background:var(--surface);border:1px solid rgba(244,185,66,0.28);border-radius:16px;margin-bottom:12px;overflow:hidden" class="fade-up">
+            <div style="padding:14px 16px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:15px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px">${esc(c.supplier)}</div>
+                  <div style="font-size:11px;color:var(--textDim)">📅 ${esc(c.date)}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-right:10px">
+                  <div class="display" style="font-size:22px;color:var(--amber)">${fmtCurr(c.amount)}</div>
+                  <button onclick="deleteCreditRequest('${c.id}')" style="width:28px;height:28px;border:none;border-radius:7px;background:rgba(220,98,98,0.1);color:var(--danger);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center">✕</button>
+                </div>
+              </div>
+              <div style="font-size:13px;color:var(--text);padding:9px 12px;background:var(--surfaceHi);border-radius:9px;border-right:3px solid var(--amber);margin-bottom:${c.image?'10px':'0'}">📝 ${esc(c.reason)}</div>
+              ${c.image ? `<div style="margin-top:10px;border-radius:9px;overflow:hidden;border:1px solid var(--border)"><img src="${c.image}" style="width:100%;max-height:180px;object-fit:contain;background:#000;display:block"></div>` : ''}
+            </div>
+            <div style="padding:10px 16px 14px;border-top:1px solid rgba(244,185,66,0.2)">
+              <button onclick="receiveCredit('${c.id}')" style="width:100%;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--accent),#6fa83a);color:#0a1505;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">✅ קיבלתי את הזיכוי</button>
+            </div>
+          </div>
+        `).join('')
+      }
+    </div>`;
+}
+
+function handleCreditImage(file) {
+  if (!file) return;
+  const MAX = 900;
+  const rd = new FileReader();
+  rd.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = img.width > MAX ? MAX / img.width : 1;
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      state.creditForm.image = canvas.toDataURL('image/jpeg', 0.72);
+      render();
+    };
+    img.src = e.target.result;
+  };
+  rd.readAsDataURL(file);
+}
+
+function addCredit() {
+  const cf = state.creditForm;
+  if (!cf.supplier || !cf.amount || !cf.reason) return;
+  const dateEl = document.getElementById('credit-date-inp');
+  const item = {
+    id: uid(), date: (dateEl && dateEl.value) || todayStr(),
+    supplier: cf.supplier.trim(), amount: +cf.amount,
+    reason: cf.reason.trim(), image: cf.image || null
+  };
+  DB.credits.unshift(item);
+  persistLocal();
+  state.creditForm = {supplier: '', amount: '', reason: '', image: null};
+  render();
+  toast('בקשת זיכוי נשמרה ✓', 'success');
+}
+
+function receiveCredit(id) {
+  const c = DB.credits.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm(`לסמן שקיבלת זיכוי מ-${c.supplier} בסך ${fmtCurr(c.amount)}?\n\nהבקשה תימחק מהרשימה.`)) return;
+  DB.credits = DB.credits.filter(x => x.id !== id);
+  persistLocal();
+  render();
+  toast('זיכוי התקבל ✓ 🎉', 'success');
+}
+
+function deleteCreditRequest(id) {
+  if (!confirm('למחוק בקשת זיכוי זו?')) return;
+  DB.credits = DB.credits.filter(x => x.id !== id);
+  persistLocal();
+  render();
+  toast('נמחק', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — INCOME
 // ═══════════════════════════════════════════════════════════════════════════
 const INCOME_TYPES = ['מכירות אונליין', 'הזמנות קופה', 'אחר'];
@@ -1386,6 +1526,7 @@ function render() {
     case 'installments': content = renderInstallments(); break;
     case 'reports': content = renderReports(); break;
     case 'income': content = renderIncome(); break;
+    case 'credits': content = renderCredits(); break;
     case 'add': content = renderAdd(); break;
     case 'settings': content = renderSettings(); break;
   }
