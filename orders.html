@@ -464,6 +464,32 @@ function setSyncDot(status) {
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
+// ─── Active Orders Cloud Sync ──────────────────────────────────────────────
+async function pushActiveOrders() {
+  try {
+    const payload = (db.activeOrders || []).map(o => ({
+      id: o.id, supplierId: o.supplierId, supplierName: o.supplierName,
+      dateOrdered: o.dateOrdered, timestamp: o.timestamp, items: o.items
+      // deliveryNoteImage intentionally omitted — stays local only
+    }));
+    await cloudCallOrders('save_active_orders', { payload });
+  } catch(e) { console.log('Push active orders failed:', e.message); }
+}
+
+async function syncActiveOrders() {
+  try {
+    const cloud = await cloudCallOrders('list_active_orders', {});
+    if (!cloud) return;
+    // Preserve local delivery-note images (they're not synced to cloud)
+    const localImgMap = {};
+    (db.activeOrders || []).forEach(o => { if (o.deliveryNoteImage) localImgMap[o.id] = o.deliveryNoteImage; });
+    db.activeOrders = cloud.map(o => ({ ...o, deliveryNoteImage: localImgMap[o.id] || null }));
+    saveDb();
+    if (currentView === 'home')   renderHome(false);
+    if (currentView === 'active') renderActiveOrders();
+  } catch(e) { console.log('Sync active orders failed:', e.message); }
+}
+
 // ─── App State ─────────────────────────────────────────────────────────────
 let currentSupplierId = null;
 let manageFrom = 'home';       // 'home' | 'order'
@@ -863,6 +889,7 @@ function confirmOrderSent() {
     dateOrdered: dateStr, timestamp: Date.now(), items: orderedItems, deliveryNoteImage: null });
 
   saveDb();
+  pushActiveOrders();
   clearDraft();
   closeModal('modal-export');
   goHome();
@@ -1399,6 +1426,7 @@ function deleteActiveOrder(id) {
   if (!confirm('למחוק הזמנה זו מהרשימה?')) return;
   db.activeOrders = (db.activeOrders || []).filter(o => o.id !== id);
   saveDb();
+  pushActiveOrders();
   renderActiveOrders();
 }
 
@@ -1441,6 +1469,7 @@ function addOrderToExpenses(orderId) {
   // Remove from active orders after passing to expenses
   db.activeOrders = (db.activeOrders || []).filter(o => o.id !== orderId);
   saveDb();
+  pushActiveOrders();
   window.location.href = 'tari-bakfar.html';
 }
 
@@ -1459,7 +1488,10 @@ function initApp() {
   migrateOldDraft();
   renderHome();
   syncSuppliers();
-  document.addEventListener('visibilitychange', function(){ if (!document.hidden) syncSuppliers(); });
+  syncActiveOrders();
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden) { syncSuppliers(); syncActiveOrders(); }
+  });
   document.getElementById('app').hidden = false;
 }
 

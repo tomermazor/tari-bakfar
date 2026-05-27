@@ -1,0 +1,348 @@
+﻿function doPost(e) {
+  try {
+    ensureSheetsExist();
+    var data = JSON.parse(e.postData.contents);
+    var action = data.action;
+    var result;
+    if (action === 'list_expenses')      { result = listRows('expenses'); }
+    else if (action === 'add_expense')   { result = addExpense(data.payload); }
+    else if (action === 'update_expense'){ result = updateRow('expenses', data.payload); }
+    else if (action === 'delete_expense'){ result = deleteRow('expenses', data.id); }
+    else if (action === 'list_fixed')    { result = listRows('fixed'); }
+    else if (action === 'add_fixed')     { result = addRow('fixed', data.payload); }
+    else if (action === 'update_fixed')  { result = updateRow('fixed', data.payload); }
+    else if (action === 'delete_fixed')  { result = deleteRow('fixed', data.id); }
+    else if (action === 'list_installments')   { result = listRows('installments'); }
+    else if (action === 'add_installment')     { result = addRow('installments', data.payload); }
+    else if (action === 'update_installment')  { result = updateRow('installments', data.payload); }
+    else if (action === 'delete_installment')  { result = deleteRow('installments', data.id); }
+    else if (action === 'list_credits')    { result = listRows('credits'); }
+    else if (action === 'add_credit')     { result = addRow('credits', data.payload); }
+    else if (action === 'delete_credit')  { result = deleteRow('credits', data.id); }
+    else if (action === 'list_workers')   { result = listRows('workers'); }
+    else if (action === 'add_worker')     { result = addRow('workers', data.payload); }
+    else if (action === 'update_worker')  { result = updateRow('workers', data.payload); }
+    else if (action === 'delete_worker')  { result = deleteRow('workers', data.id); }
+    else if (action === 'list_suppliers') { result = listSuppliers(); }
+    else if (action === 'save_suppliers')      { result = saveSuppliers(data.payload); }
+    else if (action === 'list_active_orders')  { result = listActiveOrders(); }
+    else if (action === 'save_active_orders')  { result = saveActiveOrders(data.payload); }
+    else if (action === 'upload_image')        { result = uploadImage(data.base64, data.mime, data.filename); }
+    else if (action === 'ping')                { result = { ok: true, time: new Date().toISOString() }; }
+    else { throw new Error('Unknown action: ' + action); }
+    return jsonResponse({ ok: true, data: result });
+  } catch (err) {
+    return jsonResponse({ ok: false, error: err.message });
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput('API active').setMimeType(ContentService.MimeType.TEXT);
+}
+
+function jsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+var SHEET_EXPENSES     = 'הוצאות';
+var SHEET_FIXED        = 'הוצאות קבועות';
+var SHEET_INSTALLMENTS = 'תשלומים';
+var SHEET_SUPPLIERS    = 'ספקים';
+var SHEET_CREDITS      = 'זיכויים';
+var SHEET_WORKERS      = 'עובדים';
+var DRIVE_FOLDER       = 'טרי בכפר - חשבוניות';
+
+var HEADERS_EXPENSES     = ['id','date','supplier','total_amount','vat_amount','amount_before_vat','category','document_type','document_number','notes','image','created_at'];
+var HEADERS_FIXED        = ['id','name','amount','category','frequency','day','supplier','notes','active','created_at'];
+var HEADERS_INSTALLMENTS = ['id','name','total','installments','paid','first_date','supplier','notes','created_at'];
+var HEADERS_SUPPLIERS    = ['supplier_id','supplier_name','product_id','product_name','default_unit'];
+var HEADERS_CREDITS      = ['id','date','supplier','amount','reason','created_at'];
+var HEADERS_WORKERS      = ['id','name','role','salary','salary_type','notes','active','created_at'];
+
+var COL_EXPENSES = {
+  id:0, date:1, supplier:2, total_amount:3, vat_amount:4, amount_before_vat:5,
+  category:6, document_type:7, document_number:8, notes:9, image:10
+};
+var COL_FIXED    = { id:0, name:1, amount:2, category:3, frequency:4, day:5, supplier:6, notes:7, active:8 };
+var COL_INST     = { id:0, name:1, total:2, installments:3, paid:4, first_date:5, supplier:6, notes:7 };
+var COL_CREDITS  = { id:0, date:1, supplier:2, amount:3, reason:4 };
+var COL_WORKERS  = { id:0, name:1, role:2, salary:3, salary_type:4, notes:5, active:6 };
+
+function ensureSheetsExist() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheets = [
+    { name: SHEET_EXPENSES,     headers: HEADERS_EXPENSES },
+    { name: SHEET_FIXED,        headers: HEADERS_FIXED },
+    { name: SHEET_INSTALLMENTS, headers: HEADERS_INSTALLMENTS },
+    { name: SHEET_CREDITS,      headers: HEADERS_CREDITS },
+    { name: SHEET_WORKERS,      headers: HEADERS_WORKERS }
+  ];
+  for (var i = 0; i < sheets.length; i++) {
+    var s = ss.getSheetByName(sheets[i].name);
+    if (!s) {
+      s = ss.insertSheet(sheets[i].name);
+      s.appendRow(sheets[i].headers);
+      var r = s.getRange(1, 1, 1, sheets[i].headers.length);
+      r.setFontWeight('bold');
+      r.setBackground('#8fc650');
+      r.setFontColor('#0a1505');
+      s.setFrozenRows(1);
+    }
+  }
+}
+
+function getSheetByKey(key) {
+  ensureSheetsExist();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (key === 'expenses')     return ss.getSheetByName(SHEET_EXPENSES);
+  if (key === 'fixed')        return ss.getSheetByName(SHEET_FIXED);
+  if (key === 'installments') return ss.getSheetByName(SHEET_INSTALLMENTS);
+  if (key === 'credits')      return ss.getSheetByName(SHEET_CREDITS);
+  if (key === 'workers')      return ss.getSheetByName(SHEET_WORKERS);
+  return null;
+}
+
+function rowToExpense(row) {
+  return {
+    id: row[0], date: row[1], supplier: row[2],
+    total_amount: +row[3] || 0, vat_amount: +row[4] || 0, amount_before_vat: +row[5] || 0,
+    category: row[6], document_type: row[7], document_number: row[8],
+    notes: row[9], image: row[10]
+  };
+}
+function rowToFixed(row) {
+  return {
+    id: row[0], name: row[1], amount: +row[2] || 0, category: row[3],
+    frequency: row[4], day: row[5], supplier: row[6], notes: row[7],
+    active: row[8] === true || row[8] === 'TRUE' || row[8] === 'yes' || row[8] === 'כן'
+  };
+}
+function rowToInstallment(row) {
+  return {
+    id: row[0], name: row[1], total: +row[2] || 0,
+    installments: +row[3] || 0, paid: +row[4] || 0,
+    first_date: row[5], supplier: row[6], notes: row[7]
+  };
+}
+function expenseToRow(o) {
+  return [o.id, o.date, o.supplier, o.total_amount, o.vat_amount, o.amount_before_vat,
+          o.category, o.document_type, o.document_number, o.notes, o.image, new Date()];
+}
+function fixedToRow(o) {
+  return [o.id, o.name, o.amount, o.category, o.frequency, o.day,
+          o.supplier, o.notes, (o.active === true || o.active === 'true') ? 'yes' : 'no', new Date()];
+}
+function installmentToRow(o) {
+  return [o.id, o.name, o.total, o.installments, o.paid, o.first_date, o.supplier, o.notes, new Date()];
+}
+function rowToCredit(row) {
+  return { id: row[0], date: row[1], supplier: row[2], amount: +row[3]||0, reason: row[4] };
+}
+function creditToRow(o) {
+  return [o.id, o.date, o.supplier, o.amount, o.reason, new Date()];
+}
+function rowToWorker(row) {
+  return {
+    id: row[0], name: row[1], role: row[2], salary: +row[3]||0,
+    salary_type: row[4]||'חודשי', notes: row[5],
+    active: row[6] === true || row[6] === 'TRUE' || row[6] === 'yes' || row[6] === 'כן'
+  };
+}
+function workerToRow(o) {
+  return [o.id, o.name, o.role||'', o.salary||0, o.salary_type||'חודשי',
+          o.notes||'', (o.active !== false) ? 'yes' : 'no', new Date()];
+}
+
+function listRows(key) {
+  var sheet = getSheetByKey(key);
+  var last = sheet.getLastRow();
+  if (last < 2) return [];
+  var data = sheet.getRange(2, 1, last - 1, sheet.getLastColumn()).getValues();
+  var results = [];
+  for (var i = 0; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    if (key === 'expenses')     results.push(rowToExpense(data[i]));
+    if (key === 'fixed')        results.push(rowToFixed(data[i]));
+    if (key === 'installments') results.push(rowToInstallment(data[i]));
+    if (key === 'credits')      results.push(rowToCredit(data[i]));
+    if (key === 'workers')      results.push(rowToWorker(data[i]));
+  }
+  return results;
+}
+
+function addRow(key, payload) {
+  var sheet = getSheetByKey(key);
+  var row;
+  if (key === 'expenses')     row = expenseToRow(payload);
+  if (key === 'fixed')        row = fixedToRow(payload);
+  if (key === 'installments') row = installmentToRow(payload);
+  if (key === 'credits')      row = creditToRow(payload);
+  if (key === 'workers')      row = workerToRow(payload);
+  sheet.appendRow(row);
+  return payload;
+}
+
+function addExpense(payload) {
+  if (payload.image && payload.image.indexOf('data:') === 0) {
+    var parts = payload.image.split(',');
+    var mime = parts[0].split(':')[1].split(';')[0];
+    var base64 = parts[1];
+    var ext = mime.split('/')[1];
+    payload.image = uploadImage(base64, mime, 'invoice_' + payload.id + '_' + Date.now() + '.' + ext);
+  }
+  return addRow('expenses', payload);
+}
+
+function findRowById(key, id) {
+  var sheet = getSheetByKey(key);
+  var last = sheet.getLastRow();
+  if (last < 2) return -1;
+  var data = sheet.getRange(2, 1, last - 1, 1).getValues();
+  for (var i = 0; i < data.length; i++) {
+    if (data[i][0] === id) return i + 2;
+  }
+  return -1;
+}
+
+function updateRow(key, payload) {
+  var rowIdx = findRowById(key, payload.id);
+  if (rowIdx < 0) throw new Error('Row not found: ' + payload.id);
+  var sheet = getSheetByKey(key);
+  var row;
+  if (key === 'expenses')     row = expenseToRow(payload);
+  if (key === 'fixed')        row = fixedToRow(payload);
+  if (key === 'installments') row = installmentToRow(payload);
+  if (key === 'workers')      row = workerToRow(payload);
+  sheet.getRange(rowIdx, 1, 1, row.length).setValues([row]);
+  return payload;
+}
+
+function deleteRow(key, id) {
+  var rowIdx = findRowById(key, id);
+  if (rowIdx < 0) throw new Error('Row not found: ' + id);
+  getSheetByKey(key).deleteRow(rowIdx);
+  return { id: id, deleted: true };
+}
+
+function getOrCreateFolder() {
+  var folders = DriveApp.getFoldersByName(DRIVE_FOLDER);
+  if (folders.hasNext()) return folders.next();
+  return DriveApp.createFolder(DRIVE_FOLDER);
+}
+
+function uploadImage(base64, mime, filename) {
+  var folder = getOrCreateFolder();
+  var decoded = Utilities.base64Decode(base64);
+  var blob = Utilities.newBlob(decoded, mime, filename || 'invoice_' + Date.now() + '.jpg');
+  var file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return file.getUrl();
+}
+
+function listSuppliers() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_SUPPLIERS);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
+  var suppMap = {};
+  var suppOrder = [];
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var suppId = row[0]; var suppName = row[1];
+    var prodId = row[2]; var prodName = row[3]; var unit = row[4];
+    if (!suppId) continue;
+    if (!suppMap[suppId]) { suppMap[suppId] = { id: suppId, name: suppName, products: [] }; suppOrder.push(suppId); }
+    if (prodId) suppMap[suppId].products.push({ id: String(prodId), name: String(prodName), defaultUnit: String(unit) });
+  }
+  var result = [];
+  for (var j = 0; j < suppOrder.length; j++) result.push(suppMap[suppOrder[j]]);
+  return result;
+}
+
+function saveSuppliers(suppliers) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_SUPPLIERS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_SUPPLIERS);
+    var hdr = sheet.getRange(1, 1, 1, 5);
+    hdr.setValues([HEADERS_SUPPLIERS]);
+    hdr.setFontWeight('bold');
+    hdr.setBackground('#5b9cf6');
+    hdr.setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+  }
+  var lastDataRow = sheet.getLastRow();
+  if (lastDataRow > 1) {
+    sheet.getRange(2, 1, lastDataRow - 1, 5).clearContent();
+  }
+  var rows = [];
+  if (!suppliers) suppliers = [];
+  for (var i = 0; i < suppliers.length; i++) {
+    var sup = suppliers[i];
+    if (!sup.products || sup.products.length === 0) {
+      rows.push([sup.id, sup.name, '', '', '']);
+    } else {
+      for (var j = 0; j < sup.products.length; j++) {
+        var p = sup.products[j];
+        rows.push([sup.id, sup.name, p.id, p.name, p.defaultUnit]);
+      }
+    }
+  }
+  if (rows.length > 0) sheet.getRange(2, 1, rows.length, 5).setValues(rows);
+  return { ok: true, rows: rows.length };
+}
+
+var SHEET_ACTIVE_ORDERS  = 'הזמנות פעילות';
+var HEADERS_ACTIVE_ORDERS = ['id','supplier_id','supplier_name','date_ordered','timestamp','items_json','created_at'];
+
+function listActiveOrders() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_ACTIVE_ORDERS);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
+  var results = [];
+  for (var i = 0; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    try {
+      results.push({
+        id: String(data[i][0]),
+        supplierId: String(data[i][1]),
+        supplierName: String(data[i][2]),
+        dateOrdered: String(data[i][3]),
+        timestamp: Number(data[i][4]) || 0,
+        items: JSON.parse(data[i][5] || '[]'),
+        deliveryNoteImage: null
+      });
+    } catch(e) {}
+  }
+  return results;
+}
+
+function saveActiveOrders(orders) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_ACTIVE_ORDERS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_ACTIVE_ORDERS);
+    var hdr = sheet.getRange(1, 1, 1, HEADERS_ACTIVE_ORDERS.length);
+    hdr.setValues([HEADERS_ACTIVE_ORDERS]);
+    hdr.setFontWeight('bold');
+    hdr.setBackground('#d4956a');
+    hdr.setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+  }
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, HEADERS_ACTIVE_ORDERS.length).clearContent();
+  if (!orders || !orders.length) return { ok: true, rows: 0 };
+  var rows = orders.map(function(o) {
+    return [o.id, o.supplierId, o.supplierName, o.dateOrdered, o.timestamp,
+            JSON.stringify(o.items || []), new Date()];
+  });
+  sheet.getRange(2, 1, rows.length, HEADERS_ACTIVE_ORDERS.length).setValues(rows);
+  return { ok: true, rows: rows.length };
+}
+
+function setup() {
+  ensureSheetsExist();
+  getOrCreateFolder();
+  Logger.log('Setup complete');
+}
