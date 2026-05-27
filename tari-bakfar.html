@@ -327,8 +327,11 @@ async function queueAndSync(action, payload, optimisticLocal) {
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const CATS = ["ירקות","פירות","עשבי תיבול","פטריות","תוצרת יבשה","אריזות","ציוד","הובלה","שיווק","שירותים","אחר"];
-const CAT_COLORS = {"ירקות":"#84cc16","פירות":"#f97316","עשבי תיבול":"#10b981","פטריות":"#a78bfa","תוצרת יבשה":"#eab308","אריזות":"#06b6d4","ציוד":"#64748b","הובלה":"#3b82f6","שיווק":"#ec4899","שירותים":"#8b5cf6","אחר":"#94a3b8"};
+const CATS_DEFAULT = ["פירות וירקות","מוצרי חלב","פיצוחים","סחורה יבשה","הוצאות שוטפות","הוצאות משרד","אחר"];
+let CATS = (()=>{ try { const s=localStorage.getItem('tari_cats_v1'); return s?JSON.parse(s):CATS_DEFAULT.slice(); } catch(e){ return CATS_DEFAULT.slice(); } })();
+const CAT_PALETTE = ["#84cc16","#f97316","#10b981","#eab308","#06b6d4","#3b82f6","#ec4899","#8b5cf6","#a78bfa","#64748b","#94a3b8"];
+function getCatColor(cat) { const i=CATS.indexOf(cat); return i>=0 ? CAT_PALETTE[i%CAT_PALETTE.length] : '#94a3b8'; }
+function saveCategories() { localStorage.setItem('tari_cats_v1', JSON.stringify(CATS)); }
 const DTYPES = ["חשבונית מס","חשבונית מס קבלה","תעודת משלוח","קבלה"];
 const FIXED_CATS = ["שכירות","חשמל","מים","ארנונה","אינטרנט","טלפון","ביטוח","הנהלת חשבונות","רישיונות","משכורות","שיווק","אבטחה","תחזוקה","אחר"];
 const FIXED_FREQ = ["חודשי","דו-חודשי","רבעוני","חצי שנתי","שנתי"];
@@ -691,7 +694,7 @@ function renderList() {
       </div>
       ${rows.length===0 ? `<div style="text-align:center;padding:60px 20px;color:var(--textMuted)"><div style="font-size:48px;margin-bottom:10px;opacity:0.5">📭</div><div style="font-size:14px">אין תוצאות</div></div>` : ''}
       ${rows.map((e,i)=>{
-        const c = CAT_COLORS[e.category]||'var(--accent)';
+        const c = getCatColor(e.category)||'var(--accent)';
         const isOpen = state.listOpen===e.id;
         return `
           <div style="margin-bottom:8px" class="fade-up">
@@ -1433,7 +1436,7 @@ function renderIncome() {
   };
 
   const expenseRow = e => {
-    const c = CAT_COLORS[e.category]||'var(--accent)';
+    const c = getCatColor(e.category)||'var(--accent)';
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:7px">
       <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
@@ -1669,6 +1672,56 @@ function renderReports() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// CATEGORY MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+function addCat() {
+  const inp = document.getElementById('new-cat-inp');
+  const name = (inp?.value || '').trim();
+  if (!name) { inp?.focus(); return; }
+  if (CATS.includes(name)) { toast('קטגוריה כבר קיימת', 'error'); return; }
+  const otherIdx = CATS.indexOf('אחר');
+  if (otherIdx >= 0) CATS.splice(otherIdx, 0, name);
+  else CATS.push(name);
+  saveCategories();
+  render();
+  toast('קטגוריה נוספה ✓', 'success');
+  setTimeout(()=>{ const el=document.getElementById('new-cat-inp'); if(el) el.focus(); }, 50);
+}
+
+function deleteCat(idx) {
+  const name = CATS[idx];
+  if (!name || name === 'אחר') return;
+  const inUse = DB.expenses.filter(e => e.category === name).length;
+  if (inUse > 0 && !confirm(`הקטגוריה "${name}" בשימוש ב-${inUse} הוצאות.\nלמחוק בכל זאת?`)) return;
+  CATS.splice(idx, 1);
+  saveCategories();
+  render();
+  toast('נמחקה');
+}
+
+function renameCat(idx) {
+  const name = CATS[idx];
+  const newName = prompt('שם חדש לקטגוריה:', name);
+  if (!newName || !newName.trim() || newName.trim() === name) return;
+  const n = newName.trim();
+  if (CATS.includes(n)) { toast('שם כבר קיים', 'error'); return; }
+  DB.expenses.forEach(e => { if (e.category === name) e.category = n; });
+  persistLocal();
+  CATS[idx] = n;
+  saveCategories();
+  render();
+  toast('עודכן ✓', 'success');
+}
+
+function resetCats() {
+  if (!confirm('לאפס את הקטגוריות לברירת המחדל?')) return;
+  CATS = CATS_DEFAULT.slice();
+  saveCategories();
+  render();
+  toast('קטגוריות אופסו ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — SETTINGS
 // ═══════════════════════════════════════════════════════════════════════════
 function renderSettings() {
@@ -1722,6 +1775,31 @@ function renderSettings() {
       </div>
 
       <button onclick="syncAll()" class="btn-secondary">🔄 סנכרן עכשיו</button>
+
+      <!-- ── Category Manager ── -->
+      <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,rgba(126,203,66,0.13),rgba(212,149,106,0.13));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏷️</div>
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:700;color:var(--text)">קטגוריות הוצאות</div>
+            <div style="font-size:11px;color:var(--textDim)">${CATS.length} קטגוריות</div>
+          </div>
+          <button onclick="resetCats()" style="background:transparent;border:none;font-size:11px;color:var(--textMuted);cursor:pointer;font-family:inherit;padding:4px 6px;border-radius:6px">איפוס</button>
+        </div>
+        <div style="margin-bottom:12px">
+          ${CATS.map((cat,i)=>`
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)">
+              <div style="width:10px;height:10px;border-radius:3px;background:${getCatColor(cat)};flex-shrink:0"></div>
+              <span style="flex:1;font-size:14px;font-weight:600;cursor:pointer" onclick="renameCat(${i})" title="לחץ לשינוי שם">${esc(cat)}</span>
+              ${cat!=='אחר'?`<button onclick="deleteCat(${i})" style="width:26px;height:26px;border:none;border-radius:7px;background:var(--dangerSoft);color:var(--danger);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>`:'<div style="width:26px"></div>'}
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:8px">
+          <input class="input" id="new-cat-inp" placeholder="שם קטגוריה חדשה..." style="flex:1"
+                 onkeydown="if(event.key==='Enter')addCat()">
+          <button onclick="addCat()" style="flex-shrink:0;border:none;border-radius:12px;padding:0 18px;background:var(--accent);color:#0a1505;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">+ הוסף</button>
+        </div>
+      </div>
 
       <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:12px">
