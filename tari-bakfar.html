@@ -337,10 +337,22 @@ const FIXED_FREQ = ["חודשי","דו-חודשי","רבעוני","חצי שנת
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
-const todayStr = () => new Date().toLocaleDateString("he-IL",{day:"2-digit",month:"2-digit",year:"numeric"});
+
+// ── Date helpers ──────────────────────────────────────────────────
+// todayStr()  → "27/05/2026"   (stored format)
+// todayISO()  → "2026-05-27"   (HTML date-input value)
+// heToISO(d)  → "2026-05-27"   (any stored/ISO → input value)
+// isoToHe(d)  → "27/05/2026"   (input value / ISO → stored format)
+// fmtDate(d)  → "27/05/2026"   (display — handles ALL formats)
+const todayStr = () => { const d=new Date(); return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); };
+const todayISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const isoToHe = iso => { if(!iso) return todayStr(); const s=String(iso).slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return fmtDate(iso); const [y,m,day]=s.split('-'); return `${day}/${m}/${y}`; };
+const heToISO = d => { if(!d) return todayISO(); const s=String(d); if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10); const p=s.split(/[\/\.]/); return p.length===3?`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`:todayISO(); };
+function fmtDate(d) { if(!d) return ''; const s=String(d); if(s.includes('T')||/^\d{4}-\d{2}-\d{2}$/.test(s)) return isoToHe(s); return s.replace(/\./g,'/'); }
+
 const fmt = n => Number(n||0).toLocaleString("he-IL",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtCurr = n => "₪" + fmt(n);
-const parseD = d => { try { return new Date(String(d).split("/").reverse().join("-")); } catch { return null; } };
+const parseD = d => { try { const s=String(d); if(s.includes('T')||/^\d{4}-\d{2}-\d{2}/.test(s)) return new Date(s); return new Date(s.split(/[\/\.]/).reverse().join('-')); } catch { return null; } };
 const isToday = d => { const p=parseD(d); const n=new Date(); return p && p.toDateString()===n.toDateString(); };
 const isWeek = d => { const p=parseD(d); if(!p) return false; const sun=new Date(); sun.setDate(sun.getDate()-sun.getDay()); sun.setHours(0,0,0,0); return p>=sun && p<=new Date(); };
 const isMonth = d => { const p=parseD(d); const n=new Date(); return p && p.getMonth()===n.getMonth() && p.getFullYear()===n.getFullYear(); };
@@ -517,7 +529,7 @@ function renderScan() {
         </div>
         ${f.image ? `<div style="border-radius:14px;overflow:hidden;border:1px solid var(--border);margin-bottom:18px"><img src="${f.image}" style="width:100%;max-height:180px;object-fit:contain;background:#000;display:block"></div>` : ''}
         <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.scanForm.supplier=this.value"></div>
-        <div class="field"><label class="label">תאריך</label><input class="input" value="${esc(f.date)}" oninput="state.scanForm.date=this.value"></div>
+        <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${heToISO(f.date)}" oninput="state.scanForm.date=isoToHe(this.value)"></div>
         <div class="row">
           <div class="field"><label class="label">סכום כולל ₪</label><input class="input" type="number" value="${f.total_amount}" oninput="state.scanForm.total_amount=+this.value"></div>
           <div class="field"><label class="label">מע"מ ₪</label><input class="input" type="number" value="${f.vat_amount}" oninput="state.scanForm.vat_amount=+this.value"></div>
@@ -639,7 +651,7 @@ function renderList() {
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div style="flex:1;min-width:0;margin-right:8px">
                   <div style="font-weight:600;color:var(--text);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px">${esc(e.supplier||'ספק לא ידוע')}</div>
-                  <div style="display:flex;gap:8px;align-items:center"><span style="background:${c}22;color:${c};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${esc(e.category)}</span><span style="font-size:11px;color:var(--textDim)">${esc(e.date)}</span></div>
+                  <div style="display:flex;gap:8px;align-items:center"><span style="background:${c}22;color:${c};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${esc(e.category)}</span><span style="font-size:11px;color:var(--textDim)">${fmtDate(e.date)}</span></div>
                 </div>
                 <div style="text-align:left;flex-shrink:0">
                   <div class="display" style="color:var(--text);font-size:17px">${fmtCurr(e.total_amount)}</div>
@@ -685,7 +697,7 @@ function renderEditModal() {
         <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px"></div>
         <h2 class="display" style="font-size:18px;margin:0 0 20px">✏️ עריכת הוצאה</h2>
         <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.editForm.supplier=this.value"></div>
-        <div class="field"><label class="label">תאריך</label><input class="input" value="${esc(f.date)}" oninput="state.editForm.date=this.value"></div>
+        <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${heToISO(f.date)}" oninput="state.editForm.date=isoToHe(this.value)"></div>
         <div class="row">
           <div class="field"><label class="label">סכום כולל ₪</label><input class="input" type="number" value="${f.total_amount}" oninput="state.editForm.total_amount=+this.value"></div>
           <div class="field"><label class="label">מע"מ ₪</label><input class="input" type="number" value="${f.vat_amount}" oninput="state.editForm.vat_amount=+this.value"></div>
@@ -736,7 +748,7 @@ function renderAdd() {
     <div style="padding:20px 20px 100px" class="fade-up">
       <h2 class="display" style="font-size:24px;margin:0 0 18px">הוספה ידנית</h2>
       <div class="field"><label class="label">ספק *</label><input class="input" placeholder="שם הספק" value="${esc(addForm.supplier)}" oninput="addForm.supplier=this.value"></div>
-      <div class="field"><label class="label">תאריך</label><input class="input" value="${esc(addForm.date)}" oninput="addForm.date=this.value"></div>
+      <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${heToISO(addForm.date)}" oninput="addForm.date=isoToHe(this.value)"></div>
       <div class="row">
         <div class="field"><label class="label">סכום כולל ₪ *</label><input class="input" type="number" placeholder="0.00" value="${addForm.total_amount}" oninput="addTotal(this.value)"></div>
         <div class="field"><label class="label">מע"מ</label><input class="input" type="number" placeholder="אוטו" value="${addForm.vat_amount}" oninput="addForm.vat_amount=this.value"></div>
@@ -877,7 +889,7 @@ function renderInstallments() {
         </div>
         <div id="per-install-display" style="padding:10px 14px;margin-bottom:14px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2);border-radius:10px;font-size:13px;color:var(--accent);${perInstall?'':'display:none'}">💡 תשלום חודשי: <span id="per-install-val">${perInstall?fmtCurr(perInstall):''}</span></div>
         <div class="field"><label class="label">תשלומים ששולמו</label><input class="input" type="number" value="${f.paid}" oninput="state.installForm.paid=this.value"></div>
-        <div class="field"><label class="label">תאריך תשלום ראשון</label><input class="input" value="${esc(f.first_date)}" oninput="state.installForm.first_date=this.value"></div>
+        <div class="field"><label class="label">תאריך תשלום ראשון</label><input class="input" type="date" value="${heToISO(f.first_date)}" oninput="state.installForm.first_date=isoToHe(this.value)"></div>
         <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.installForm.supplier=this.value"></div>
         <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.installForm.notes=this.value"></div>
         <button class="btn-primary" onclick="saveInstall()">💾 שמור</button>
@@ -1212,7 +1224,7 @@ function renderCredits() {
           </div>
           <div class="field">
             <label class="label">תאריך</label>
-            <input class="input" value="${todayStr()}" oninput="state.creditForm.date=this.value" id="credit-date-inp">
+            <input class="input" type="date" value="${todayISO()}" oninput="state.creditForm.date=isoToHe(this.value)" id="credit-date-inp">
           </div>
         </div>
         <div class="field">
@@ -1240,7 +1252,7 @@ function renderCredits() {
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
                 <div style="flex:1;min-width:0">
                   <div style="font-size:15px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px">${esc(c.supplier)}</div>
-                  <div style="font-size:11px;color:var(--textDim)">📅 ${esc(c.date)}</div>
+                  <div style="font-size:11px;color:var(--textDim)">📅 ${fmtDate(c.date)}</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-right:10px">
                   <div class="display" style="font-size:22px;color:var(--amber)">${fmtCurr(c.amount)}</div>
@@ -1291,7 +1303,7 @@ async function addCredit() {
   if (!cf.supplier || !cf.amount || !cf.reason) return;
   const dateEl = document.getElementById('credit-date-inp');
   const item = {
-    id: uid(), date: (dateEl && dateEl.value) || todayStr(),
+    id: uid(), date: state.creditForm.date || (dateEl ? isoToHe(dateEl.value) : todayStr()),
     supplier: cf.supplier.trim(), amount: +cf.amount,
     reason: cf.reason.trim(), image: cf.image || null
   };
@@ -1362,7 +1374,7 @@ function renderIncome() {
       <div style="width:32px;height:32px;border-radius:8px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">${ic}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:700;color:${c}">${esc(e.type)}</div>
-        <div style="font-size:11px;color:var(--textDim)">${esc(e.date)}${e.notes?' · '+esc(e.notes):''}</div>
+        <div style="font-size:11px;color:var(--textDim)">${fmtDate(e.date)}${e.notes?' · '+esc(e.notes):''}</div>
       </div>
       <div class="display" style="font-size:15px;color:var(--text);flex-shrink:0">${fmtCurr(e.amount)}</div>
       <button onclick="deleteIncome('${e.id}')" style="width:26px;height:26px;border:none;border-radius:6px;background:rgba(220,98,98,0.1);color:var(--danger);cursor:pointer;font-size:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center">✕</button>
@@ -1375,7 +1387,7 @@ function renderIncome() {
       <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.supplier||'ספק')}</div>
-        <div style="font-size:11px;color:var(--textDim)">${esc(e.category)} · ${esc(e.date)}</div>
+        <div style="font-size:11px;color:var(--textDim)">${esc(e.category)} · ${fmtDate(e.date)}</div>
       </div>
       <div class="display" style="font-size:15px;color:var(--danger);flex-shrink:0">−${fmtCurr(e.total_amount)}</div>
     </div>`;
