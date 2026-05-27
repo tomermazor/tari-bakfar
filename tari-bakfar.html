@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Frank+Ruhl+Libre:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer onload="onGoogleScriptLoad()"></script>
 <style>
 /* ── Design tokens ───────────────────────────────────────────────── */
 :root {
@@ -132,16 +133,8 @@ input[type="date"] { min-width:0; max-width:100%; }
 .login-screen { position:fixed; inset:0; z-index:999; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 24px; }
 .login-logo { width:82px; height:82px; border-radius:26px; background:linear-gradient(145deg,#192a12,#0e1c0e); border:1px solid rgba(126,203,66,0.28); display:flex; align-items:center; justify-content:center; font-size:46px; margin-bottom:22px; box-shadow:0 14px 48px rgba(126,203,66,0.22),0 0 0 1px rgba(126,203,66,0.1); }
 .login-title { font-size:30px; font-weight:800; font-family:'Frank Ruhl Libre',serif; margin-bottom:4px; text-align:center; }
-.login-sub { font-size:14px; color:var(--textDim); margin-bottom:36px; text-align:center; }
-.login-card { width:100%; max-width:320px; }
-.login-lbl { font-size:11px; color:var(--textDim); font-weight:700; letter-spacing:0.05em; text-transform:uppercase; margin-bottom:7px; display:block; }
-.login-input { width:100%; background:var(--surface); border:1.5px solid var(--border); border-radius:var(--r-md); padding:14px 16px; color:var(--text); font-size:18px; font-family:inherit; outline:none; text-align:center; letter-spacing:3px; margin-bottom:10px; transition:border-color var(--t-fast),box-shadow var(--t-fast); }
-.login-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accentGlow); }
-.login-input.shake { animation:loginShake 0.35s ease; border-color:var(--danger) !important; }
-.login-btn { width:100%; margin-top:4px; border:none; border-radius:var(--r-md); padding:15px; font-size:16px; font-weight:700; font-family:inherit; cursor:pointer; background:linear-gradient(150deg,#8ed84a,#5eab30); color:#071302; box-shadow:var(--shadow-accent); transition:transform var(--t-fast); }
-.login-btn:active { transform:scale(0.97); }
-.login-err { color:var(--danger); font-size:13px; text-align:center; margin-top:12px; min-height:20px; font-weight:600; }
-@keyframes loginShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+.login-sub { font-size:14px; color:var(--textDim); margin-bottom:28px; text-align:center; }
+.login-err { color:var(--danger); font-size:13px; text-align:center; margin-top:14px; min-height:20px; font-weight:600; }
 </style>
 </head>
 <body>
@@ -150,8 +143,9 @@ input[type="date"] { min-width:0; max-width:100%; }
 <div id="login-screen" class="login-screen" hidden>
   <div class="login-logo">🌿</div>
   <div class="login-title">טרי בכפר</div>
-  <div class="login-sub" id="login-sub-text">כניסה לאפליקציה</div>
-  <div class="login-card" id="login-card"></div>
+  <div class="login-sub">ניהול הוצאות ועובדים</div>
+  <div id="google-signin-btn"></div>
+  <div class="login-err" id="login-err"></div>
 </div>
 
 <div class="app" id="app" hidden>
@@ -2106,14 +2100,50 @@ function toggleTheme() {
   render(); // re-render to update settings button label
 }
 
-// ─── Auth ──────────────────────────────────────────────────────────────────
-var AUTH_PASS_KEY = 'app-pass-hash';
-var AUTH_TOKEN_KEY = 'app-authed';
+// ─── Google Auth ────────────────────────────────────────────────────────────
+// ↓↓ הכנס כאן את ה-Client ID שקיבלת מ-Google Cloud ↓↓
+const GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+// ↓↓ רשימת כתובות Gmail המורשות להיכנס ↓↓
+const ALLOWED_EMAILS = [
+  'your@gmail.com',
+];
 
-async function sha256(msg) {
-  var buf = new TextEncoder().encode(msg);
-  var hash = await crypto.subtle.digest('SHA-256', buf);
-  return Array.from(new Uint8Array(hash)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+function getStoredUser() {
+  try { return JSON.parse(localStorage.getItem('google-user') || 'null'); } catch(e) { return null; }
+}
+function isAllowed(email) {
+  return ALLOWED_EMAILS.some(e => e.trim().toLowerCase() === (email||'').trim().toLowerCase());
+}
+function handleCredentialResponse(response) {
+  try {
+    const b64 = response.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const payload = JSON.parse(atob(b64));
+    if (!isAllowed(payload.email)) {
+      document.getElementById('login-err').textContent = '🚫 ' + payload.email + ' — אין הרשאה';
+      return;
+    }
+    localStorage.setItem('google-user', JSON.stringify({
+      email: payload.email, name: payload.name || payload.email, picture: payload.picture || '',
+    }));
+    document.getElementById('login-screen').hidden = true;
+    initApp();
+  } catch(e) {
+    document.getElementById('login-err').textContent = 'שגיאה בהתחברות, נסה שנית';
+  }
+}
+function initGoogleSignIn() {
+  var loginScreen = document.getElementById('login-screen');
+  if (!loginScreen || loginScreen.hidden) return;
+  if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes('YOUR_CLIENT_ID')) {
+    document.getElementById('login-err').textContent = '⚙️ יש להגדיר Client ID של Google';
+    return;
+  }
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredentialResponse, auto_select: true, cancel_on_tap_outside: false });
+  google.accounts.id.renderButton(document.getElementById('google-signin-btn'), { type:'standard', theme:'outline', size:'large', width:260 });
+  google.accounts.id.prompt();
+}
+function onGoogleScriptLoad() {
+  if (!document.getElementById('login-screen').hidden) initGoogleSignIn();
 }
 
 function initApp() {
@@ -2153,82 +2183,25 @@ function initApp() {
 }
 
 function checkAuth() {
-  var hasPass = localStorage.getItem(AUTH_PASS_KEY);
-  var isAuthed = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (!hasPass || !isAuthed) {
-    renderLoginCard(!hasPass);
+  var user = getStoredUser();
+  if (user && isAllowed(user.email)) {
+    initApp();
+  } else {
     document.getElementById('login-screen').hidden = false;
-  } else {
-    initApp();
+    if (typeof google !== 'undefined' && google.accounts) initGoogleSignIn();
+    // else: onGoogleScriptLoad() יטפל בזה כשהסקריפט ייטען
   }
-}
-
-function renderLoginCard(isSetup) {
-  var card = document.getElementById('login-card');
-  var sub = document.getElementById('login-sub-text');
-  if (isSetup) {
-    sub.textContent = 'הגדרת סיסמא ראשונה';
-    card.innerHTML = `
-      <span class="login-lbl">בחר סיסמא</span>
-      <input class="login-input" id="lp1" type="password" placeholder="לפחות 4 תווים" autocomplete="new-password">
-      <span class="login-lbl">אמת סיסמא</span>
-      <input class="login-input" id="lp2" type="password" placeholder="••••••" autocomplete="new-password"
-             onkeydown="if(event.key==='Enter')trySetPassword()">
-      <button class="login-btn" onclick="trySetPassword()">הגדר וכנס →</button>
-      <div class="login-err" id="login-err"></div>`;
-  } else {
-    sub.textContent = 'כניסה לאפליקציה';
-    card.innerHTML = `
-      <span class="login-lbl">סיסמא</span>
-      <input class="login-input" id="lp1" type="password" placeholder="••••••" autocomplete="current-password"
-             onkeydown="if(event.key==='Enter')tryLogin()">
-      <button class="login-btn" onclick="tryLogin()">כניסה →</button>
-      <div class="login-err" id="login-err"></div>`;
-    setTimeout(function(){ var el=document.getElementById('lp1'); if(el) el.focus(); }, 150);
-  }
-}
-
-async function tryLogin() {
-  var input = document.getElementById('lp1');
-  if (!input || !input.value) { if(input) input.focus(); return; }
-  var hash = await sha256(input.value);
-  if (hash === localStorage.getItem(AUTH_PASS_KEY)) {
-    localStorage.setItem(AUTH_TOKEN_KEY, '1');
-    document.getElementById('login-screen').hidden = true;
-    document.getElementById('login-err').textContent = '';
-    initApp();
-  } else {
-    input.classList.add('shake');
-    setTimeout(function(){ input.classList.remove('shake'); }, 400);
-    document.getElementById('login-err').textContent = 'סיסמא שגויה ✗';
-    input.value = ''; input.focus();
-  }
-}
-
-async function trySetPassword() {
-  var p1 = (document.getElementById('lp1')||{}).value || '';
-  var p2 = (document.getElementById('lp2')||{}).value || '';
-  var err = document.getElementById('login-err');
-  if (p1.length < 4) { err.textContent = 'לפחות 4 תווים'; return; }
-  if (p1 !== p2) {
-    err.textContent = 'הסיסמאות אינן תואמות ✗';
-    var el = document.getElementById('lp2');
-    if (el) { el.classList.add('shake'); setTimeout(function(){ el.classList.remove('shake'); },400); }
-    return;
-  }
-  var hash = await sha256(p1);
-  localStorage.setItem(AUTH_PASS_KEY, hash);
-  localStorage.setItem(AUTH_TOKEN_KEY, '1');
-  document.getElementById('login-screen').hidden = true;
-  initApp();
 }
 
 function logout() {
   if (!confirm('להתנתק מהאפליקציה?')) return;
-  localStorage.removeItem(AUTH_TOKEN_KEY);
+  var user = getStoredUser();
+  localStorage.removeItem('google-user');
+  if (typeof google !== 'undefined' && user) google.accounts.id.revoke(user.email, function(){});
   document.getElementById('app').hidden = true;
-  renderLoginCard(false);
   document.getElementById('login-screen').hidden = false;
+  document.getElementById('login-err').textContent = '';
+  setTimeout(initGoogleSignIn, 100);
 }
 
 // ─── Initial render + sync ──────────────────────────────────────────────────
