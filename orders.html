@@ -1484,7 +1484,10 @@ function isAllowed(email) {
   // בדיקה ברשימה הדינמית (מנוהלת בהגדרות tari-bakfar)
   try {
     const dynUsers = JSON.parse(localStorage.getItem('tari_users_v1') || 'null');
-    if (dynUsers && Array.isArray(dynUsers) && dynUsers.some(u => u.email === e)) return true;
+    if (dynUsers && Array.isArray(dynUsers)) {
+      const u = dynUsers.find(x => x.email === e);
+      if (u) return u.role !== 'scanner'; // סורק = אין גישה להזמנות
+    }
   } catch(ex) {}
   return ALLOWED_EMAILS.some(a => a.trim().toLowerCase() === e);
 }
@@ -1493,7 +1496,7 @@ function handleCredentialResponse(response) {
     const b64 = response.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
     const payload = JSON.parse(atob(b64));
     if (!isAllowed(payload.email)) {
-      document.getElementById('login-err').textContent = '🚫 ' + payload.email + ' — אין הרשאה';
+      document.getElementById('login-err').textContent = '🚫 ' + payload.email + ' — אין הרשאה לאפליקציה זו';
       return;
     }
     localStorage.setItem('google-user', JSON.stringify({ email: payload.email, name: payload.name || payload.email, picture: payload.picture || '' }));

@@ -154,7 +154,7 @@ input[type="date"] { min-width:0; max-width:100%; }
     <a href="orders.html" class="sw-btn">📦 הזמנות</a>
     <span class="sw-btn active">💰 הוצאות</span>
     <button class="sw-icon-btn" id="sync-top-btn" onclick="triggerTopSync()" title="סנכרן עכשיו">🔄</button>
-    <button class="sw-icon-btn" onclick="setState({tab:'settings'})" title="הגדרות">⚙️</button>
+    <button class="sw-icon-btn" id="settings-sw-btn" onclick="setState({tab:'settings'})" title="הגדרות">⚙️</button>
     <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" title="עיצוב"></button>
     <button class="sw-icon-btn" onclick="logout()" title="התנתק">🔒</button>
   </div>
@@ -471,11 +471,14 @@ const TABS = [
 ];
 
 function renderNav() {
-  document.getElementById('nav').innerHTML = TABS.map(t=>`
-    <button class="${state.tab===t.id?'active':''}" onclick="setState({tab:'${t.id}'})">
-      <div class="nav-icon-wrap">${ICONS[t.id]||''}</div>
-      <span>${t.label}</span>
-    </button>`).join('');
+  const allowed = getAllowedTabs();
+  document.getElementById('nav').innerHTML = TABS
+    .filter(t => allowed.includes(t.id))
+    .map(t=>`
+      <button class="${state.tab===t.id?'active':''}" onclick="setState({tab:'${t.id}'})">
+        <div class="nav-icon-wrap">${ICONS[t.id]||''}</div>
+        <span>${t.label}</span>
+      </button>`).join('');
 }
 
 function updateHeader() {
@@ -1967,22 +1970,35 @@ function renderSettings() {
           </div>
         </div>
         <div style="margin-bottom:12px">
-          ${getDynamicUsers().map((u,i) => `
-            <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
-              <div style="width:32px;height:32px;border-radius:50%;background:${u.role==='admin'?'rgba(126,203,66,0.15)':'rgba(102,128,106,0.12)'};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${u.role==='admin'?'👑':'👤'}</div>
-              <div style="flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.email)}</div>
-                <div style="font-size:11px;color:${u.role==='admin'?'var(--accent)':'var(--textDim)'}">${u.role==='admin'?'מנהל':'משתמש'}</div>
+          ${getDynamicUsers().map((u,i) => {
+            const rd = ROLE_DEFS[u.role] || ROLE_DEFS.user;
+            const cycle = ['user','scanner','admin'];
+            const nextRole = cycle[(cycle.indexOf(u.role>=0?u.role:'user')+1)%cycle.length];
+            const nextRd = ROLE_DEFS[nextRole]||ROLE_DEFS.user;
+            const isMaster = ALLOWED_EMAILS[0].trim().toLowerCase()===u.email;
+            return `
+            <div style="background:var(--surfaceHi);border-radius:12px;padding:10px 12px;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,0.2);border:1.5px solid ${rd.color};display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">${rd.icon}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.email)}</div>
+                  <div style="font-size:11px;font-weight:700;color:${rd.color}">${rd.label}</div>
+                </div>
+                ${isMaster ? '<div style="font-size:10px;color:var(--textMuted);font-weight:600">ראשי</div>' : `
+                <button onclick="toggleUserRole(${i})" style="padding:4px 9px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);cursor:pointer;font-size:10px;font-weight:700;font-family:inherit;white-space:nowrap;flex-shrink:0">→ ${nextRd.icon} ${nextRd.label}</button>
+                <button onclick="removeUser(${i})" style="width:26px;height:26px;border:none;border-radius:7px;background:rgba(220,98,98,0.12);color:var(--danger);cursor:pointer;font-size:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center">✕</button>`}
               </div>
-              <button onclick="toggleUserRole(${i})" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;white-space:nowrap">${u.role==='admin'?'↓ משתמש':'↑ מנהל'}</button>
-              <button onclick="removeUser(${i})" style="width:28px;height:28px;border:none;border-radius:8px;background:rgba(220,98,98,0.1);color:var(--danger);cursor:pointer;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center">✕</button>
-            </div>`).join('')}
+              <div style="font-size:10px;color:var(--textMuted);margin-top:5px;margin-right:44px">${rd.desc||''}</div>
+            </div>`;
+          }).join('')}
         </div>
+        <div style="font-size:10px;color:var(--textDim);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">+ הוספת משתמש</div>
         <div style="display:flex;gap:8px;align-items:stretch">
-          <input class="input" id="new-user-email" placeholder="כתובת Gmail חדשה..." style="flex:1;padding:10px 12px;font-size:13px" onkeydown="if(event.key==='Enter')addUser()">
+          <input class="input" id="new-user-email" placeholder="כתובת Gmail..." style="flex:1;padding:10px 12px;font-size:13px" onkeydown="if(event.key==='Enter')addUser()">
           <select id="new-user-role" class="input" style="flex:0 0 auto;padding:10px 8px;padding-left:30px;font-size:13px">
-            <option value="user">משתמש</option>
-            <option value="admin">מנהל</option>
+            <option value="user">👤 משתמש</option>
+            <option value="scanner">📷 סורק</option>
+            <option value="admin">👑 מנהל</option>
           </select>
           <button onclick="addUser()" style="flex-shrink:0;border:none;border-radius:12px;padding:0 16px;background:var(--accent);color:#0a1505;font-weight:700;font-size:16px;font-family:inherit;cursor:pointer">+</button>
         </div>
@@ -2094,7 +2110,21 @@ function importJSON(input) {
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN RENDER
 // ═══════════════════════════════════════════════════════════════════════════
+function applyRoleUI() {
+  const role = getUserRole();
+  // Settings button: only admin/user
+  const settingsBtn = document.getElementById('settings-sw-btn');
+  if (settingsBtn) settingsBtn.style.display = (role === 'scanner') ? 'none' : '';
+  // Sync button: only admin/user
+  const syncBtn = document.getElementById('sync-top-btn');
+  if (syncBtn) syncBtn.style.display = (role === 'scanner') ? 'none' : '';
+}
+
 function render() {
+  // Guard: redirect to first allowed tab if current is not permitted
+  if (!canAccessTab(state.tab)) {
+    state.tab = getAllowedTabs()[0] || 'scan';
+  }
   const main = document.getElementById('main');
   let content = '';
   switch(state.tab) {
@@ -2141,6 +2171,30 @@ const ALLOWED_EMAILS = [
   'tari@taribakfar.co.il',
 ];
 
+// ── Role definitions ──────────────────────────────────────────────────────
+const ROLE_DEFS = {
+  admin:   { label: 'מנהל',  icon: '👑', color: 'var(--accent)',  desc: 'גישה מלאה + ניהול משתמשים' },
+  user:    { label: 'משתמש', icon: '👤', color: 'var(--textDim)', desc: 'גישה מלאה לכל הטאבים' },
+  scanner: { label: 'סורק',  icon: '📷', color: 'var(--amber)',   desc: 'סריקת הוצאות בלבד', tabs: ['scan'] },
+};
+
+function getUserRole() {
+  const u = getStoredUser();
+  if (!u) return 'scanner';
+  const e = (u.email||'').trim().toLowerCase();
+  if (ALLOWED_EMAILS[0].trim().toLowerCase() === e) return 'admin';
+  const users = getDynamicUsers();
+  const found = users.find(x => x.email === e);
+  return found?.role || 'user';
+}
+function getAllowedTabs() {
+  const def = ROLE_DEFS[getUserRole()];
+  return def?.tabs || TABS.map(t => t.id); // null/missing = all tabs
+}
+function canAccessTab(tabId) {
+  return getAllowedTabs().includes(tabId);
+}
+
 // ── Dynamic User Management ────────────────────────────────────────────────
 function getDynamicUsers() {
   try {
@@ -2167,15 +2221,7 @@ function isAllowed(email) {
   const users = getDynamicUsers();
   return users.some(u => u.email === e) || ALLOWED_EMAILS.some(a => a.trim().toLowerCase() === e);
 }
-function isAdmin() {
-  const user = getStoredUser();
-  if (!user) return false;
-  const e = (user.email||'').trim().toLowerCase();
-  if (ALLOWED_EMAILS[0].trim().toLowerCase() === e) return true; // מנהל ראשי תמיד
-  const users = getDynamicUsers();
-  const u = users.find(u => u.email === e);
-  return u && u.role === 'admin';
-}
+function isAdmin() { return getUserRole() === 'admin'; }
 function addUser() {
   const emailEl = document.getElementById('new-user-email');
   const roleEl = document.getElementById('new-user-role');
@@ -2208,10 +2254,12 @@ function toggleUserRole(idx) {
   const u = users[idx];
   if (!u) return;
   if (ALLOWED_EMAILS[0].trim().toLowerCase() === u.email) { toast('לא ניתן לשנות הרשאות המנהל הראשי', 'error'); return; }
-  u.role = u.role === 'admin' ? 'user' : 'admin';
+  const cycle = ['user', 'scanner', 'admin'];
+  const cur = cycle.indexOf(u.role) >= 0 ? cycle.indexOf(u.role) : 0;
+  u.role = cycle[(cur + 1) % cycle.length];
   saveDynamicUsers(users);
   render();
-  toast('הרשאות עודכנו ✓', 'success');
+  toast('הרשאה שונתה ל' + (ROLE_DEFS[u.role]?.label||u.role) + ' ✓', 'success');
 }
 function handleCredentialResponse(response) {
   try {
@@ -2273,11 +2321,12 @@ function initApp() {
     } catch(e) {}
   }
 
+  applyRoleUI();
   render();
   setSyncStatus(CFG.webAppUrl ? 'syncing' : 'local');
-  if (CFG.webAppUrl) syncAll();
+  if (CFG.webAppUrl && getUserRole() !== 'scanner') syncAll();
   document.addEventListener('visibilitychange', function(){
-    if (!document.hidden && CFG.webAppUrl) syncAll();
+    if (!document.hidden && CFG.webAppUrl && getUserRole() !== 'scanner') syncAll();
   });
 }
 
