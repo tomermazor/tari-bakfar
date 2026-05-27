@@ -440,7 +440,7 @@ let state = {
   incomeForm: {type: 'מכירות אונליין', amount: '', date: null, notes: ''},
   creditForm: {supplier: '', amount: '', reason: '', image: null},
   workerAdding: false, workerForm: null,
-  advanceOpen: null, advanceForm: null,
+  advanceInputs: {},
   viewCreditImage: null,
 };
 function setState(patch) { Object.assign(state, patch); render(); }
@@ -1080,6 +1080,23 @@ function renderWorkers() {
     .reduce((s,w) => s+(+w.salary||0), 0);
   const wf = state.workerForm;
   const adding = state.workerAdding;
+  const thisMonth = currentMonth();
+  const monthLabel = new Date().toLocaleDateString('he-IL',{month:'long',year:'numeric'});
+  if (!state.advanceInputs) state.advanceInputs = {};
+
+  // Check prev month
+  const prevD = new Date(); prevD.setMonth(prevD.getMonth()-1);
+  const prevMonth = prevD.getFullYear()+'-'+String(prevD.getMonth()+1).padStart(2,'0');
+  const prevLabel = prevD.toLocaleDateString('he-IL',{month:'long',year:'numeric'});
+  const hasPrevAdv = (DB.advances||[]).some(a=>a.month===prevMonth);
+
+  // Totals
+  const workerAdvTotals = {};
+  active.forEach(w => {
+    workerAdvTotals[w.id] = getWorkerMonthAdv(w.id,thisMonth).reduce((s,a)=>s+(+a.amount||0),0);
+  });
+  const totalAdv = Object.values(workerAdvTotals).reduce((s,v)=>s+v,0);
+  const hasAdvances = totalAdv > 0;
 
   const formHtml = (adding || wf) ? `
     <div style="padding:16px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
@@ -1119,134 +1136,100 @@ function renderWorkers() {
     </div>` : `
     <button class="btn-primary" onclick="setState({workerAdding:true,workerForm:{name:'',role:'מוכר/ת',salary:'',salary_type:'חודשי',notes:''}})" style="margin-bottom:16px">+ הוסף עובד</button>`;
 
-  // Payroll summary (salary − advances per worker)
-  const thisMonth = currentMonth();
-  const monthLabel = new Date().toLocaleDateString('he-IL',{month:'long',year:'numeric'});
-  const workerAdvTotals = {};
-  active.forEach(w => {
-    workerAdvTotals[w.id] = getWorkerMonthAdv(w.id, thisMonth).reduce((s,a)=>s+(+a.amount||0),0);
-  });
-  const totalAdv = Object.values(workerAdvTotals).reduce((s,v)=>s+v,0);
-  const hasAdvances = totalAdv > 0;
-
   const summaryHtml = active.length > 0 ? `
-    <div style="display:grid;grid-template-columns:1fr 1fr${hasAdvances?' 1fr':''};gap:10px;margin-bottom:${hasAdvances?'10px':'16px'}">
-      <div style="padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);text-align:center">
-        <div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">עובדים פעילים</div>
-        <div class="display" style="font-size:28px;color:var(--accent)">${active.length}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr${hasAdvances?' 1fr':''};gap:10px;margin-bottom:12px">
+      <div style="padding:12px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);text-align:center">
+        <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:4px">עובדים פעילים</div>
+        <div class="display" style="font-size:26px;color:var(--accent)">${active.length}</div>
       </div>
-      <div style="padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);text-align:center">
-        <div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">שכר חודשי כולל</div>
-        <div class="display" style="font-size:22px;color:var(--text)">${fmtCurr(totalMonthly)}</div>
+      <div style="padding:12px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);text-align:center">
+        <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:4px">שכר חודשי כולל</div>
+        <div class="display" style="font-size:20px;color:var(--text)">${fmtCurr(totalMonthly)}</div>
       </div>
-      ${hasAdvances ? `<div style="padding:14px 16px;border-radius:14px;background:var(--amberSoft);border:1px solid rgba(245,180,42,0.3);text-align:center">
-        <div style="font-size:11px;color:var(--amber);font-weight:600;margin-bottom:4px">מפרעות החודש</div>
-        <div class="display" style="font-size:22px;color:var(--amber)">${fmtCurr(totalAdv)}</div>
+      ${hasAdvances ? `<div style="padding:12px 14px;border-radius:14px;background:var(--amberSoft);border:1px solid rgba(245,180,42,0.3);text-align:center">
+        <div style="font-size:10px;color:var(--amber);font-weight:600;margin-bottom:4px">מפרעות החודש</div>
+        <div class="display" style="font-size:20px;color:var(--amber)">${fmtCurr(totalAdv)}</div>
       </div>` : ''}
     </div>
-    ${hasAdvances ? `
-    <div style="padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
-      <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">📋 סיכום משכורות — ${monthLabel}</div>
-      ${active.map(w => {
-        const adv = workerAdvTotals[w.id]||0;
-        const net = (+w.salary||0) - adv;
-        return `<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-          <div style="flex:1;min-width:0;font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(w.name)}</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;font-size:12px">
-            <span style="color:var(--textDim)">${fmtCurr(+w.salary||0)}</span>
-            ${adv>0?`<span style="color:var(--amber)">− ${fmtCurr(adv)}</span>`:''}
-            <span style="font-size:15px;font-weight:800;color:${net<0?'var(--danger)':'var(--accent)'}">${fmtCurr(net)}</span>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>` : ''}` : '';
+    ${hasPrevAdv ? `<button onclick="clearPrevMonthAdvances()" style="width:100%;margin-bottom:12px;padding:10px 16px;border:1px solid rgba(224,82,82,0.3);border-radius:12px;background:var(--dangerSoft);color:var(--danger);font-size:13px;font-weight:700;font-family:inherit;cursor:pointer">🗑 נקה מפרעות ${prevLabel}</button>` : ''}` : '';
 
   const listHtml = workers.length === 0
     ? `<div style="text-align:center;padding:44px 20px;color:var(--textMuted)"><div style="font-size:44px;margin-bottom:10px;opacity:0.4">👷</div><div style="font-size:14px">אין עובדים ברשימה</div><div style="font-size:12px;margin-top:6px">לחץ "+ הוסף עובד" כדי להתחיל</div></div>`
     : workers.map(w => {
         const isActive = w.active !== false;
         const salaryLabel = `${fmtCurr(+w.salary||0)} / ${w.salary_type||'חודשי'}`;
-        const advOpen = state.advanceOpen === w.id;
         const monthAdv = getWorkerMonthAdv(w.id, thisMonth);
         const monthAdvTotal = monthAdv.reduce((s,a)=>s+(+a.amount||0),0);
-        const af = (state.advanceForm && state.advanceForm.workerId === w.id) ? state.advanceForm : {};
-
-        const advPanel = advOpen ? `
-          <div style="padding:14px 16px;background:var(--surfaceHi);border-top:1px solid var(--border)">
-            <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">מפרעות — ${monthLabel}</div>
-            <div style="display:flex;gap:6px;margin-bottom:12px;align-items:flex-end;flex-wrap:wrap">
-              <div style="flex:1;min-width:80px">
-                <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:3px">סכום ₪</div>
-                <input class="input" type="number" inputmode="decimal" placeholder="0"
-                  value="${af.amount||''}"
-                  oninput="state.advanceForm={...(state.advanceForm||{}),workerId:'${w.id}',workerName:'${esc(w.name)}',amount:this.value}"
-                  style="padding:9px 10px;font-size:14px">
-              </div>
-              <div style="flex:1;min-width:100px">
-                <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:3px">תאריך</div>
-                <input class="input" type="date"
-                  value="${af.date||todayStr()}"
-                  onchange="state.advanceForm={...(state.advanceForm||{}),workerId:'${w.id}',workerName:'${esc(w.name)}',date:this.value}"
-                  style="padding:9px 10px;font-size:14px">
-              </div>
-              <div style="flex:1;min-width:90px">
-                <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:3px">אמצעי תשלום</div>
-                <select class="input"
-                  onchange="state.advanceForm={...(state.advanceForm||{}),workerId:'${w.id}',workerName:'${esc(w.name)}',method:this.value}"
-                  style="padding:9px 10px;font-size:14px">
-                  <option value="מזומן" ${(af.method||'מזומן')==='מזומן'?'selected':''}>💵 מזומן</option>
-                  <option value="העברה" ${af.method==='העברה'?'selected':''}>🏦 העברה</option>
-                </select>
-              </div>
-              <button onclick="saveAdvance('${w.id}','${esc(w.name)}')"
-                style="flex-shrink:0;padding:9px 16px;background:var(--accent);color:#071302;border:none;border-radius:12px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">
-                + רשום
-              </button>
-            </div>
-            ${monthAdv.length === 0
-              ? `<div style="text-align:center;padding:14px;color:var(--textMuted);font-size:13px">אין מפרעות החודש</div>`
-              : monthAdv.map(a=>`
-                <div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-                  <div style="flex:1;min-width:0">
-                    <span style="font-size:14px;font-weight:700;color:var(--text)">${fmtCurr(a.amount)}</span>
-                    <span style="font-size:11px;color:var(--textDim);margin-right:8px">${fmtDate(a.date)} · ${a.method}</span>
-                  </div>
-                  <button onclick="deleteAdvance('${a.id}')" style="background:transparent;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:2px 6px;line-height:1">×</button>
-                </div>`).join('')
-            }
-            ${monthAdvTotal > 0 ? `
-              <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
-                <div style="padding:10px 14px;background:var(--amberSoft);border:1px solid rgba(245,180,42,0.25);border-radius:10px;display:flex;justify-content:space-between;align-items:center">
-                  <span style="font-size:12px;font-weight:700;color:var(--amber)">סה"כ מפרעות</span>
-                  <span style="font-size:16px;font-weight:800;color:var(--amber)">− ${fmtCurr(monthAdvTotal)}</span>
-                </div>
-                <div style="padding:10px 14px;background:var(--accentSoft);border:1px solid rgba(126,203,66,0.2);border-radius:10px;display:flex;justify-content:space-between;align-items:center">
-                  <span style="font-size:12px;font-weight:700;color:var(--accent)">לתשלום בסוף חודש</span>
-                  <span style="font-size:18px;font-weight:800;color:var(--accent)">${fmtCurr((+w.salary||0) - monthAdvTotal)}</span>
-                </div>
-              </div>` : ''}
-          </div>` : '';
+        const inp = state.advanceInputs[w.id] || {};
+        const wid = w.id;
 
         return `
-        <div style="background:var(--surface);border:1px solid ${advOpen?'var(--amber)':'var(--border)'};border-radius:16px;margin-bottom:10px;overflow:hidden;opacity:${isActive?1:0.55};transition:border-color 0.15s" class="fade-up">
-          <div style="padding:14px 16px;display:flex;align-items:center;gap:12px">
-            <div style="width:42px;height:42px;border-radius:50%;background:rgba(143,198,80,0.15);border:1.5px solid rgba(143,198,80,0.35);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">👤</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:12px;overflow:hidden;opacity:${isActive?1:0.55}" class="fade-up">
+          <!-- Worker header -->
+          <div style="padding:13px 16px;display:flex;align-items:center;gap:12px">
+            <div style="width:40px;height:40px;border-radius:50%;background:rgba(143,198,80,0.15);border:1.5px solid rgba(143,198,80,0.35);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0">👤</div>
             <div style="flex:1;min-width:0">
               <div style="font-size:15px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(w.name)}</div>
-              <div style="font-size:12px;color:var(--textDim);margin-top:2px">${esc(w.role||'')}${w.notes?` · ${esc(w.notes)}`:''}${!isActive?' · <span style="color:var(--danger)">לא פעיל</span>':''}</div>
+              <div style="font-size:12px;color:var(--textDim);margin-top:1px">${esc(w.role||'')}${w.notes?` · ${esc(w.notes)}`:''}${!isActive?' · <span style="color:var(--danger)">לא פעיל</span>':''}</div>
             </div>
             <div style="text-align:left;flex-shrink:0">
-              <div class="display" style="font-size:18px;color:var(--accent)">${salaryLabel}</div>
+              <div class="display" style="font-size:17px;color:var(--accent)">${salaryLabel}</div>
               ${monthAdvTotal>0?`<div style="font-size:11px;color:var(--amber);font-weight:700;text-align:left">מפרעות: ${fmtCurr(monthAdvTotal)}</div>`:''}
             </div>
           </div>
-          <div style="display:flex;border-top:1px solid var(--border)">
-            <button onclick="editWorker('${w.id}')" style="flex:1;padding:10px 4px;border:none;background:transparent;color:var(--textDim);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">✏️ עריכה</button>
-            <button onclick="setState({advanceOpen:${advOpen?'null':`'${w.id}'`},advanceForm:null})" style="flex:1;padding:10px 4px;border:none;border-right:1px solid var(--border);border-left:1px solid var(--border);background:${advOpen?'var(--amberSoft)':'transparent'};color:${advOpen?'var(--amber)':'var(--textDim)'};font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">💸 מפרעות${monthAdvTotal>0?' ●':''}</button>
-            <button onclick="toggleWorkerActive('${w.id}')" style="flex:1;padding:10px 4px;border:none;border-left:1px solid var(--border);background:transparent;color:var(--textDim);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">${isActive?'⏸ השהה':'▶️ הפעל'}</button>
-            <button onclick="deleteWorker('${w.id}','${esc(w.name)}')" style="flex:1;padding:10px 4px;border:none;border-right:1px solid var(--border);background:transparent;color:var(--danger);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">🗑 מחק</button>
+
+          <!-- Advances section - always visible -->
+          <div style="padding:12px 16px 14px;background:var(--surfaceHi);border-top:1px solid var(--border)">
+            <div style="font-size:10px;font-weight:700;color:var(--textDim);letter-spacing:0.07em;text-transform:uppercase;margin-bottom:9px">💸 מפרעות — ${monthLabel}</div>
+
+            <!-- Add form: date + amount + button -->
+            <div style="display:flex;gap:6px;margin-bottom:10px">
+              <input type="date" class="input"
+                value="${inp.date||todayStr()}"
+                onchange="state.advanceInputs['${wid}']={...(state.advanceInputs['${wid}']||{}),date:this.value}"
+                style="flex:1;min-width:0;padding:8px 10px;font-size:13px">
+              <input type="number" inputmode="decimal" placeholder="₪ סכום" class="input"
+                value="${inp.amount||''}"
+                oninput="state.advanceInputs['${wid}']={...(state.advanceInputs['${wid}']||{}),amount:this.value}"
+                style="flex:1;min-width:0;padding:8px 10px;font-size:13px">
+              <button onclick="saveAdvance('${wid}','${esc(w.name)}')"
+                style="flex-shrink:0;padding:8px 16px;background:var(--accent);color:#071302;border:none;border-radius:12px;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer">+</button>
+            </div>
+
+            <!-- List of this month's advances -->
+            ${monthAdv.length > 0 ? `
+              <div style="margin-bottom:8px">
+                ${monthAdv.map(a=>`
+                  <div style="display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid var(--border)">
+                    <div style="flex:1;min-width:0">
+                      <span style="font-size:14px;font-weight:700;color:var(--text)">${fmtCurr(a.amount)}</span>
+                      <span style="font-size:11px;color:var(--textDim);margin-right:6px">${fmtDate(a.date)}</span>
+                    </div>
+                    ${a.image
+                      ? `<button onclick="viewAdvanceImage('${a.id}')" title="צפה בתמונה" style="background:transparent;border:none;font-size:17px;cursor:pointer;padding:3px 5px;line-height:1">🖼️</button>`
+                      : `<button onclick="uploadAdvanceImage('${a.id}')" title="העלה תמונה" style="background:transparent;border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;padding:4px 8px;color:var(--textDim);font-family:inherit">📷 תמונה</button>`
+                    }
+                    <button onclick="deleteAdvance('${a.id}')" style="background:transparent;border:none;color:var(--danger);font-size:18px;cursor:pointer;padding:2px 4px;line-height:1">×</button>
+                  </div>`).join('')}
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px;margin-top:2px">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--amberSoft);border:1px solid rgba(245,180,42,0.25);border-radius:10px">
+                  <span style="font-size:12px;font-weight:700;color:var(--amber)">סה"כ מפרעות</span>
+                  <span style="font-size:15px;font-weight:800;color:var(--amber)">${fmtCurr(monthAdvTotal)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--accentSoft);border:1px solid rgba(126,203,66,0.2);border-radius:10px">
+                  <span style="font-size:12px;font-weight:700;color:var(--accent)">לתשלום בסוף חודש</span>
+                  <span style="font-size:16px;font-weight:800;color:var(--accent)">${fmtCurr((+w.salary||0)-monthAdvTotal)}</span>
+                </div>
+              </div>` : `<div style="font-size:12px;color:var(--textMuted);padding:2px 0">אין מפרעות החודש</div>`}
           </div>
-          ${advPanel}
+
+          <!-- Action buttons -->
+          <div style="display:flex;border-top:1px solid var(--border)">
+            <button onclick="editWorker('${wid}')" style="flex:1;padding:10px 4px;border:none;background:transparent;color:var(--textDim);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">✏️ עריכה</button>
+            <button onclick="toggleWorkerActive('${wid}')" style="flex:1;padding:10px 4px;border:none;border-right:1px solid var(--border);border-left:1px solid var(--border);background:transparent;color:var(--textDim);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">${isActive?'⏸ השהה':'▶️ הפעל'}</button>
+            <button onclick="deleteWorker('${wid}','${esc(w.name)}')" style="flex:1;padding:10px 4px;border:none;background:transparent;color:var(--danger);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">🗑 מחק</button>
+          </div>
         </div>`;
       }).join('');
 
@@ -1307,18 +1290,15 @@ function getWorkerMonthAdv(workerId, month) {
   return (DB.advances||[]).filter(a => a.workerId === workerId && a.month === (month||currentMonth()));
 }
 function saveAdvance(workerId, workerName) {
-  const f = state.advanceForm || {};
-  const amount = +(f.amount||0);
+  if (!state.advanceInputs) state.advanceInputs = {};
+  const inp = state.advanceInputs[workerId] || {};
+  const amount = +(inp.amount||0);
   if (!amount || amount <= 0) { toast('נא להזין סכום', 'error'); return; }
-  const date = f.date || todayStr();
-  const item = {
-    id: uid(), workerId, workerName, amount,
-    date, method: f.method||'מזומן', notes: f.notes||'',
-    month: date.substring(0,7),
-  };
+  const date = inp.date || todayStr();
+  const item = { id: uid(), workerId, workerName, amount, date, month: date.substring(0,7), image: null };
   DB.advances = [item, ...(DB.advances||[])];
   persistLocal();
-  state.advanceForm = null;
+  state.advanceInputs[workerId] = { amount: '', date: todayStr() };
   render();
   toast('מפרעה נרשמה ✓', 'success');
 }
@@ -1328,6 +1308,38 @@ function deleteAdvance(id) {
   persistLocal();
   render();
   toast('נמחק', 'success');
+}
+function uploadAdvanceImage(advId) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = function() {
+    const file = inp.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const adv = (DB.advances||[]).find(a=>a.id===advId);
+      if (adv) { adv.image = e.target.result; persistLocal(); render(); toast('תמונה נשמרה ✓','success'); }
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
+}
+function viewAdvanceImage(advId) {
+  const adv = (DB.advances||[]).find(a=>a.id===advId);
+  if (!adv?.image) return;
+  const win = window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${adv.image}" style="max-width:100%;max-height:100vh;object-fit:contain"></body></html>`);
+  win.document.close();
+}
+function clearPrevMonthAdvances() {
+  const d = new Date(); d.setMonth(d.getMonth()-1);
+  const prevMonth = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  const prevLabel = d.toLocaleDateString('he-IL',{month:'long',year:'numeric'});
+  const count = (DB.advances||[]).filter(a=>a.month===prevMonth).length;
+  if (!count) { toast('אין מפרעות מחודש קודם','error'); return; }
+  if (!confirm(`למחוק ${count} מפרעות מחודש ${prevLabel}?\nפעולה זו לא ניתנת לביטול.`)) return;
+  DB.advances = (DB.advances||[]).filter(a=>a.month!==prevMonth);
+  persistLocal(); render();
+  toast(`מפרעות ${prevLabel} נמחקו ✓`,'success');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
