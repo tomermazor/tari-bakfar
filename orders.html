@@ -1469,16 +1469,24 @@ function addOrderToExpenses(orderId) {
 
 // ─── Google Auth ────────────────────────────────────────────────────────────
 // ↓↓ אותם ערכים כמו ב-tari-bakfar.html ↓↓
-const GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '536002139707-9r2ruube0h3p5g8vau42e4ltnrj58vma.apps.googleusercontent.com';
 const ALLOWED_EMAILS = [
-  'your@gmail.com',
+  'tomermazor@gmail.com',
+  'limor1987@gmail.com',
+  'tari@taribakfar.co.il',
 ];
 
 function getStoredUser() {
   try { return JSON.parse(localStorage.getItem('google-user') || 'null'); } catch(e) { return null; }
 }
 function isAllowed(email) {
-  return ALLOWED_EMAILS.some(e => e.trim().toLowerCase() === (email||'').trim().toLowerCase());
+  const e = (email||'').trim().toLowerCase();
+  // בדיקה ברשימה הדינמית (מנוהלת בהגדרות tari-bakfar)
+  try {
+    const dynUsers = JSON.parse(localStorage.getItem('tari_users_v1') || 'null');
+    if (dynUsers && Array.isArray(dynUsers) && dynUsers.some(u => u.email === e)) return true;
+  } catch(ex) {}
+  return ALLOWED_EMAILS.some(a => a.trim().toLowerCase() === e);
 }
 function handleCredentialResponse(response) {
   try {

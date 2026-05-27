@@ -1956,6 +1956,38 @@ function renderSettings() {
         </div>
       </div>
 
+      ${isAdmin() ? `
+      <!-- ── User Management (admin only) ── -->
+      <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,rgba(91,156,246,0.14),rgba(126,203,66,0.14));display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">👥</div>
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:700;color:var(--text)">ניהול משתמשים</div>
+            <div style="font-size:11px;color:var(--textDim)">שליטה על גישה לאפליקציה</div>
+          </div>
+        </div>
+        <div style="margin-bottom:12px">
+          ${getDynamicUsers().map((u,i) => `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+              <div style="width:32px;height:32px;border-radius:50%;background:${u.role==='admin'?'rgba(126,203,66,0.15)':'rgba(102,128,106,0.12)'};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${u.role==='admin'?'👑':'👤'}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.email)}</div>
+                <div style="font-size:11px;color:${u.role==='admin'?'var(--accent)':'var(--textDim)'}">${u.role==='admin'?'מנהל':'משתמש'}</div>
+              </div>
+              <button onclick="toggleUserRole(${i})" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;white-space:nowrap">${u.role==='admin'?'↓ משתמש':'↑ מנהל'}</button>
+              <button onclick="removeUser(${i})" style="width:28px;height:28px;border:none;border-radius:8px;background:rgba(220,98,98,0.1);color:var(--danger);cursor:pointer;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center">✕</button>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:8px;align-items:stretch">
+          <input class="input" id="new-user-email" placeholder="כתובת Gmail חדשה..." style="flex:1;padding:10px 12px;font-size:13px" onkeydown="if(event.key==='Enter')addUser()">
+          <select id="new-user-role" class="input" style="flex:0 0 auto;padding:10px 8px;padding-left:30px;font-size:13px">
+            <option value="user">משתמש</option>
+            <option value="admin">מנהל</option>
+          </select>
+          <button onclick="addUser()" style="flex-shrink:0;border:none;border-radius:12px;padding:0 16px;background:var(--accent);color:#0a1505;font-weight:700;font-size:16px;font-family:inherit;cursor:pointer">+</button>
+        </div>
+      </div>` : ''}
+
       <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-top:14px">
         <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px">עדכון גרסה</div>
         <p style="font-size:12px;color:var(--textDim);line-height:1.6;margin:0 0 12px">אם האפליקציה לא מתעדכנת לגרסה האחרונה, לחץ כאן לניקוי ה-cache וטעינה מחדש.</p>
@@ -2101,18 +2133,85 @@ function toggleTheme() {
 }
 
 // ─── Google Auth ────────────────────────────────────────────────────────────
-// ↓↓ הכנס כאן את ה-Client ID שקיבלת מ-Google Cloud ↓↓
-const GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
-// ↓↓ רשימת כתובות Gmail המורשות להיכנס ↓↓
+const GOOGLE_CLIENT_ID = '536002139707-9r2ruube0h3p5g8vau42e4ltnrj58vma.apps.googleusercontent.com';
+// רשימת המשתמשים הקבועים (הראשון = מנהל ראשי שלא ניתן לשנות)
 const ALLOWED_EMAILS = [
-  'your@gmail.com',
+  'tomermazor@gmail.com',
+  'limor1987@gmail.com',
+  'tari@taribakfar.co.il',
 ];
+
+// ── Dynamic User Management ────────────────────────────────────────────────
+function getDynamicUsers() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('tari_users_v1') || 'null');
+    if (stored && Array.isArray(stored)) return stored;
+  } catch(e) {}
+  // Seed from hardcoded list on first run
+  const seeded = ALLOWED_EMAILS.map((email, i) => ({
+    email: email.trim().toLowerCase(),
+    role: i === 0 ? 'admin' : 'user'
+  }));
+  localStorage.setItem('tari_users_v1', JSON.stringify(seeded));
+  return seeded;
+}
+function saveDynamicUsers(users) {
+  localStorage.setItem('tari_users_v1', JSON.stringify(users));
+}
 
 function getStoredUser() {
   try { return JSON.parse(localStorage.getItem('google-user') || 'null'); } catch(e) { return null; }
 }
 function isAllowed(email) {
-  return ALLOWED_EMAILS.some(e => e.trim().toLowerCase() === (email||'').trim().toLowerCase());
+  const e = (email||'').trim().toLowerCase();
+  const users = getDynamicUsers();
+  return users.some(u => u.email === e) || ALLOWED_EMAILS.some(a => a.trim().toLowerCase() === e);
+}
+function isAdmin() {
+  const user = getStoredUser();
+  if (!user) return false;
+  const e = (user.email||'').trim().toLowerCase();
+  if (ALLOWED_EMAILS[0].trim().toLowerCase() === e) return true; // מנהל ראשי תמיד
+  const users = getDynamicUsers();
+  const u = users.find(u => u.email === e);
+  return u && u.role === 'admin';
+}
+function addUser() {
+  const emailEl = document.getElementById('new-user-email');
+  const roleEl = document.getElementById('new-user-role');
+  const email = (emailEl?.value || '').trim().toLowerCase();
+  const role = roleEl?.value || 'user';
+  if (!email || !email.includes('@')) { toast('נא להזין כתובת Gmail תקינה', 'error'); return; }
+  const users = getDynamicUsers();
+  if (users.some(u => u.email === email)) { toast('משתמש כבר קיים', 'error'); return; }
+  users.push({ email, role });
+  saveDynamicUsers(users);
+  if (emailEl) emailEl.value = '';
+  render();
+  toast('משתמש נוסף ✓', 'success');
+}
+function removeUser(idx) {
+  const users = getDynamicUsers();
+  const u = users[idx];
+  if (!u) return;
+  const myEmail = (getStoredUser()?.email||'').trim().toLowerCase();
+  if (u.email === myEmail) { toast('לא ניתן למחוק את עצמך', 'error'); return; }
+  if (ALLOWED_EMAILS[0].trim().toLowerCase() === u.email) { toast('לא ניתן למחוק את המנהל הראשי', 'error'); return; }
+  if (!confirm('למחוק גישה של ' + u.email + '?')) return;
+  users.splice(idx, 1);
+  saveDynamicUsers(users);
+  render();
+  toast('משתמש הוסר ✓', 'success');
+}
+function toggleUserRole(idx) {
+  const users = getDynamicUsers();
+  const u = users[idx];
+  if (!u) return;
+  if (ALLOWED_EMAILS[0].trim().toLowerCase() === u.email) { toast('לא ניתן לשנות הרשאות המנהל הראשי', 'error'); return; }
+  u.role = u.role === 'admin' ? 'user' : 'admin';
+  saveDynamicUsers(users);
+  render();
+  toast('הרשאות עודכנו ✓', 'success');
 }
 function handleCredentialResponse(response) {
   try {
