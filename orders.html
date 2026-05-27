@@ -96,6 +96,10 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .btn-primary:active { transform:scale(0.98); }
 .btn-secondary { border:1px solid var(--border); border-radius:14px; padding:14px 16px; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer; background:var(--surface); color:var(--text); flex-shrink:0; }
 .btn-secondary:active { background:var(--surfaceHi); }
+.btn-save-draft { border:1px solid rgba(244,185,66,0.4); border-radius:14px; padding:14px 13px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; background:rgba(244,185,66,0.1); color:var(--amber); flex-shrink:0; white-space:nowrap; }
+.btn-save-draft:active { background:rgba(244,185,66,0.2); }
+.order-counter { width:100%; text-align:center; font-size:12px; font-weight:700; color:var(--accent); padding-bottom:9px; letter-spacing:.02em; }
+.supplier-draft-badge { display:inline-block; background:rgba(244,185,66,0.12); border:1px solid rgba(244,185,66,0.3); border-radius:6px; padding:2px 7px; font-size:10px; font-weight:700; color:var(--amber); margin-right:5px; vertical-align:middle; }
 
 /* Manage */
 .input { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; color:var(--text); font-size:15px; font-family:inherit; outline:none; }
@@ -292,9 +296,13 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
       <button class="icon-btn" onclick="openManage()" title="נהל מוצרים">⚙</button>
     </header>
     <div class="main" id="order-main"></div>
-    <div class="order-footer">
-      <button class="btn-secondary" onclick="clearOrder()">נקה</button>
-      <button class="btn-primary" onclick="exportOrder()">📤 ייצא לוואטסאפ</button>
+    <div class="order-footer" style="flex-direction:column;align-items:stretch">
+      <div id="order-counter" class="order-counter" hidden></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn-secondary" onclick="clearOrder()">נקה</button>
+        <button class="btn-save-draft" onclick="saveDraftAndGo()">💾 שמור</button>
+        <button class="btn-primary" onclick="exportOrder()">📤 ייצא</button>
+      </div>
     </div>
   </div>
 
@@ -507,7 +515,7 @@ function renderHome(animated) {
       <div class="supplier-body" onclick="openOrder('${s.id}')">
         <div class="supplier-icon">${ICONS[i % ICONS.length]}</div>
         <div class="supplier-info">
-          <div class="supplier-name">${esc(s.name)}</div>
+          <div class="supplier-name">${esc(s.name)}${hasDraftFor(s.id) ? ' <span class="supplier-draft-badge">📋 טיוטא</span>' : ''}</div>
           <div class="supplier-meta">${s.products.length} מוצרים</div>
         </div>
       </div>
@@ -519,20 +527,74 @@ function renderHome(animated) {
 
 function goHome() { renderHome(); }
 
-// ─── Order Draft (persist across navigation) ───────────────────────────────
-var DRAFT_KEY = 'order-draft';
+// ─── Order Draft (persist across navigation, per supplier) ─────────────────
+var ALL_DRAFTS_KEY = 'orders-all-drafts';
 
-function saveDraft() {
-  localStorage.setItem(DRAFT_KEY, JSON.stringify({ supplierId: currentSupplierId, state: orderState, ts: Date.now() }));
+function getAllDrafts() {
+  try { return JSON.parse(localStorage.getItem(ALL_DRAFTS_KEY) || '{}'); } catch(e) { return {}; }
 }
-function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
+function saveDraft() {
+  var drafts = getAllDrafts();
+  drafts[currentSupplierId] = { state: orderState, ts: Date.now() };
+  localStorage.setItem(ALL_DRAFTS_KEY, JSON.stringify(drafts));
+}
+function clearDraft() {
+  var drafts = getAllDrafts();
+  delete drafts[currentSupplierId];
+  localStorage.setItem(ALL_DRAFTS_KEY, JSON.stringify(drafts));
+}
 function loadDraft(supplierId) {
-  try {
-    var raw = localStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    var d = JSON.parse(raw);
-    return d.supplierId === supplierId ? d.state : null;
-  } catch(e) { return null; }
+  var drafts = getAllDrafts();
+  return (drafts[supplierId] && drafts[supplierId].state) ? drafts[supplierId].state : null;
+}
+function hasDraftFor(supplierId) {
+  var drafts = getAllDrafts();
+  if (!drafts[supplierId]) return false;
+  var st = drafts[supplierId].state || {};
+  return Object.keys(st).some(function(pid) {
+    var v = st[pid];
+    if (!v) return false;
+    if (v.unit === 'both') return (parseInt(v.carton)||0) > 0 || (parseInt(v.units)||0) > 0;
+    return (parseInt(v.qty)||0) > 0;
+  });
+}
+
+// ─── Order Counter ──────────────────────────────────────────────────────────
+function updateOrderCounter() {
+  var totalCartons = 0, totalUnits = 0;
+  var sup = findSupplier(currentSupplierId);
+  if (sup) {
+    sup.products.forEach(function(p) {
+      var st = orderState[p.id];
+      if (!st) return;
+      if (st.unit === 'both') {
+        totalCartons += parseInt(st.carton) || 0;
+        totalUnits += parseInt(st.units) || 0;
+      } else if (st.unit === 'קרטון') {
+        totalCartons += parseInt(st.qty) || 0;
+      } else {
+        totalUnits += parseInt(st.qty) || 0;
+      }
+    });
+  }
+  var el = document.getElementById('order-counter');
+  if (!el) return;
+  var parts = [];
+  if (totalCartons > 0) parts.push('📦 ' + totalCartons + ' קרטון');
+  if (totalUnits > 0) parts.push('🔢 ' + totalUnits + ' יחידות');
+  if (parts.length) {
+    el.textContent = parts.join('  ·  ');
+    el.hidden = false;
+  } else {
+    el.textContent = '';
+    el.hidden = true;
+  }
+}
+
+function saveDraftAndGo() {
+  saveDraft();
+  goHome();
+  toast('טיוטא נשמרה ✓', 'success');
 }
 
 // ─── ORDER ─────────────────────────────────────────────────────────────────
@@ -566,6 +628,7 @@ function openOrder(supplierId) {
   document.getElementById('order-date').textContent = fmtDate(new Date());
   show('order');
   renderOrderProducts(sup, !!draft);
+  updateOrderCounter();
 }
 
 function renderOrderProducts(sup, hasDraft) {
@@ -650,6 +713,7 @@ function toggleUnit(pid) {
     btn.className = 'unit-toggle ' + (isCarton ? 'is-carton' : 'is-units');
   }
   saveDraft();
+  updateOrderCounter();
 }
 
 function stepQty(pid, delta) {
@@ -664,6 +728,7 @@ function stepQty(pid, delta) {
     el.className = 'step-val' + (next === 0 ? ' zero' : '');
   }
   saveDraft();
+  updateOrderCounter();
 }
 
 function setProductNote(pid, value) {
@@ -683,6 +748,7 @@ function stepQtyBoth(pid, type, delta) {
     el.className = 'step-val' + (next === 0 ? ' zero' : '');
   }
   saveDraft();
+  updateOrderCounter();
 }
 
 function clearOrder() {
@@ -710,6 +776,7 @@ function clearOrder() {
     if (noteEl) noteEl.value = '';
   });
   clearDraft();
+  updateOrderCounter();
   toast('ההזמנה נוקתה');
 }
 

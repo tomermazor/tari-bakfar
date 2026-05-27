@@ -437,6 +437,14 @@ let state = {
 };
 function setState(patch) { Object.assign(state, patch); render(); }
 
+// Search input: re-render then restore focus + cursor so typing isn't interrupted
+function setListSearch(val, cursorPos) {
+  state.listSearch = val;
+  render();
+  const el = document.getElementById('list-search-inp');
+  if (el) { el.focus(); try { el.setSelectionRange(cursorPos, cursorPos); } catch(e){} }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ICONS & TABS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -629,7 +637,7 @@ function renderList() {
 
       <div style="position:relative;margin-bottom:14px">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--textDim)" stroke-width="2" style="position:absolute;right:14px;top:50%;transform:translateY(-50%)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input class="input" style="padding-right:40px" placeholder="חיפוש ספק, מספר מסמך..." value="${esc(state.listSearch)}" oninput="state.listSearch=this.value;render()">
+        <input id="list-search-inp" class="input" style="padding-right:40px" placeholder="חיפוש ספק, מספר מסמך..." value="${esc(state.listSearch)}" oninput="setListSearch(this.value,this.selectionStart)">
       </div>
       <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;padding-bottom:2px">${['הכל','היום','שבוע','חודש'].map(p=>`<button class="pill ${state.listPer===p?'active':''}" onclick="setState({listPer:'${p}'})">${p}</button>`).join('')}</div>
       <div style="display:flex;gap:5px;overflow-x:auto;margin-bottom:18px;padding-bottom:2px">
