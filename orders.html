@@ -98,6 +98,8 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .btn-secondary:active { background:var(--surfaceHi); }
 .btn-save-draft { border:1px solid rgba(244,185,66,0.4); border-radius:14px; padding:14px 13px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; background:rgba(244,185,66,0.1); color:var(--amber); flex-shrink:0; white-space:nowrap; }
 .btn-save-draft:active { background:rgba(244,185,66,0.2); }
+.btn-order-sent { width:100%; border:none; border-radius:14px; padding:14px 16px; font-size:15px; font-weight:800; font-family:inherit; cursor:pointer; background:linear-gradient(135deg,#4fc46a 0%,#2f9e4a 100%); color:#fff; box-shadow:0 6px 20px -6px rgba(47,158,74,0.5); letter-spacing:0.01em; }
+.btn-order-sent:active { transform:scale(0.98); }
 .order-counter { width:100%; text-align:center; font-size:12px; font-weight:700; color:var(--accent); padding-bottom:9px; letter-spacing:.02em; }
 .supplier-draft-badge { display:inline-block; background:rgba(244,185,66,0.12); border:1px solid rgba(244,185,66,0.3); border-radius:6px; padding:2px 7px; font-size:10px; font-weight:700; color:var(--amber); margin-right:5px; vertical-align:middle; }
 
@@ -296,13 +298,14 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
       <button class="icon-btn" onclick="openManage()" title="נהל מוצרים">⚙</button>
     </header>
     <div class="main" id="order-main"></div>
-    <div class="order-footer" style="flex-direction:column;align-items:stretch">
+    <div class="order-footer" style="flex-direction:column;align-items:stretch;gap:8px">
       <div id="order-counter" class="order-counter" hidden></div>
-      <div style="display:flex;gap:10px">
+      <div style="display:flex;gap:8px">
         <button class="btn-secondary" onclick="clearOrder()">נקה</button>
         <button class="btn-save-draft" onclick="saveDraftAndGo()">💾 שמור</button>
-        <button class="btn-primary" onclick="exportOrder()">📤 ייצא</button>
+        <button class="btn-primary" onclick="exportOrder()">📤 ייצא לוואטסאפ</button>
       </div>
+      <button class="btn-order-sent" onclick="confirmOrderSent()">✓ הזמנה נשלחה לספק</button>
     </div>
   </div>
 
@@ -363,11 +366,11 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 <div id="modal-export" class="overlay" hidden onclick="closeModal('modal-export')">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-handle"></div>
-    <h2 class="display">הזמנה מוכנה ✓</h2>
-    <p class="hint">העתק ושלח לספק בוואטסאפ</p>
+    <h2 class="display">טקסט לוואטסאפ 📤</h2>
+    <p class="hint">העתק ושלח. ההזמנה נשמרת — לחץ ✓ נשלחה רק אחרי שהספק קיבל.</p>
     <div class="export-text" id="export-text"></div>
     <button class="btn-copy" onclick="copyExport()">📋 העתק טקסט</button>
-    <button class="btn-close-modal" onclick="closeModal('modal-export')">סגור</button>
+    <button class="btn-close-modal" onclick="closeModal('modal-export')">המשך לערוך</button>
   </div>
 </div>
 
@@ -804,21 +807,50 @@ function exportOrder() {
   const lines = orderedItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
   const text = `📋 הזמנה - ${sup.name}\n📅 ${dateStr}\n\n${lines.join('\n')}\n\nתודה!`;
 
+  // Just show the text — draft stays alive until user confirms "נשלחה"
+  document.getElementById('export-text').textContent = text;
+  document.getElementById('modal-export').hidden = false;
+}
+
+function confirmOrderSent() {
+  const sup = findSupplier(currentSupplierId);
+  if (!sup) return;
+  const orderedItems = [];
+  sup.products.forEach(p => {
+    const st = orderState[p.id];
+    if (!st) return;
+    if (st.unit === 'both') {
+      const qc = parseInt(st.carton) || 0;
+      const qu = parseInt(st.units) || 0;
+      if (qc > 0) orderedItems.push({ name: p.name, qty: String(qc), unit: 'קרטון', notes: st.notes || '' });
+      if (qu > 0) orderedItems.push({ name: p.name, qty: String(qu), unit: 'יחידות', notes: st.notes || '' });
+    } else {
+      const qty = parseInt(st.qty) || 0;
+      if (qty > 0) orderedItems.push({ name: p.name, qty: st.qty, unit: st.unit, notes: st.notes || '' });
+    }
+  });
+  if (!orderedItems.length) { toast('אין פריטים בהזמנה', 'error'); return; }
+
+  const dateStr = fmtDate(new Date());
+  const lines = orderedItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
+  const text = `📋 הזמנה - ${sup.name}\n📅 ${dateStr}\n\n${lines.join('\n')}\n\nתודה!`;
+
   // Save to history
   if (!db.history) db.history = [];
   db.history.unshift({ id: uid(), supplierId: sup.id, supplierName: sup.name,
     dateStr, timestamp: Date.now(), items: orderedItems, text });
   if (db.history.length > 200) db.history = db.history.slice(0, 200);
 
-  // Add to active orders (in-progress tracking)
+  // Add to active orders for delivery tracking
   if (!db.activeOrders) db.activeOrders = [];
   db.activeOrders.unshift({ id: uid(), supplierId: sup.id, supplierName: sup.name,
     dateOrdered: dateStr, timestamp: Date.now(), items: orderedItems, deliveryNoteImage: null });
-  saveDb();
-  clearDraft(); // order saved to history — draft no longer needed
 
-  document.getElementById('export-text').textContent = text;
-  document.getElementById('modal-export').hidden = false;
+  saveDb();
+  clearDraft();
+  closeModal('modal-export');
+  goHome();
+  toast('הזמנה נשלחה ✓', 'success');
 }
 
 function copyExport() {
