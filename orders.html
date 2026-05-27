@@ -532,6 +532,22 @@ function goHome() { renderHome(); }
 
 // ─── Order Draft (persist across navigation, per supplier) ─────────────────
 var ALL_DRAFTS_KEY = 'orders-all-drafts';
+var OLD_DRAFT_KEY  = 'order-draft'; // legacy — migrate on first load
+
+function migrateOldDraft() {
+  try {
+    var raw = localStorage.getItem(OLD_DRAFT_KEY);
+    if (!raw) return;
+    var old = JSON.parse(raw);
+    if (!old || !old.supplierId || !old.state) return;
+    var drafts = getAllDrafts();
+    if (!drafts[old.supplierId]) {          // only migrate if no new draft exists
+      drafts[old.supplierId] = { state: old.state, ts: old.ts || Date.now() };
+      localStorage.setItem(ALL_DRAFTS_KEY, JSON.stringify(drafts));
+    }
+    localStorage.removeItem(OLD_DRAFT_KEY); // clean up old key
+  } catch(e) {}
+}
 
 function getAllDrafts() {
   try { return JSON.parse(localStorage.getItem(ALL_DRAFTS_KEY) || '{}'); } catch(e) { return {}; }
@@ -1440,6 +1456,7 @@ async function sha256(msg) {
 
 function initApp() {
   loadDb();
+  migrateOldDraft();
   renderHome();
   syncSuppliers();
   document.addEventListener('visibilitychange', function(){ if (!document.hidden) syncSuppliers(); });
