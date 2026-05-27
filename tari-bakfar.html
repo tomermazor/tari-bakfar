@@ -590,8 +590,49 @@ function manualForm() {
   }});
 }
 
+// ─── Duplicate detection ───────────────────────────────────────────────────
+function findDuplicate(item) {
+  const dn = item.document_number ? String(item.document_number).trim() : '';
+  // Strong: same non-empty document number + same supplier
+  if (dn) {
+    const byDoc = DB.expenses.find(e =>
+      e.id !== item.id &&
+      e.supplier === item.supplier &&
+      e.document_number && String(e.document_number).trim() === dn
+    );
+    if (byDoc) return { strength: 'strong', match: byDoc };
+  }
+  // Soft: same supplier + same total amount + same date
+  if (item.total_amount && item.supplier) {
+    const byAmt = DB.expenses.find(e =>
+      e.id !== item.id &&
+      e.supplier === item.supplier &&
+      Math.abs((+e.total_amount || 0) - (+item.total_amount || 0)) < 0.01 &&
+      String(e.date) === String(item.date)
+    );
+    if (byAmt) return { strength: 'soft', match: byAmt };
+  }
+  return null;
+}
+
+function warnDuplicate(dup) {
+  const m = dup.match;
+  const d = fmtDate(m.date);
+  const a = fmtCurr(m.total_amount);
+  if (dup.strength === 'strong') {
+    return confirm(
+      `⚠️ מסמך כפול!\n\nמספר מסמך ${m.document_number} מ"${m.supplier}" כבר קיים:\nתאריך: ${d} | סכום: ${a}\n\nלשמור בכל זאת?`
+    );
+  }
+  return confirm(
+    `⚠️ הוצאה דומה קיימת!\n\nנמצאה הוצאה מ"${m.supplier}" מתאריך ${d} בסכום ${a}.\nייתכן שמדובר בהוצאה כפולה.\n\nלשמור בכל זאת?`
+  );
+}
+
 async function saveScanResult() {
   const item = state.scanForm;
+  const dup = findDuplicate(item);
+  if (dup && !warnDuplicate(dup)) return;
   // Store without base64 locally — Drive URL arrives on next syncAll()
   const localItem = {...item, image: item.image?.startsWith('data:') ? '' : (item.image || '')};
   await queueAndSync('add_expense', {payload: item}, () => {
@@ -781,6 +822,8 @@ function addTotal(v) {
 async function submitAdd() {
   if (!addForm.supplier || !addForm.total_amount) return;
   const item = {...addForm, id:uid(), total_amount:+addForm.total_amount, vat_amount:+addForm.vat_amount||0, amount_before_vat:+addForm.amount_before_vat||0};
+  const dup = findDuplicate(item);
+  if (dup && !warnDuplicate(dup)) return;
   await queueAndSync('add_expense', {payload: item}, () => DB.expenses.unshift(item));
   addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:""};
   toast('נשמר!', 'success');
