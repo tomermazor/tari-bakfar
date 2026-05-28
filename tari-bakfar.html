@@ -517,7 +517,7 @@ function renderScan() {
       <div style="padding:20px 20px 100px" class="fade-up">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <div style="font-size:15px;font-weight:700;color:var(--text)">תצוגה מקדימה</div>
-          <button onclick="setState({scanStage:'idle',scanImg:null,scanErr:''})" style="width:34px;height:34px;border:none;border-radius:50%;background:var(--surfaceHi);color:var(--textDim);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center">✕</button>
+          <button onclick="setState({scanStage:'idle',scanImg:null,scanErr:''})" style="width:44px;height:44px;border:none;border-radius:12px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:26px;font-weight:300;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
         </div>
         <div style="position:relative;margin-bottom:16px;border-radius:16px;overflow:hidden;border:1px solid var(--border)"><img src="${state.scanImg}" alt="" style="width:100%;max-height:360px;object-fit:contain;background:#000;display:block"></div>
         ${state.scanErr ? `<div class="err">⚠️ ${esc(state.scanErr)}</div>` : ''}
@@ -543,7 +543,7 @@ function renderScan() {
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:10px 14px;border-radius:12px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2)">
           <div style="width:24px;height:24px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;color:#0a1505">✓</div>
           <div style="flex:1;color:var(--accent);font-weight:700;font-size:14px">נחלצו הפרטים — בדוק ושמור</div>
-          <button onclick="setState({scanStage:'idle',scanImg:null})" style="width:30px;height:30px;border:none;border-radius:50%;background:rgba(0,0,0,0.2);color:var(--textDim);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+          <button onclick="setState({scanStage:'idle',scanImg:null})" style="width:44px;height:44px;border:none;border-radius:12px;background:rgba(0,0,0,0.25);color:var(--text);cursor:pointer;font-size:26px;font-weight:300;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
         </div>
         ${f.image ? `<div style="border-radius:14px;overflow:hidden;border:1px solid var(--border);margin-bottom:18px"><img src="${f.image}" style="width:100%;max-height:180px;object-fit:contain;background:#000;display:block"></div>` : ''}
         <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.scanForm.supplier=this.value"></div>
@@ -774,7 +774,7 @@ function renderEditModal() {
     <div onclick="setState({editId:null,editForm:null})" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
       <div onclick="event.stopPropagation()" style="background:var(--surface);border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:20px;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));max-height:85vh;overflow-y:auto;border-top:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
-          <button onclick="setState({editId:null,editForm:null})" style="border:none;background:none;color:var(--textDim);cursor:pointer;font-size:22px;padding:0;line-height:1;flex-shrink:0">✕</button>
+          <button onclick="setState({editId:null,editForm:null})" style="width:44px;height:44px;border:none;border-radius:12px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:26px;font-weight:300;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
           <h2 class="display" style="font-size:17px;margin:0;flex:1">עריכת הוצאה</h2>
           <button onclick="saveEditExpense()" style="border:none;border-radius:10px;padding:8px 18px;background:var(--accent);color:#071302;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;flex-shrink:0">שמור</button>
         </div>
