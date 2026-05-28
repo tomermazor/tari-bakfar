@@ -199,6 +199,7 @@ const DB = {
   credits: JSON.parse(localStorage.getItem('tari_credits_v1')||'[]'),
   workers:  JSON.parse(localStorage.getItem('tari_workers_v1')||'[]'),
   advances: JSON.parse(localStorage.getItem('tari_advances_v1')||'[]'),
+  checks:   JSON.parse(localStorage.getItem('tari_checks_v1')||'[]'),
 };
 
 const PENDING = JSON.parse(localStorage.getItem('tari_pending_v1')||'[]'); // pending sync operations
@@ -211,6 +212,7 @@ function persistLocal() {
   localStorage.setItem('tari_credits_v1', JSON.stringify(DB.credits));
   localStorage.setItem('tari_workers_v1', JSON.stringify(DB.workers));
   localStorage.setItem('tari_advances_v1', JSON.stringify(DB.advances));
+  localStorage.setItem('tari_checks_v1', JSON.stringify(DB.checks));
   localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
   updateHeader();
 }
@@ -437,6 +439,8 @@ let state = {
   workerAdding: false, workerForm: null,
   advanceInputs: {},
   viewCreditImage: null,
+  checkForm: {supplier:'', amount:'', checkNum:'', issueDate:'', clearDate:'', note:''},
+  checksShowCleared: false,
 };
 function setState(patch) { Object.assign(state, patch); render(); }
 
@@ -461,6 +465,7 @@ const ICONS = {
   credits: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
   workers: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   add: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  checks: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 10h4m-4 4h12M14 10h4"/></svg>',
   settings: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
 };
 
@@ -468,7 +473,7 @@ const TABS = [
   {id:'scan',label:'סריקה'},{id:'list',label:'שוטף'},{id:'fixed',label:'קבועות'},
   {id:'installments',label:'תשלומים'},{id:'reports',label:'דוחות'},
   {id:'income',label:'הכנסות'},{id:'credits',label:'זיכויים'},
-  {id:'workers',label:'עובדים'},{id:'add',label:'הוספה'},
+  {id:'workers',label:'עובדים'},{id:'checks',label:"צ'קים"},{id:'add',label:'הוספה'},
 ];
 
 function renderNav() {
@@ -1381,6 +1386,173 @@ function clearPrevMonthAdvances() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — CHECKS
+// ═══════════════════════════════════════════════════════════════════════════
+function checkUrgency(clearDate) {
+  // Returns 'overdue'|'soon'|'normal' based on clearing date proximity
+  if (!clearDate) return 'normal';
+  const d = parseD(clearDate);
+  if (!d) return 'normal';
+  const now = new Date(); now.setHours(0,0,0,0);
+  const diff = Math.floor((d - now) / 86400000);
+  if (diff < 0) return 'overdue';
+  if (diff <= 7) return 'soon';
+  return 'normal';
+}
+
+function addCheck() {
+  const cf = state.checkForm;
+  if (!cf.supplier.trim() || !cf.amount || !cf.clearDate) return;
+  const item = {
+    id: uid(),
+    supplier: cf.supplier.trim(),
+    amount: +cf.amount,
+    checkNum: cf.checkNum.trim(),
+    issueDate: cf.issueDate ? isoToHe(cf.issueDate) : todayStr(),
+    clearDate: isoToHe(cf.clearDate),
+    note: cf.note.trim(),
+    cleared: false,
+    createdAt: new Date().toISOString(),
+  };
+  DB.checks.push(item);
+  persistLocal();
+  state.checkForm = {supplier:'', amount:'', checkNum:'', issueDate:'', clearDate:'', note:''};
+  render();
+  toast('צ\'ק נוסף ✓', 'success');
+}
+
+function toggleCheckCleared(id) {
+  const c = DB.checks.find(x => x.id === id);
+  if (!c) return;
+  c.cleared = !c.cleared;
+  persistLocal();
+  render();
+  toast(c.cleared ? '✓ צ\'ק סומן כמומש' : 'סימון בוטל', c.cleared ? 'success' : 'info');
+}
+
+function deleteCheck(id) {
+  DB.checks = DB.checks.filter(x => x.id !== id);
+  persistLocal();
+  render();
+  toast('צ\'ק נמחק', 'info');
+}
+
+function renderChecks() {
+  if (!DB.checks) DB.checks = [];
+  const cf = state.checkForm;
+  const open   = DB.checks.filter(c => !c.cleared).sort((a,b) => parseD(a.clearDate) - parseD(b.clearDate));
+  const cleared = DB.checks.filter(c => c.cleared).sort((a,b) => parseD(b.clearDate) - parseD(a.clearDate));
+  const totalOpen = open.reduce((s,c) => s+(+c.amount||0), 0);
+
+  const urgencyStyle = {
+    overdue: 'border-color:rgba(220,98,98,0.6);background:rgba(220,98,98,0.06)',
+    soon:    'border-color:rgba(244,185,66,0.6);background:rgba(244,185,66,0.05)',
+    normal:  '',
+  };
+  const urgencyBadge = {
+    overdue: '<span style="font-size:10px;font-weight:700;color:var(--danger);background:rgba(220,98,98,0.15);padding:2px 8px;border-radius:20px;margin-right:6px">פג תוקף</span>',
+    soon:    '<span style="font-size:10px;font-weight:700;color:var(--amber);background:rgba(244,185,66,0.15);padding:2px 8px;border-radius:20px;margin-right:6px">בקרוב</span>',
+    normal:  '',
+  };
+
+  function checkCard(c) {
+    const u = checkUrgency(c.clearDate);
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:12px;overflow:hidden;${u!=='normal'&&!c.cleared?urgencyStyle[u]:''}" class="fade-up">
+        <div style="padding:14px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:15px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.supplier)}</div>
+              ${c.checkNum ? `<div style="font-size:11px;color:var(--textDim);margin-top:2px">מס' צ'ק: ${esc(c.checkNum)}</div>` : ''}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-right:10px">
+              <div class="display" style="font-size:22px;color:${c.cleared?'var(--textDim)':'var(--text)'}">${fmtCurr(c.amount)}</div>
+              <button onclick="deleteCheck('${c.id}')" style="width:28px;height:28px;border:none;border-radius:7px;background:rgba(220,98,98,0.1);color:var(--danger);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center">✕</button>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:11px;color:var(--textDim)">
+            ${!c.cleared && u !== 'normal' ? urgencyBadge[u] : ''}
+            <span>📅 הנפקה: ${fmtDate(c.issueDate)}</span>
+            <span style="margin:0 4px;color:var(--border)">·</span>
+            <span style="color:${c.cleared?'var(--textDim)':u==='overdue'?'var(--danger)':u==='soon'?'var(--amber)':'var(--text)'}">⏳ פירעון: ${fmtDate(c.clearDate)}</span>
+          </div>
+          ${c.note ? `<div style="margin-top:9px;font-size:13px;color:var(--text);padding:8px 12px;background:var(--surfaceHi);border-radius:8px;border-right:3px solid var(--border)">📝 ${esc(c.note)}</div>` : ''}
+        </div>
+        <div style="padding:10px 16px 14px;border-top:1px solid var(--border)">
+          <button onclick="toggleCheckCleared('${c.id}')"
+            style="width:100%;padding:11px;border:none;border-radius:12px;background:${c.cleared?'var(--surfaceHi)':'linear-gradient(135deg,var(--accent),#6fa83a)'};color:${c.cleared?'var(--textDim)':'#0a1505'};font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">
+            ${c.cleared ? '↩ בטל מימוש' : '✅ צ\'ק מומש'}
+          </button>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div style="padding:16px 16px 90px" class="fade-up">
+
+      <!-- Summary banner -->
+      ${open.length > 0 ? `
+      <div style="padding:14px 18px;margin-bottom:14px;border-radius:14px;background:linear-gradient(135deg,rgba(59,130,246,0.1),rgba(59,130,246,0.04));border:1px solid rgba(59,130,246,0.35);display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#60a5fa">צ'קים ממתינים לפירעון</div>
+          <div style="font-size:11px;color:var(--textDim);margin-top:2px">${open.length} צ'קים פתוחים</div>
+        </div>
+        <div class="display" style="font-size:26px;color:#60a5fa">${fmtCurr(totalOpen)}</div>
+      </div>` : ''}
+
+      <!-- Add check form -->
+      <div style="padding:16px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">+ צ'ק חדש</div>
+        <div class="field">
+          <label class="label">ספק *</label>
+          <input class="input" placeholder="שם הספק" value="${esc(cf.supplier)}" oninput="state.checkForm.supplier=this.value">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label class="label">סכום ₪ *</label>
+            <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${cf.amount}" oninput="state.checkForm.amount=this.value">
+          </div>
+          <div class="field">
+            <label class="label">מס' צ'ק</label>
+            <input class="input" placeholder="אופציונלי" value="${esc(cf.checkNum)}" oninput="state.checkForm.checkNum=this.value">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label class="label">תאריך הנפקה</label>
+            <input class="input" type="date" value="${cf.issueDate || todayISO()}" oninput="state.checkForm.issueDate=this.value">
+          </div>
+          <div class="field">
+            <label class="label">תאריך פירעון *</label>
+            <input class="input" type="date" value="${cf.clearDate}" oninput="state.checkForm.clearDate=this.value">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">הערה</label>
+          <input class="input" placeholder="הערה אופציונלית..." value="${esc(cf.note)}" oninput="state.checkForm.note=this.value">
+        </div>
+        <button class="btn-primary" onclick="addCheck()" ${!cf.supplier.trim()||!cf.amount||!cf.clearDate?'disabled':''} style="margin-bottom:0">💾 הוסף צ'ק</button>
+      </div>
+
+      <!-- Open checks -->
+      ${open.length === 0
+        ? `<div style="text-align:center;padding:44px 20px;color:var(--textMuted)"><div style="font-size:44px;margin-bottom:10px;opacity:0.4">📝</div><div style="font-size:14px">אין צ'קים ממתינים</div><div style="font-size:12px;margin-top:6px">הוסף צ'ק שנתת לספק</div></div>`
+        : open.map(c => checkCard(c)).join('')
+      }
+
+      <!-- Cleared checks toggle -->
+      ${cleared.length > 0 ? `
+        <button onclick="setState({checksShowCleared:!state.checksShowCleared})"
+          style="width:100%;padding:11px;border:1px solid var(--border);border-radius:12px;background:transparent;color:var(--textDim);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;margin-bottom:${state.checksShowCleared?'12px':'0'}">
+          ${state.checksShowCleared ? '▲ הסתר' : '▼ הצג'} צ'קים שמומשו (${cleared.length})
+        </button>
+        ${state.checksShowCleared ? cleared.map(c => checkCard(c)).join('') : ''}
+      ` : ''}
+
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // IMAGE LIGHTBOX
 // ═══════════════════════════════════════════════════════════════════════════
 function renderImageLightbox() {
@@ -2172,6 +2344,7 @@ function render() {
     case 'income': content = renderIncome(); break;
     case 'credits': content = renderCredits(); break;
     case 'workers': content = renderWorkers(); break;
+    case 'checks': content = renderChecks(); break;
     case 'add': content = renderAdd(); break;
     case 'settings': content = renderSettings(); break;
   }
