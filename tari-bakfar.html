@@ -2682,6 +2682,7 @@ function getAllowedTabs() {
   return def?.tabs || TABS.map(t => t.id); // null/missing = all tabs
 }
 function canAccessTab(tabId) {
+  if (tabId === 'settings') return getUserRole() !== 'scanner';
   return getAllowedTabs().includes(tabId);
 }
 
