@@ -971,6 +971,14 @@ function renderManage() {
       </div>
     </div>
 
+    <div style="margin-top:16px;padding:14px;border-radius:12px;background:rgba(91,156,246,0.06);border:1px solid rgba(91,156,246,0.2)">
+      <div class="section-title" style="margin-bottom:10px">שכפול ספק</div>
+      <div style="display:flex;gap:8px">
+        <input class="input" id="dup-supplier-name" placeholder="שם הספק החדש..." style="flex:1;padding:10px 12px;font-size:13px">
+        <button onclick="duplicateSupplier()" style="flex-shrink:0;border:none;border-radius:10px;padding:10px 16px;background:rgba(91,156,246,0.2);color:var(--blue);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">📋 שכפל</button>
+      </div>
+    </div>
+
     <div class="danger-zone">
       <button class="btn-danger" onclick="deleteSupplier()">🗑 מחק ספק זה לגמרי</button>
     </div>
@@ -1215,6 +1223,25 @@ function deleteSupplier() {
   currentSupplierId = null;
   renderHome();
   toast('ספק נמחק');
+}
+
+function duplicateSupplier() {
+  const sup = findSupplier(currentSupplierId);
+  if (!sup) return;
+  const inp = document.getElementById('dup-supplier-name');
+  const newName = (inp?.value || '').trim();
+  if (!newName) { inp?.focus(); toast('הזן שם לספק החדש', 'error'); return; }
+  if (db.suppliers.find(s => s.name === newName)) { toast('ספק בשם זה כבר קיים', 'error'); return; }
+  const copy = {
+    id: uid(),
+    name: newName,
+    products: sup.products.map(p => ({ ...p, id: uid() }))
+  };
+  db.suppliers.push(copy);
+  saveDb(true); pushSuppliers();
+  if (inp) inp.value = '';
+  toast('ספק "' + newName + '" נוצר עם ' + copy.products.length + ' מוצרים ✓', 'success');
+  renderManage();
 }
 
 // ─── Add Supplier Modal ────────────────────────────────────────────────────
