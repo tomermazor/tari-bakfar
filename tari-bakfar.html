@@ -2324,6 +2324,37 @@ function resetCats() {
 // ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — SETTINGS
 // ═══════════════════════════════════════════════════════════════════════════
+function renderSupplierManager() {
+  if (!DB.suppliers) DB.suppliers = [];
+  const catOpts = CATS.map(c => '<option>' + esc(c) + '</option>').join('');
+  let rows = '';
+  DB.suppliers.forEach(function(s) {
+    const opts = CATS.map(function(c) {
+      return '<option' + (c === s.defaultCategory ? ' selected' : '') + '>' + esc(c) + '</option>';
+    }).join('');
+    rows += '<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)">'
+      + '<div style="width:7px;height:7px;border-radius:50%;background:#5b9cf6;flex-shrink:0"></div>'
+      + '<span style="flex:1;font-size:14px;font-weight:600;color:var(--text)">' + esc(s.name) + '</span>'
+      + '<select onchange="updateSupplierCat(\'' + s.id + '\',this.value)" style="font-size:11px;padding:3px 24px 3px 6px;border:1px solid var(--border);border-radius:7px;background:var(--surfaceHi);color:var(--textDim);font-family:inherit;cursor:pointer;max-width:120px">' + opts + '</select>'
+      + '<button onclick="deleteSupplier(\'' + s.id + '\')" style="width:26px;height:26px;border:none;border-radius:7px;background:var(--dangerSoft);color:var(--danger);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>'
+      + '</div>';
+  });
+  const listHtml = DB.suppliers.length > 0
+    ? '<div style="margin-bottom:12px">' + rows + '</div>'
+    : '<div style="text-align:center;padding:16px;color:var(--textMuted);font-size:13px;border:1px dashed var(--border);border-radius:10px;margin-bottom:12px">הוסף ספקים כדי לשפר את הסריקה ולמנוע שגיאות כתיב</div>';
+  return '<div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'
+    + '<div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,rgba(91,156,246,0.13),rgba(168,85,247,0.13));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏭</div>'
+    + '<div style="flex:1"><div style="font-size:15px;font-weight:700;color:var(--text)">ספקים קבועים</div>'
+    + '<div style="font-size:11px;color:var(--textDim)">' + DB.suppliers.length + ' ספקים · משפיע על סריקה + השלמה אוטומטית</div></div></div>'
+    + listHtml
+    + '<div style="display:flex;gap:8px;align-items:center">'
+    + '<input class="input" id="sup-name-inp" placeholder="שם הספק..." style="flex:1" onkeydown="if(event.key===\'Enter\')addSupplier()">'
+    + '<select class="input" id="sup-cat-sel" style="flex:0 0 auto;width:auto;padding:11px 30px 11px 8px">' + catOpts + '</select>'
+    + '<button onclick="addSupplier()" style="flex-shrink:0;border:none;border-radius:12px;padding:0 16px;height:46px;background:var(--accent);color:#0a1505;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">+ הוסף</button>'
+    + '</div></div>';
+}
+
 function renderSettings() {
   return `
     <div style="padding:20px 20px 100px" class="fade-up">
@@ -2402,39 +2433,7 @@ function renderSettings() {
       </div>
 
       <!-- ── Supplier Manager ── -->
-      <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,rgba(91,156,246,0.13),rgba(168,85,247,0.13));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏭</div>
-          <div style="flex:1">
-            <div style="font-size:15px;font-weight:700;color:var(--text)">ספקים קבועים</div>
-            <div style="font-size:11px;color:var(--textDim)">${DB.suppliers.length} ספקים · משפיע על סריקה + השלמה אוטומטית</div>
-          </div>
-        </div>
-        ${DB.suppliers.length > 0 ? `
-        <div style="margin-bottom:12px">
-          ${DB.suppliers.map(s=>`
-            <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)">
-              <div style="width:7px;height:7px;border-radius:50%;background:#5b9cf6;flex-shrink:0"></div>
-              <span style="flex:1;font-size:14px;font-weight:600;color:var(--text)">${esc(s.name)}</span>
-              <select onchange="updateSupplierCat('${s.id}',this.value)"
-                style="font-size:11px;padding:3px 24px 3px 6px;border:1px solid var(--border);border-radius:7px;background:var(--surfaceHi);color:var(--textDim);font-family:inherit;cursor:pointer;max-width:110px">
-                ${CATS.map(c=>`<option ${c===s.defaultCategory?'selected':''}>${esc(c)}</option>`).join('')}
-              </select>
-              <button onclick="deleteSupplier('${s.id}')" style="width:26px;height:26px;border:none;border-radius:7px;background:var(--dangerSoft);color:var(--danger);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
-            </div>`).join('')}
-        </div>` : `
-        <div style="text-align:center;padding:16px;color:var(--textMuted);font-size:13px;border:1px dashed var(--border);border-radius:10px;margin-bottom:12px">
-          הוסף ספקים כדי לשפר את הסריקה ולמנוע שגיאות כתיב
-        </div>`}
-        <div style="display:flex;gap:8px;align-items:center">
-          <input class="input" id="sup-name-inp" placeholder="שם הספק..." style="flex:1"
-                 onkeydown="if(event.key==='Enter')addSupplier()">
-          <select class="input" id="sup-cat-sel" style="flex:0 0 auto;width:auto;padding:11px 30px 11px 8px">
-            ${CATS.map(c=>`<option>${esc(c)}</option>`).join('')}
-          </select>
-          <button onclick="addSupplier()" style="flex-shrink:0;border:none;border-radius:12px;padding:0 16px;height:46px;background:var(--accent);color:#0a1505;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">+ הוסף</button>
-        </div>
-      </div>
+      ${renderSupplierManager()}
 
       <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:12px">
