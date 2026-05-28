@@ -1916,10 +1916,10 @@ async function deleteCreditRequest(id) {
 // ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — INCOME
 // ═══════════════════════════════════════════════════════════════════════════
-const INCOME_TYPES = ['מכירות אונליין', 'הזמנות קופה', 'אחר'];
-const INCOME_COLORS = {'מכירות אונליין': '#5b9cf6', 'הזמנות קופה': 'var(--accent)', 'אחר': 'var(--accent2)'};
-const INCOME_BG     = {'מכירות אונליין': 'rgba(91,156,246,0.1)',  'הזמנות קופה': 'rgba(143,198,80,0.1)', 'אחר': 'rgba(212,165,116,0.1)'};
-const INCOME_ICONS  = {'מכירות אונליין': '🛒', 'הזמנות קופה': '🏪', 'אחר': '💵'};
+const INCOME_TYPES = ['מכירות אונליין', 'הזמנות קופה', 'וולט', 'אחר'];
+const INCOME_COLORS = {'מכירות אונליין': '#5b9cf6', 'הזמנות קופה': 'var(--accent)', 'וולט': '#a855f7', 'אחר': 'var(--accent2)'};
+const INCOME_BG     = {'מכירות אונליין': 'rgba(91,156,246,0.1)',  'הזמנות קופה': 'rgba(143,198,80,0.1)', 'וולט': 'rgba(168,85,247,0.1)', 'אחר': 'rgba(212,165,116,0.1)'};
+const INCOME_ICONS  = {'מכירות אונליין': '🛒', 'הזמנות קופה': '🏪', 'וולט': '🛵', 'אחר': '💵'};
 
 function renderIncome() {
   const now = new Date();
@@ -1945,10 +1945,10 @@ function renderIncome() {
 
   const typeBtn = (type) => {
     const sel = f.type === type;
-    const COLS = {'מכירות אונליין':'#5b9cf6','הזמנות קופה':'var(--accent)','אחר':'var(--accent2)'};
-    const BGS  = {'מכירות אונליין':'rgba(91,156,246,0.12)','הזמנות קופה':'rgba(143,198,80,0.12)','אחר':'rgba(212,165,116,0.12)'};
-    const c = COLS[type]; const bg = sel ? BGS[type] : 'transparent';
-    return `<button onclick="state.incomeForm.type='${type}';render()" style="flex:1;padding:8px 4px;border-radius:9px;border:1px solid ${sel?c:'var(--border)'};background:${bg};color:${sel?c:'var(--textDim)'};cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;text-align:center;line-height:1.4">${INCOME_ICONS[type]}<br>${type}</button>`;
+    const COLS = {'מכירות אונליין':'#5b9cf6','הזמנות קופה':'var(--accent)','וולט':'#a855f7','אחר':'var(--accent2)'};
+    const BGS  = {'מכירות אונליין':'rgba(91,156,246,0.12)','הזמנות קופה':'rgba(143,198,80,0.12)','וולט':'rgba(168,85,247,0.12)','אחר':'rgba(212,165,116,0.12)'};
+    const c = COLS[type]||'var(--accent)'; const bg = sel ? BGS[type]||'transparent' : 'transparent';
+    return `<button onclick="setState({incomeForm:{...state.incomeForm,type:'${type}' }})" style="flex:1;min-width:0;padding:7px 2px;border-radius:9px;border:1px solid ${sel?c:'var(--border)'};background:${bg};color:${sel?c:'var(--textDim)'};cursor:pointer;font-size:10px;font-weight:700;font-family:inherit;text-align:center;line-height:1.4">${INCOME_ICONS[type]||'💵'}<br>${type}</button>`;
   };
 
   const incomeRow = e => {
@@ -2026,13 +2026,13 @@ function renderIncome() {
         <div style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1.2">
             <label class="label">סכום ₪ *</label>
-            <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${f.amount}" oninput="state.incomeForm.amount=this.value" onkeydown="if(event.key==='Enter')addIncome()" style="padding:11px 12px">
+            <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${f.amount}" oninput="state.incomeForm.amount=this.value;render()" onkeydown="if(event.key==='Enter')addIncome()" style="padding:11px 12px">
           </div>
           <div style="flex:1.5">
             <label class="label">הערות</label>
             <input class="input" placeholder="אופציונלי" value="${esc(f.notes)}" oninput="state.incomeForm.notes=this.value" onkeydown="if(event.key==='Enter')addIncome()" style="padding:11px 12px">
           </div>
-          <button onclick="addIncome()" ${!f.amount?'disabled':''} style="flex-shrink:0;height:42px;width:44px;border:none;border-radius:12px;background:${f.amount?'linear-gradient(135deg,var(--accent),#6fa83a)':'var(--border)'};color:${f.amount?'#0a1505':'var(--textMuted)'};font-size:22px;line-height:1;cursor:${f.amount?'pointer':'default'}">+</button>
+          <button onclick="addIncome()" style="flex-shrink:0;height:42px;width:44px;border:none;border-radius:12px;background:${f.amount?'linear-gradient(135deg,var(--accent),#6fa83a)':'var(--border)'};color:${f.amount?'#0a1505':'var(--textMuted)'};font-size:22px;line-height:1;cursor:pointer">+</button>
         </div>
       </div>
 
@@ -2069,7 +2069,7 @@ function renderIncome() {
 
 function addIncome() {
   const f = state.incomeForm;
-  if (!f.amount) return;
+  if (!f.amount) { toast('הזן סכום', 'error'); return; }
   const item = { id: uid(), date: f.date || todayStr(), type: f.type, amount: +f.amount, notes: f.notes || '' };
   DB.income.unshift(item);
   persistLocal();
