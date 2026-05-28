@@ -825,10 +825,14 @@ function renderList() {
         // Sort groups newest first
         const groups = [...groupMap.values()].sort((a,b)=>(b.date||0)-(a.date||0));
 
-        return groups.map(g => {
+        return groups.map((g, gi) => {
           const d = g.date;
           const dMs = d ? d.setHours(0,0,0,0) : null;
-          const dayLabel = dMs===todayMs ? 'היום' : dMs===yesterMs ? 'אתמול' : d ? `יום ${DAYS_HE[d.getDay()]}` : '';
+          const isToday2  = dMs === todayMs;
+          const isYester  = dMs === yesterMs;
+          const dayLabel  = isToday2 ? 'היום' : isYester ? 'אתמול' : d ? `יום ${DAYS_HE[d.getDay()]}` : '';
+          // Accent colour for the day strip
+          const stripColor = isToday2 ? 'var(--accent)' : isYester ? 'var(--amber)' : 'var(--textDim)';
           const dayTotal = g.items.reduce((s,e)=>s+(+e.total_amount||0),0);
           const cardsHtml = g.items.map(e => {
             const c = getCatColor(e.category)||'var(--accent)';
@@ -884,13 +888,16 @@ function renderList() {
           }).join('');
 
           return `
-            <div style="margin-bottom:4px">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 4px 8px">
-                <div style="display:flex;align-items:baseline;gap:7px">
-                  <span style="font-size:13px;font-weight:700;color:var(--text)">${dayLabel}</span>
+            <div style="margin-bottom:6px${gi>0?';margin-top:18px':''}">
+              <!-- Day header strip -->
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 12px;margin-bottom:10px;border-radius:10px;background:${isToday2?'rgba(143,198,80,0.10)':isYester?'rgba(244,185,66,0.09)':'var(--surfaceHi)'};border:1px solid ${isToday2?'rgba(143,198,80,0.28)':isYester?'rgba(244,185,66,0.28)':'var(--border)'}">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="width:3px;height:18px;border-radius:2px;background:${stripColor};flex-shrink:0"></div>
+                  <span style="font-size:13px;font-weight:800;color:${stripColor}">${dayLabel}</span>
                   <span style="font-size:11px;color:var(--textDim)">${g.key}</span>
+                  <span style="font-size:10px;color:var(--textMuted)">${g.items.length} רשומות</span>
                 </div>
-                <span class="display" style="font-size:14px;color:var(--textDim)">${fmtCurr(dayTotal)}</span>
+                <span class="display" style="font-size:15px;color:${stripColor}">${fmtCurr(dayTotal)}</span>
               </div>
               ${cardsHtml}
             </div>`;
