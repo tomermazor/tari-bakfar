@@ -424,6 +424,95 @@ async function scanInvoice(base64, mime) {
   throw new Error("לא נמצא JSON: "+txt.slice(0,80));
 }
 
+async function scanCheck(base64, mime) {
+  if (!CFG.apiKey) throw new Error("חסר API Key — הכנס אותו בהגדרות");
+  if (!CFG.apiKey.startsWith("sk-")) throw new Error("מפתח לא תקין — חייב להתחיל ב-sk-");
+
+  const prompt = `אתה מערכת OCR לצ'קים בנקאיים בישראל.
+קרא את הצ'ק והחזר JSON בלבד, בלי טקסט נוסף, בלי backticks.
+
+{"supplier":"שם הנהנה / לפקודת","amount":0.00,"checkNum":"מספר הצ'ק","issueDate":"DD/MM/YYYY","note":"שם הבנק וסניף"}
+
+הנחיות:
+- supplier: מי שהצ'ק כתוב לפקודתו (השדה "לפקודת" או "Pay to")
+- amount: הסכום המספרי (לא במילים)
+- checkNum: מספר הצ'ק שמופיע בתחתית או בפינה
+- issueDate: תאריך הצ'ק בפורמט DD/MM/YYYY; אם לא ברור השאר ריק
+- note: שם הבנק ומספר סניף אם נראה
+- אם שדה לא קריא, השאר ריק (מחרוזת ריקה) או 0`;
+
+  let r;
+  try {
+    r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+CFG.apiKey},
+      body: JSON.stringify({
+        model:"gpt-4o", max_tokens:300,
+        messages:[{role:"user",content:[
+          {type:"text",text:prompt},
+          {type:"image_url",image_url:{url:`data:${mime};base64,${base64}`,detail:"high"}}
+        ]}]
+      })
+    });
+  } catch(netErr) {
+    throw new Error("בעיית רשת: "+netErr.message);
+  }
+
+  if (!r.ok) {
+    let errMsg;
+    try { errMsg = (await r.json()).error?.message || 'unknown'; } catch { errMsg = await r.text(); }
+    if (r.status === 401) throw new Error("מפתח שגוי (401)");
+    if (r.status === 429) throw new Error("חרגת ממכסה (429)");
+    throw new Error(`OpenAI ${r.status}: ${errMsg.slice(0,150)}`);
+  }
+
+  const d = await r.json();
+  const txt = (d.choices?.[0]?.message?.content || "").trim();
+  if (!txt) throw new Error("תשובה ריקה");
+
+  let depth=0, start=-1;
+  for (let i=0;i<txt.length;i++) {
+    if(txt[i]==="{"){if(start<0)start=i; depth++;}
+    else if(txt[i]==="}"){depth--;if(depth===0)return JSON.parse(txt.slice(start,i+1));}
+  }
+  throw new Error("לא נמצא JSON: "+txt.slice(0,80));
+}
+
+function handleCheckScanFile(file) {
+  if (!file) return;
+  const MAX = 1400;
+  const rd = new FileReader();
+  rd.onload = e => {
+    const img = new Image();
+    img.onload = async () => {
+      const scale = img.width > MAX ? MAX / img.width : 1;
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const b64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+      setState({checkScanStage:'scanning', checkScanErr:''});
+      try {
+        const data = await scanCheck(b64, 'image/jpeg');
+        const cf = state.checkForm;
+        state.checkForm = {
+          supplier:  (data.supplier  || '').trim() || cf.supplier,
+          amount:    data.amount     || cf.amount,
+          checkNum:  (data.checkNum  || '').trim() || cf.checkNum,
+          issueDate: data.issueDate  ? heToISO(data.issueDate) : cf.issueDate,
+          clearDate: cf.clearDate,
+          note:      (data.note      || '').trim() || cf.note,
+        };
+        setState({checkScanStage:'done', checkScanErr:''});
+        toast("פרטי הצ'ק חולצו ✓", 'success');
+      } catch(e) {
+        setState({checkScanStage:'error', checkScanErr: e.message});
+      }
+    };
+    img.src = e.target.result;
+  };
+  rd.readAsDataURL(file);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // APP STATE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -441,6 +530,7 @@ let state = {
   viewCreditImage: null,
   checkForm: {supplier:'', amount:'', checkNum:'', issueDate:'', clearDate:'', note:''},
   checksShowCleared: false,
+  checkScanStage: 'idle', checkScanErr: '',
 };
 function setState(patch) { Object.assign(state, patch); render(); }
 
@@ -1417,8 +1507,9 @@ function addCheck() {
   DB.checks.push(item);
   persistLocal();
   state.checkForm = {supplier:'', amount:'', checkNum:'', issueDate:'', clearDate:'', note:''};
+  state.checkScanStage = 'idle';
   render();
-  toast('צ\'ק נוסף ✓', 'success');
+  toast("צ'ק נוסף ✓", 'success');
 }
 
 function toggleCheckCleared(id) {
@@ -1502,7 +1593,19 @@ function renderChecks() {
 
       <!-- Add check form -->
       <div style="padding:16px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
-        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">+ צ'ק חדש</div>
+        <input type="file" id="check-scan-input" accept="image/*" capture="environment" style="display:none" onchange="handleCheckScanFile(this.files[0]);this.value=''">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase">+ צ'ק חדש</div>
+          <button onclick="document.getElementById('check-scan-input').click()"
+            ${state.checkScanStage==='scanning'?'disabled':''}
+            style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--borderHi);border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">
+            ${state.checkScanStage==='scanning'
+              ? '<div class="spin" style="width:13px;height:13px;border:2px solid var(--textDim);border-top-color:var(--accent);border-radius:50%"></div> מחלץ...'
+              : '📷 סרוק צ\'ק'}
+          </button>
+        </div>
+        ${state.checkScanStage==='error' ? `<div style="font-size:12px;color:var(--danger);background:rgba(220,98,98,0.08);border:1px solid rgba(220,98,98,0.3);border-radius:8px;padding:8px 12px;margin-bottom:12px">⚠ ${esc(state.checkScanErr)}</div>` : ''}
+        ${state.checkScanStage==='done' ? `<div style="font-size:12px;color:var(--accent);background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.3);border-radius:8px;padding:8px 12px;margin-bottom:12px">✓ פרטים חולצו — בדוק ותקן לפי הצורך</div>` : ''}
         <div class="field">
           <label class="label">ספק *</label>
           <input class="input" placeholder="שם הספק" value="${esc(cf.supplier)}" oninput="state.checkForm.supplier=this.value">
