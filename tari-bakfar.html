@@ -1593,16 +1593,22 @@ function renderChecks() {
 
       <!-- Add check form -->
       <div style="padding:16px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
-        <input type="file" id="check-scan-input" accept="image/*" capture="environment" style="display:none" onchange="handleCheckScanFile(this.files[0]);this.value=''">
+        <input type="file" id="check-scan-cam" accept="image/*" capture="environment" style="display:none" onchange="handleCheckScanFile(this.files[0]);this.value=''">
+        <input type="file" id="check-scan-gallery" accept="image/*" style="display:none" onchange="handleCheckScanFile(this.files[0]);this.value=''">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase">+ צ'ק חדש</div>
-          <button onclick="document.getElementById('check-scan-input').click()"
-            ${state.checkScanStage==='scanning'?'disabled':''}
-            style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--borderHi);border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">
+          <div style="display:flex;gap:6px">
             ${state.checkScanStage==='scanning'
-              ? '<div class="spin" style="width:13px;height:13px;border:2px solid var(--textDim);border-top-color:var(--accent);border-radius:50%"></div> מחלץ...'
-              : '📷 סרוק צ\'ק'}
-          </button>
+              ? `<div style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--borderHi);border-radius:10px;background:var(--surfaceHi);color:var(--textDim);font-size:12px;font-weight:600"><div class="spin" style="width:13px;height:13px;border:2px solid var(--textDim);border-top-color:var(--accent);border-radius:50%"></div> מחלץ...</div>`
+              : `<button onclick="document.getElementById('check-scan-cam').click()"
+                  style="display:flex;align-items:center;gap:5px;padding:7px 11px;border:1px solid var(--borderHi);border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer" title="צלם עם מצלמה">
+                  📷 מצלמה
+                </button>
+                <button onclick="document.getElementById('check-scan-gallery').click()"
+                  style="display:flex;align-items:center;gap:5px;padding:7px 11px;border:1px solid var(--borderHi);border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer" title="בחר מהגלריה">
+                  🖼 גלריה
+                </button>`}
+          </div>
         </div>
         ${state.checkScanStage==='error' ? `<div style="font-size:12px;color:var(--danger);background:rgba(220,98,98,0.08);border:1px solid rgba(220,98,98,0.3);border-radius:8px;padding:8px 12px;margin-bottom:12px">⚠ ${esc(state.checkScanErr)}</div>` : ''}
         ${state.checkScanStage==='done' ? `<div style="font-size:12px;color:var(--accent);background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.3);border-radius:8px;padding:8px 12px;margin-bottom:12px">✓ פרטים חולצו — בדוק ותקן לפי הצורך</div>` : ''}
