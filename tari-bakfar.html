@@ -810,57 +810,92 @@ function renderList() {
         const pendingAcc = DB.expenses.filter(e=>['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)&&!e.sentToAccountant).length;
         return pendingAcc > 0 ? `<div onclick="setState({listCat:'הכל',listPer:'הכל',listSearch:''})" style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:14px;border-radius:12px;background:rgba(224,82,82,0.07);border:1px solid rgba(224,82,82,0.3);cursor:pointer"><div style="font-size:20px">📋</div><div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--danger)">${pendingAcc} חשבוניות לא הועברו להנה"ח</div><div style="font-size:11px;color:var(--textDim);margin-top:1px">לחץ לסיום סימון</div></div></div>` : '';
       })()}
-      ${rows.map((e,i)=>{
-        const c = getCatColor(e.category)||'var(--accent)';
-        const isOpen = state.listOpen===e.id;
-        const needsAcc = ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type);
-        const accPending = needsAcc && !e.sentToAccountant;
-        const borderC = isOpen ? (accPending?'rgba(224,82,82,0.5)':c+'66') : (accPending?'rgba(224,82,82,0.35)':'var(--border)');
-        const barC = accPending ? 'var(--danger)' : c;
-        return `
-          <div style="margin-bottom:8px" class="fade-up">
-            <div onclick="setState({listOpen: state.listOpen==='${e.id}'?null:'${e.id}'})" style="background:${accPending?'rgba(224,82,82,0.04)':'var(--surface)'};border:1px solid ${borderC};border-radius:${isOpen?'14px 14px 0 0':'14px'};padding:14px 16px;cursor:pointer;position:relative;overflow:hidden">
-              <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${barC}"></div>
-              <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                <div style="flex:1;min-width:0;margin-right:8px">
-                  <div style="font-weight:600;color:var(--text);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px">${esc(e.supplier||'ספק לא ידוע')}</div>
-                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                    <span style="background:${c}22;color:${c};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${esc(e.category)}</span>
-                    <span style="font-size:11px;color:var(--textDim)">${fmtDate(e.date)}</span>
-                    ${accPending?`<span style="background:rgba(224,82,82,0.12);color:var(--danger);border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">📋 לא הועבר</span>`:needsAcc?`<span style="background:rgba(126,203,66,0.1);color:var(--accent);border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">✓ הועבר</span>`:''}
+      ${(()=>{
+        if (rows.length === 0) return '';
+        const DAYS_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+        const todayMs = new Date().setHours(0,0,0,0);
+        const yesterMs = todayMs - 86400000;
+        // Group by date key
+        const groupMap = new Map();
+        rows.forEach(e => {
+          const key = fmtDate(e.date) || '—';
+          if (!groupMap.has(key)) groupMap.set(key, {key, date: parseD(e.date), items:[]});
+          groupMap.get(key).items.push(e);
+        });
+        // Sort groups newest first
+        const groups = [...groupMap.values()].sort((a,b)=>(b.date||0)-(a.date||0));
+
+        return groups.map(g => {
+          const d = g.date;
+          const dMs = d ? d.setHours(0,0,0,0) : null;
+          const dayLabel = dMs===todayMs ? 'היום' : dMs===yesterMs ? 'אתמול' : d ? `יום ${DAYS_HE[d.getDay()]}` : '';
+          const dayTotal = g.items.reduce((s,e)=>s+(+e.total_amount||0),0);
+          const cardsHtml = g.items.map(e => {
+            const c = getCatColor(e.category)||'var(--accent)';
+            const isOpen = state.listOpen===e.id;
+            const needsAcc = ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type);
+            const accPending = needsAcc && !e.sentToAccountant;
+            const borderC = isOpen ? (accPending?'rgba(224,82,82,0.5)':c+'66') : (accPending?'rgba(224,82,82,0.35)':'var(--border)');
+            const barC = accPending ? 'var(--danger)' : c;
+            return `
+              <div style="margin-bottom:8px" class="fade-up">
+                <div onclick="setState({listOpen: state.listOpen==='${e.id}'?null:'${e.id}'})" style="background:${accPending?'rgba(224,82,82,0.04)':'var(--surface)'};border:1px solid ${borderC};border-radius:${isOpen?'14px 14px 0 0':'14px'};padding:14px 16px;cursor:pointer;position:relative;overflow:hidden">
+                  <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${barC}"></div>
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                    <div style="flex:1;min-width:0;margin-right:8px">
+                      <div style="font-weight:600;color:var(--text);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px">${esc(e.supplier||'ספק לא ידוע')}</div>
+                      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                        <span style="background:${c}22;color:${c};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${esc(e.category)}</span>
+                        ${accPending?`<span style="background:rgba(224,82,82,0.12);color:var(--danger);border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">📋 לא הועבר</span>`:needsAcc?`<span style="background:rgba(126,203,66,0.1);color:var(--accent);border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">✓ הועבר</span>`:''}
+                      </div>
+                    </div>
+                    <div style="text-align:left;flex-shrink:0">
+                      <div class="display" style="color:var(--text);font-size:17px">${fmtCurr(e.total_amount)}</div>
+                      <div style="font-size:10px;color:var(--textDim);margin-top:2px">${esc(e.document_type||'')}</div>
+                    </div>
                   </div>
                 </div>
-                <div style="text-align:left;flex-shrink:0">
-                  <div class="display" style="color:var(--text);font-size:17px">${fmtCurr(e.total_amount)}</div>
-                  <div style="font-size:10px;color:var(--textDim);margin-top:2px">${esc(e.document_type||'')}</div>
+                ${isOpen ? `
+                  <div class="fade-up" style="background:var(--surface);border:1px solid ${borderC};border-top:none;border-radius:0 0 14px 14px;padding:16px;position:relative">
+                    <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${barC}"></div>
+                    <!-- Close button -->
+                    <button onclick="event.stopPropagation();setState({listOpen:null})" style="position:absolute;top:10px;left:10px;width:28px;height:28px;border:none;border-radius:8px;background:var(--surfaceHi);color:var(--textDim);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>
+                    ${needsAcc ? `
+                    <button onclick="event.stopPropagation();toggleSentToAccountant('${e.id}')" style="width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:14px;border-radius:11px;border:1.5px solid ${accPending?'rgba(224,82,82,0.4)':'rgba(126,203,66,0.4)'};background:${accPending?'rgba(224,82,82,0.07)':'rgba(126,203,66,0.07)'};cursor:pointer;font-family:inherit;text-align:right">
+                      <div style="width:22px;height:22px;border-radius:6px;border:2px solid ${accPending?'var(--danger)':'var(--accent)'};background:${accPending?'transparent':'var(--accent)'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#071302">${accPending?'':'✓'}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:13px;font-weight:700;color:${accPending?'var(--danger)':'var(--accent)'}">${accPending?'לא הועבר להנהלת חשבונות':'הועבר להנהלת חשבונות ✓'}</div>
+                        <div style="font-size:10px;color:var(--textDim);margin-top:2px">${accPending?'לחץ לסימון כהועבר':'לחץ לביטול הסימון'}</div>
+                      </div>
+                    </button>` : ''}
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+                      <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">לפני מע"מ</div><div style="font-size:13px;color:var(--text)">${fmtCurr(e.amount_before_vat)}</div></div>
+                      <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">מע"מ</div><div style="font-size:13px;color:var(--text)">${fmtCurr(e.vat_amount)}</div></div>
+                      <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">מספר מסמך</div><div style="font-size:13px;color:var(--text)">${esc(e.document_number||'—')}</div></div>
+                      <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">הערות</div><div style="font-size:13px;color:var(--text)">${esc(e.notes||'—')}</div></div>
+                    </div>
+                    ${e.image ? (typeof e.image==='string' && e.image.startsWith('http') ? `<a href="${e.image}" target="_blank" style="display:block;margin-bottom:12px;text-align:center;color:var(--accent);font-size:13px;text-decoration:none;padding:10px;border:1px solid var(--border);border-radius:8px">📷 צפה בתמונת החשבונית</a>` : `<div style="border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:12px"><img src="${e.image}" style="width:100%;max-height:200px;object-fit:contain;background:#000;display:block"></div>`) : ''}
+                    <div style="display:flex;gap:8px">
+                      <button onclick="openEditExpense('${e.id}')" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;background:transparent;color:var(--text);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">✏️ ערוך</button>
+                      <button onclick="deleteExpense('${e.id}')" style="flex:1;border:1px solid rgba(220,98,98,0.2);border-radius:10px;padding:10px;background:rgba(220,98,98,0.07);color:var(--danger);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">🗑️ מחק</button>
+                    </div>
+                  </div>` : ''}
+              </div>`;
+          }).join('');
+
+          return `
+            <div style="margin-bottom:4px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 4px 8px">
+                <div style="display:flex;align-items:baseline;gap:7px">
+                  <span style="font-size:13px;font-weight:700;color:var(--text)">${dayLabel}</span>
+                  <span style="font-size:11px;color:var(--textDim)">${g.key}</span>
                 </div>
+                <span class="display" style="font-size:14px;color:var(--textDim)">${fmtCurr(dayTotal)}</span>
               </div>
-            </div>
-            ${isOpen ? `
-              <div class="fade-up" style="background:var(--surface);border:1px solid ${borderC};border-top:none;border-radius:0 0 14px 14px;padding:16px;position:relative">
-                <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${barC}"></div>
-                ${needsAcc ? `
-                <button onclick="event.stopPropagation();toggleSentToAccountant('${e.id}')" style="width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:14px;border-radius:11px;border:1.5px solid ${accPending?'rgba(224,82,82,0.4)':'rgba(126,203,66,0.4)'};background:${accPending?'rgba(224,82,82,0.07)':'rgba(126,203,66,0.07)'};cursor:pointer;font-family:inherit;text-align:right">
-                  <div style="width:22px;height:22px;border-radius:6px;border:2px solid ${accPending?'var(--danger)':'var(--accent)'};background:${accPending?'transparent':'var(--accent)'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#071302">${accPending?'':'✓'}</div>
-                  <div style="flex:1;min-width:0">
-                    <div style="font-size:13px;font-weight:700;color:${accPending?'var(--danger)':'var(--accent)'}">${accPending?'לא הועבר להנהלת חשבונות':'הועבר להנהלת חשבונות ✓'}</div>
-                    <div style="font-size:10px;color:var(--textDim);margin-top:2px">${accPending?'לחץ לסימון כהועבר':'לחץ לביטול הסימון'}</div>
-                  </div>
-                </button>` : ''}
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-                  <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">לפני מע"מ</div><div style="font-size:13px;color:var(--text)">${fmtCurr(e.amount_before_vat)}</div></div>
-                  <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">מע"מ</div><div style="font-size:13px;color:var(--text)">${fmtCurr(e.vat_amount)}</div></div>
-                  <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">מספר מסמך</div><div style="font-size:13px;color:var(--text)">${esc(e.document_number||'—')}</div></div>
-                  <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">הערות</div><div style="font-size:13px;color:var(--text)">${esc(e.notes||'—')}</div></div>
-                </div>
-                ${e.image ? (typeof e.image==='string' && e.image.startsWith('http') ? `<a href="${e.image}" target="_blank" style="display:block;margin-bottom:12px;text-align:center;color:var(--accent);font-size:13px;text-decoration:none;padding:10px;border:1px solid var(--border);border-radius:8px">📷 צפה בתמונת החשבונית</a>` : `<div style="border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:12px"><img src="${e.image}" style="width:100%;max-height:200px;object-fit:contain;background:#000;display:block"></div>`) : ''}
-                <div style="display:flex;gap:8px">
-                  <button onclick="openEditExpense('${e.id}')" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;background:transparent;color:var(--text);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">✏️ ערוך</button>
-                  <button onclick="deleteExpense('${e.id}')" style="flex:1;border:1px solid rgba(220,98,98,0.2);border-radius:10px;padding:10px;background:rgba(220,98,98,0.07);color:var(--danger);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">🗑️ מחק</button>
-                </div>
-              </div>` : ''}
-          </div>`;
-      }).join('')}
+              ${cardsHtml}
+            </div>`;
+        }).join('');
+      })()}
     </div>`;
 }
 
