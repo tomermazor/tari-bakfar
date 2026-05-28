@@ -515,11 +515,14 @@ function renderScan() {
   if (state.scanStage === 'preview') {
     return `
       <div style="padding:20px 20px 100px" class="fade-up">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div style="font-size:15px;font-weight:700;color:var(--text)">תצוגה מקדימה</div>
+          <button onclick="setState({scanStage:'idle',scanImg:null,scanErr:''})" style="width:34px;height:34px;border:none;border-radius:50%;background:var(--surfaceHi);color:var(--textDim);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center">✕</button>
+        </div>
         <div style="position:relative;margin-bottom:16px;border-radius:16px;overflow:hidden;border:1px solid var(--border)"><img src="${state.scanImg}" alt="" style="width:100%;max-height:360px;object-fit:contain;background:#000;display:block"></div>
         ${state.scanErr ? `<div class="err">⚠️ ${esc(state.scanErr)}</div>` : ''}
         <button class="btn-primary" onclick="runScan()">✨ &nbsp;קרא עם AI</button>
         <button class="btn-secondary" onclick="manualForm()">✏️ &nbsp;הזן ידנית</button>
-        <button class="btn-ghost" onclick="setState({scanStage:'idle',scanImg:null,scanErr:''})">ביטול</button>
       </div>`;
   }
   if (state.scanStage === 'scanning') {
@@ -539,7 +542,8 @@ function renderScan() {
       <div style="padding:20px 20px 100px" class="fade-up">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:10px 14px;border-radius:12px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2)">
           <div style="width:24px;height:24px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;color:#0a1505">✓</div>
-          <div style="color:var(--accent);font-weight:700;font-size:14px">נחלצו הפרטים — בדוק ושמור</div>
+          <div style="flex:1;color:var(--accent);font-weight:700;font-size:14px">נחלצו הפרטים — בדוק ושמור</div>
+          <button onclick="setState({scanStage:'idle',scanImg:null})" style="width:30px;height:30px;border:none;border-radius:50%;background:rgba(0,0,0,0.2);color:var(--textDim);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
         </div>
         ${f.image ? `<div style="border-radius:14px;overflow:hidden;border:1px solid var(--border);margin-bottom:18px"><img src="${f.image}" style="width:100%;max-height:180px;object-fit:contain;background:#000;display:block"></div>` : ''}
         <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.scanForm.supplier=this.value"></div>
@@ -769,8 +773,10 @@ function renderEditModal() {
   return `
     <div onclick="setState({editId:null,editForm:null})" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
       <div onclick="event.stopPropagation()" style="background:var(--surface);border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:20px;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));max-height:85vh;overflow-y:auto;border-top:1px solid var(--border)">
-        <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px"></div>
-        <h2 class="display" style="font-size:18px;margin:0 0 20px">✏️ עריכת הוצאה</h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <h2 class="display" style="font-size:18px;margin:0">✏️ עריכת הוצאה</h2>
+          <button onclick="setState({editId:null,editForm:null})" style="width:34px;height:34px;border:none;border-radius:50%;background:var(--surfaceHi);color:var(--textDim);cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+        </div>
         <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.editForm.supplier=this.value"></div>
         <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${heToISO(f.date)}" oninput="state.editForm.date=isoToHe(this.value)"></div>
         <div class="row">
