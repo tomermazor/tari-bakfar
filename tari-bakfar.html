@@ -1948,7 +1948,7 @@ function renderIncome() {
     const COLS = {'מכירות אונליין':'#5b9cf6','הזמנות קופה':'var(--accent)','וולט':'#a855f7','אחר':'var(--accent2)'};
     const BGS  = {'מכירות אונליין':'rgba(91,156,246,0.12)','הזמנות קופה':'rgba(143,198,80,0.12)','וולט':'rgba(168,85,247,0.12)','אחר':'rgba(212,165,116,0.12)'};
     const c = COLS[type]||'var(--accent)'; const bg = sel ? BGS[type]||'transparent' : 'transparent';
-    return `<button onclick="setState({incomeForm:{...state.incomeForm,type:'${type}' }})" style="flex:1;min-width:0;padding:7px 2px;border-radius:9px;border:1px solid ${sel?c:'var(--border)'};background:${bg};color:${sel?c:'var(--textDim)'};cursor:pointer;font-size:10px;font-weight:700;font-family:inherit;text-align:center;line-height:1.4">${INCOME_ICONS[type]||'💵'}<br>${type}</button>`;
+    return `<button onclick="state.incomeForm.type='${type}';setState({})" style="flex:1;min-width:0;padding:7px 2px;border-radius:9px;border:1px solid ${sel?c:'var(--border)'};background:${bg};color:${sel?c:'var(--textDim)'};cursor:pointer;font-size:10px;font-weight:700;font-family:inherit;text-align:center;line-height:1.4">${INCOME_ICONS[type]||'💵'}<br>${type}</button>`;
   };
 
   const incomeRow = e => {
@@ -2026,7 +2026,7 @@ function renderIncome() {
         <div style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1.2">
             <label class="label">סכום ₪ *</label>
-            <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${f.amount}" oninput="state.incomeForm.amount=this.value;render()" onkeydown="if(event.key==='Enter')addIncome()" style="padding:11px 12px">
+            <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${f.amount}" oninput="state.incomeForm.amount=this.value" onkeydown="if(event.key==='Enter')addIncome()" style="padding:11px 12px">
           </div>
           <div style="flex:1.5">
             <label class="label">הערות</label>
