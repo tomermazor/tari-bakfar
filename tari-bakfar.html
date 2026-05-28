@@ -199,7 +199,8 @@ const DB = {
   credits: JSON.parse(localStorage.getItem('tari_credits_v1')||'[]'),
   workers:  JSON.parse(localStorage.getItem('tari_workers_v1')||'[]'),
   advances: JSON.parse(localStorage.getItem('tari_advances_v1')||'[]'),
-  checks:   JSON.parse(localStorage.getItem('tari_checks_v1')||'[]'),
+  checks:    JSON.parse(localStorage.getItem('tari_checks_v1')||'[]'),
+  suppliers: JSON.parse(localStorage.getItem('tari_suppliers_v1')||'[]'),
 };
 
 const PENDING = JSON.parse(localStorage.getItem('tari_pending_v1')||'[]'); // pending sync operations
@@ -213,6 +214,7 @@ function persistLocal() {
   localStorage.setItem('tari_workers_v1', JSON.stringify(DB.workers));
   localStorage.setItem('tari_advances_v1', JSON.stringify(DB.advances));
   localStorage.setItem('tari_checks_v1', JSON.stringify(DB.checks));
+  localStorage.setItem('tari_suppliers_v1', JSON.stringify(DB.suppliers));
   localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
   updateHeader();
 }
@@ -372,15 +374,82 @@ function toast(msg, type='info') {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SUPPLIER HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Returns the <datalist> element + an <input> wired to it.
+// formStateRef  – e.g. 'state.scanForm'
+// fieldName     – e.g. 'supplier'
+// currentVal    – current value to pre-fill
+// categoryField – e.g. 'category' – auto-filled when a known supplier is chosen
+function supplierInput(formStateRef, fieldName, currentVal, categoryField) {
+  const listId = 'sup-dl-' + fieldName.replace('.','_');
+  return `
+    <datalist id="${listId}">
+      ${DB.suppliers.map(s=>`<option value="${esc(s.name)}">`).join('')}
+    </datalist>
+    <input class="input" list="${listId}" placeholder="שם הספק" value="${esc(currentVal)}"
+      oninput="${formStateRef}.${fieldName}=this.value"
+      onchange="applySupplierDefaults(this.value,'${formStateRef}','${categoryField}')">`;
+}
+
+// Called onchange — fills category if supplier matches a known entry
+function applySupplierDefaults(nameVal, formStateRef, categoryField) {
+  if (!nameVal || !categoryField) return;
+  const sup = DB.suppliers.find(s => s.name.trim().toLowerCase() === nameVal.trim().toLowerCase());
+  if (!sup || !sup.defaultCategory) return;
+  try {
+    // Walk dotted path: 'state.scanForm' → window['state']['scanForm']
+    const parts = formStateRef.split('.');
+    let obj = window;
+    parts.forEach(p => { obj = obj[p]; });
+    if (obj && categoryField in obj) {
+      obj[categoryField] = sup.defaultCategory;
+      render();
+    }
+  } catch(e) { /* ignore */ }
+}
+
+// Supplier CRUD
+function addSupplier() {
+  const nameEl = document.getElementById('sup-name-inp');
+  const catEl  = document.getElementById('sup-cat-sel');
+  const name = (nameEl?.value || '').trim();
+  if (!name) { nameEl?.focus(); toast('הזן שם ספק', 'error'); return; }
+  if (DB.suppliers.find(s => s.name.toLowerCase() === name.toLowerCase())) {
+    toast('ספק זה כבר קיים', 'error'); return;
+  }
+  DB.suppliers.push({ id: uid(), name, defaultCategory: catEl?.value || CATS[0] });
+  persistLocal();
+  if (nameEl) nameEl.value = '';
+  render();
+  toast('ספק נוסף ✓', 'success');
+}
+
+function deleteSupplier(id) {
+  DB.suppliers = DB.suppliers.filter(s => s.id !== id);
+  persistLocal();
+  render();
+}
+
+function updateSupplierCat(id, cat) {
+  const s = DB.suppliers.find(x => x.id === id);
+  if (s) { s.defaultCategory = cat; persistLocal(); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // AI: OpenAI
 // ═══════════════════════════════════════════════════════════════════════════
 async function scanInvoice(base64, mime) {
   if (!CFG.apiKey) throw new Error("חסר API Key — הכנס אותו בהגדרות");
   if (!CFG.apiKey.startsWith("sk-")) throw new Error("מפתח לא תקין — חייב להתחיל ב-sk-");
 
+  const knownSuppliers = DB.suppliers.length > 0
+    ? `\nספקים ידועים במערכת — אם הספק על המסמך תואם אחד מהם, השתמש בשם המדויק:\n${DB.suppliers.map(s=>`• ${s.name}${s.defaultCategory?' ('+s.defaultCategory+')':''}`).join('\n')}\n`
+    : '';
   const prompt = `אתה מערכת OCR לירקניה בכפר מעש.
 קרא את המסמך והחזר JSON בלבד, בלי טקסט נוסף, בלי backticks.
-
+${knownSuppliers}
 {"date":"DD/MM/YYYY","supplier":"שם הספק","total_amount":0.00,"vat_amount":0.00,"amount_before_vat":0.00,"category":"ירקות","document_type":"חשבונית מס","document_number":"","notes":""}
 
 קטגוריות: ירקות, פירות, עשבי תיבול, פטריות, תוצרת יבשה, אריזות, ציוד, הובלה, שיווק, שירותים, אחר
@@ -641,7 +710,7 @@ function renderScan() {
           <button onclick="setState({scanStage:'idle',scanImg:null})" style="width:44px;height:44px;border:none;border-radius:12px;background:rgba(0,0,0,0.25);color:var(--text);cursor:pointer;font-size:26px;font-weight:300;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
         </div>
         ${f.image ? `<div style="border-radius:14px;overflow:hidden;border:1px solid var(--border);margin-bottom:18px"><img src="${f.image}" style="width:100%;max-height:180px;object-fit:contain;background:#000;display:block"></div>` : ''}
-        <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.scanForm.supplier=this.value"></div>
+        <div class="field"><label class="label">ספק</label>${supplierInput('state.scanForm','supplier',f.supplier,'category')}</div>
         <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${heToISO(f.date)}" oninput="state.scanForm.date=isoToHe(this.value)"></div>
         <div class="row">
           <div class="field"><label class="label">סכום כולל ₪</label><input class="input" type="number" value="${f.total_amount}" oninput="state.scanForm.total_amount=+this.value"></div>
@@ -928,7 +997,7 @@ function renderEditModal() {
           <h2 class="display" style="font-size:17px;margin:0;flex:1">עריכת הוצאה</h2>
           <button onclick="saveEditExpense()" style="border:none;border-radius:10px;padding:8px 18px;background:var(--accent);color:#071302;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;flex-shrink:0">שמור</button>
         </div>
-        <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.editForm.supplier=this.value"></div>
+        <div class="field"><label class="label">ספק</label>${supplierInput('state.editForm','supplier',f.supplier,'category')}</div>
         <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${heToISO(f.date)}" oninput="state.editForm.date=isoToHe(this.value)"></div>
         <div class="row">
           <div class="field"><label class="label">סכום כולל ₪</label><input class="input" type="number" value="${f.total_amount}" oninput="state.editForm.total_amount=+this.value"></div>
@@ -1001,7 +1070,7 @@ function renderAdd() {
   return `
     <div style="padding:20px 20px 100px" class="fade-up">
       <h2 class="display" style="font-size:24px;margin:0 0 18px">הוספה ידנית</h2>
-      <div class="field"><label class="label">ספק *</label><input class="input" placeholder="שם הספק" value="${esc(addForm.supplier)}" oninput="addForm.supplier=this.value"></div>
+      <div class="field"><label class="label">ספק *</label>${supplierInput('addForm','supplier',addForm.supplier||'','category')}</div>
       <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${heToISO(addForm.date)}" oninput="addForm.date=isoToHe(this.value)"></div>
       <div class="row">
         <div class="field"><label class="label">סכום כולל ₪ *</label><input class="input" type="number" placeholder="0.00" value="${addForm.total_amount}" oninput="addTotal(this.value)"></div>
@@ -2329,6 +2398,41 @@ function renderSettings() {
           <input class="input" id="new-cat-inp" placeholder="שם קטגוריה חדשה..." style="flex:1"
                  onkeydown="if(event.key==='Enter')addCat()">
           <button onclick="addCat()" style="flex-shrink:0;border:none;border-radius:12px;padding:0 18px;background:var(--accent);color:#0a1505;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">+ הוסף</button>
+        </div>
+      </div>
+
+      <!-- ── Supplier Manager ── -->
+      <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,rgba(91,156,246,0.13),rgba(168,85,247,0.13));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏭</div>
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:700;color:var(--text)">ספקים קבועים</div>
+            <div style="font-size:11px;color:var(--textDim)">${DB.suppliers.length} ספקים · משפיע על סריקה + השלמה אוטומטית</div>
+          </div>
+        </div>
+        ${DB.suppliers.length > 0 ? `
+        <div style="margin-bottom:12px">
+          ${DB.suppliers.map(s=>`
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)">
+              <div style="width:7px;height:7px;border-radius:50%;background:#5b9cf6;flex-shrink:0"></div>
+              <span style="flex:1;font-size:14px;font-weight:600;color:var(--text)">${esc(s.name)}</span>
+              <select onchange="updateSupplierCat('${s.id}',this.value)"
+                style="font-size:11px;padding:3px 24px 3px 6px;border:1px solid var(--border);border-radius:7px;background:var(--surfaceHi);color:var(--textDim);font-family:inherit;cursor:pointer;max-width:110px">
+                ${CATS.map(c=>`<option ${c===s.defaultCategory?'selected':''}>${esc(c)}</option>`).join('')}
+              </select>
+              <button onclick="deleteSupplier('${s.id}')" style="width:26px;height:26px;border:none;border-radius:7px;background:var(--dangerSoft);color:var(--danger);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+            </div>`).join('')}
+        </div>` : `
+        <div style="text-align:center;padding:16px;color:var(--textMuted);font-size:13px;border:1px dashed var(--border);border-radius:10px;margin-bottom:12px">
+          הוסף ספקים כדי לשפר את הסריקה ולמנוע שגיאות כתיב
+        </div>`}
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="input" id="sup-name-inp" placeholder="שם הספק..." style="flex:1"
+                 onkeydown="if(event.key==='Enter')addSupplier()">
+          <select class="input" id="sup-cat-sel" style="flex:0 0 auto;width:auto;padding:11px 30px 11px 8px">
+            ${CATS.map(c=>`<option>${esc(c)}</option>`).join('')}
+          </select>
+          <button onclick="addSupplier()" style="flex-shrink:0;border:none;border-radius:12px;padding:0 16px;height:46px;background:var(--accent);color:#0a1505;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">+ הוסף</button>
         </div>
       </div>
 
