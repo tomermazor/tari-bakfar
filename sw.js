@@ -1,4 +1,4 @@
-const CACHE = 'app-v15';
+const CACHE = 'app-v16';
 const SHELL = ['./index.html', './tari-bakfar.html', './orders.html', './manifest.json'];
 
 self.addEventListener('install', e => {
