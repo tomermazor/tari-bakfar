@@ -734,23 +734,27 @@ function warnDuplicate(dup) {
   );
 }
 
-function saveScanResult() {
+async function saveScanResult() {
   const item = state.scanForm;
   const dup = findDuplicate(item);
   if (dup && !warnDuplicate(dup)) return;
-  // Store without base64 locally — Drive URL arrives on next syncAll()
   const localItem = {...item, image: item.image?.startsWith('data:') ? '' : (item.image || '')};
-  // Apply locally and navigate away immediately — sync runs in background
+  // ── Synchronous: apply locally + navigate in the SAME JS tick ──
   DB.expenses.unshift(localItem);
   persistLocal();
   toast('נשמר בהצלחה ✓', 'success');
-  setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null});
-  // Background cloud sync
-  if (CFG.webAppUrl) {
-    setSyncStatus('syncing');
-    cloudCall('add_expense', {payload: item})
-      .then(() => setSyncStatus('ok'))
-      .catch(e => { console.error('sync scan:', e); PENDING.push({action:'add_expense',payload:{payload:item}}); localStorage.setItem('tari_pending_v1',JSON.stringify(PENDING)); setSyncStatus('offline'); });
+  setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null}); // gone before first await
+  // ── Async: cloud sync in background ──
+  if (!CFG.webAppUrl) return;
+  setSyncStatus('syncing');
+  try {
+    await cloudCall('add_expense', {payload: item});
+    setSyncStatus('ok');
+  } catch(e) {
+    console.error('sync scan:', e);
+    PENDING.push({action:'add_expense', payload:{payload: item}});
+    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    setSyncStatus('offline');
   }
 }
 
@@ -895,29 +899,35 @@ function renderEditModal() {
     </div>`;
 }
 
-function saveEditExpense() {
+async function saveEditExpense() {
   if (!state.editForm || !state.editId) return;
   const f = state.editForm;
+  const editId = state.editId;
   const updated = {
-    ...(DB.expenses.find(e => e.id === state.editId) || {}),
+    ...(DB.expenses.find(e => e.id === editId) || {}),
     supplier: f.supplier, date: f.date, category: f.category,
     document_type: f.document_type, document_number: f.document_number,
     total_amount: +f.total_amount||0, vat_amount: +f.vat_amount||0,
     amount_before_vat: (+f.total_amount||0)-(+f.vat_amount||0), notes: f.notes
   };
-  // Apply locally and close modal immediately — sync runs in background
-  DB.expenses = DB.expenses.map(e => e.id === state.editId ? updated : e);
+  // ── Synchronous: apply locally + close modal in the SAME JS tick ──
+  DB.expenses = DB.expenses.map(e => e.id === editId ? updated : e);
   persistLocal();
-  setState({editId: null, editForm: null, listOpen: null});
+  setState({editId: null, editForm: null, listOpen: null}); // modal gone before first await
   toast('עודכן ✓', 'success');
-  // Background cloud sync — no await, UI is already unblocked
-  if (CFG.webAppUrl) {
-    setSyncStatus('syncing');
-    Promise.all([
-      cloudCall('delete_expense', {id: updated.id}),
-      cloudCall('add_expense', {payload: updated}),
-    ]).then(() => setSyncStatus('ok'))
-      .catch(e => { console.error('sync edit:', e); PENDING.push({action:'delete_expense',payload:{id:updated.id}}); PENDING.push({action:'add_expense',payload:{payload:updated}}); localStorage.setItem('tari_pending_v1',JSON.stringify(PENDING)); setSyncStatus('offline'); });
+  // ── Async: sequential cloud calls in background (no race conditions) ──
+  if (!CFG.webAppUrl) return;
+  setSyncStatus('syncing');
+  try {
+    await cloudCall('delete_expense', {id: editId});
+    await cloudCall('add_expense', {payload: updated});
+    setSyncStatus('ok');
+  } catch(e) {
+    console.error('sync edit:', e);
+    PENDING.push({action:'delete_expense', payload:{id: editId}});
+    PENDING.push({action:'add_expense', payload:{payload: updated}});
+    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    setSyncStatus('offline');
   }
 }
 
