@@ -695,17 +695,29 @@ function renderList() {
         <span class="display" style="font-size:22px;color:var(--accent)">${fmtCurr(total)}</span>
       </div>
       ${rows.length===0 ? `<div style="text-align:center;padding:60px 20px;color:var(--textMuted)"><div style="font-size:48px;margin-bottom:10px;opacity:0.5">📭</div><div style="font-size:14px">אין תוצאות</div></div>` : ''}
+      ${(()=>{
+        const pendingAcc = DB.expenses.filter(e=>['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)&&!e.sentToAccountant).length;
+        return pendingAcc > 0 ? `<div onclick="setState({listCat:'הכל',listPer:'הכל',listSearch:''})" style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:14px;border-radius:12px;background:rgba(224,82,82,0.07);border:1px solid rgba(224,82,82,0.3);cursor:pointer"><div style="font-size:20px">📋</div><div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--danger)">${pendingAcc} חשבוניות לא הועברו להנה"ח</div><div style="font-size:11px;color:var(--textDim);margin-top:1px">לחץ לסיום סימון</div></div></div>` : '';
+      })()}
       ${rows.map((e,i)=>{
         const c = getCatColor(e.category)||'var(--accent)';
         const isOpen = state.listOpen===e.id;
+        const needsAcc = ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type);
+        const accPending = needsAcc && !e.sentToAccountant;
+        const borderC = isOpen ? (accPending?'rgba(224,82,82,0.5)':c+'66') : (accPending?'rgba(224,82,82,0.35)':'var(--border)');
+        const barC = accPending ? 'var(--danger)' : c;
         return `
           <div style="margin-bottom:8px" class="fade-up">
-            <div onclick="setState({listOpen: state.listOpen==='${e.id}'?null:'${e.id}'})" style="background:var(--surface);border:1px solid ${isOpen?c+'66':'var(--border)'};border-radius:${isOpen?'14px 14px 0 0':'14px'};padding:14px 16px;cursor:pointer;position:relative;overflow:hidden">
-              <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${c}"></div>
+            <div onclick="setState({listOpen: state.listOpen==='${e.id}'?null:'${e.id}'})" style="background:${accPending?'rgba(224,82,82,0.04)':'var(--surface)'};border:1px solid ${borderC};border-radius:${isOpen?'14px 14px 0 0':'14px'};padding:14px 16px;cursor:pointer;position:relative;overflow:hidden">
+              <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${barC}"></div>
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div style="flex:1;min-width:0;margin-right:8px">
                   <div style="font-weight:600;color:var(--text);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px">${esc(e.supplier||'ספק לא ידוע')}</div>
-                  <div style="display:flex;gap:8px;align-items:center"><span style="background:${c}22;color:${c};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${esc(e.category)}</span><span style="font-size:11px;color:var(--textDim)">${fmtDate(e.date)}</span></div>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                    <span style="background:${c}22;color:${c};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${esc(e.category)}</span>
+                    <span style="font-size:11px;color:var(--textDim)">${fmtDate(e.date)}</span>
+                    ${accPending?`<span style="background:rgba(224,82,82,0.12);color:var(--danger);border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">📋 לא הועבר</span>`:needsAcc?`<span style="background:rgba(126,203,66,0.1);color:var(--accent);border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">✓ הועבר</span>`:''}
+                  </div>
                 </div>
                 <div style="text-align:left;flex-shrink:0">
                   <div class="display" style="color:var(--text);font-size:17px">${fmtCurr(e.total_amount)}</div>
@@ -714,8 +726,16 @@ function renderList() {
               </div>
             </div>
             ${isOpen ? `
-              <div class="fade-up" style="background:var(--surface);border:1px solid ${c}66;border-top:none;border-radius:0 0 14px 14px;padding:16px;position:relative">
-                <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${c}"></div>
+              <div class="fade-up" style="background:var(--surface);border:1px solid ${borderC};border-top:none;border-radius:0 0 14px 14px;padding:16px;position:relative">
+                <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${barC}"></div>
+                ${needsAcc ? `
+                <button onclick="event.stopPropagation();toggleSentToAccountant('${e.id}')" style="width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:14px;border-radius:11px;border:1.5px solid ${accPending?'rgba(224,82,82,0.4)':'rgba(126,203,66,0.4)'};background:${accPending?'rgba(224,82,82,0.07)':'rgba(126,203,66,0.07)'};cursor:pointer;font-family:inherit;text-align:right">
+                  <div style="width:22px;height:22px;border-radius:6px;border:2px solid ${accPending?'var(--danger)':'var(--accent)'};background:${accPending?'transparent':'var(--accent)'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#071302">${accPending?'':'✓'}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:700;color:${accPending?'var(--danger)':'var(--accent)'}">${accPending?'לא הועבר להנהלת חשבונות':'הועבר להנהלת חשבונות ✓'}</div>
+                    <div style="font-size:10px;color:var(--textDim);margin-top:2px">${accPending?'לחץ לסימון כהועבר':'לחץ לביטול הסימון'}</div>
+                  </div>
+                </button>` : ''}
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
                   <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">לפני מע"מ</div><div style="font-size:13px;color:var(--text)">${fmtCurr(e.amount_before_vat)}</div></div>
                   <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">מע"מ</div><div style="font-size:13px;color:var(--text)">${fmtCurr(e.vat_amount)}</div></div>
@@ -790,6 +810,15 @@ async function deleteExpense(id) {
   });
   setState({listOpen:null});
   toast('נמחק', 'success');
+}
+
+function toggleSentToAccountant(id) {
+  const e = DB.expenses.find(x => x.id === id);
+  if (!e) return;
+  e.sentToAccountant = !e.sentToAccountant;
+  persistLocal();
+  render();
+  toast(e.sentToAccountant ? '✓ סומן כהועבר להנה"ח' : 'הסימון בוטל', e.sentToAccountant ? 'success' : 'info');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
