@@ -834,16 +834,17 @@ function renderList() {
           // Accent colour for the day strip
           const stripColor = isToday2 ? 'var(--accent)' : isYester ? 'var(--amber)' : 'var(--textDim)';
           const dayTotal = g.items.reduce((s,e)=>s+(+e.total_amount||0),0);
-          const cardsHtml = g.items.map(e => {
+          const cardsHtml = g.items.map((e, idx) => {
             const c = getCatColor(e.category)||'var(--accent)';
             const isOpen = state.listOpen===e.id;
             const needsAcc = ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type);
             const accPending = needsAcc && !e.sentToAccountant;
             const borderC = isOpen ? (accPending?'rgba(224,82,82,0.5)':c+'66') : (accPending?'rgba(224,82,82,0.35)':'var(--border)');
             const barC = accPending ? 'var(--danger)' : c;
+            const rowBg = accPending ? 'rgba(224,82,82,0.04)' : idx%2===0 ? 'var(--surface)' : 'var(--surfaceHi)';
             return `
               <div style="margin-bottom:8px" class="fade-up">
-                <div onclick="setState({listOpen: state.listOpen==='${e.id}'?null:'${e.id}'})" style="background:${accPending?'rgba(224,82,82,0.04)':'var(--surface)'};border:1px solid ${borderC};border-radius:${isOpen?'14px 14px 0 0':'14px'};padding:14px 16px;cursor:pointer;position:relative;overflow:hidden">
+                <div onclick="setState({listOpen: state.listOpen==='${e.id}'?null:'${e.id}'})" style="background:${rowBg};border:1px solid ${borderC};border-radius:${isOpen?'14px 14px 0 0':'14px'};padding:14px 16px;cursor:pointer;position:relative;overflow:hidden">
                   <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${barC}"></div>
                   <div style="display:flex;justify-content:space-between;align-items:flex-start">
                     <div style="flex:1;min-width:0;margin-right:8px">
@@ -860,7 +861,7 @@ function renderList() {
                   </div>
                 </div>
                 ${isOpen ? `
-                  <div class="fade-up" style="background:var(--surface);border:1px solid ${borderC};border-top:none;border-radius:0 0 14px 14px;padding:16px;position:relative">
+                  <div class="fade-up" style="background:${rowBg};border:1px solid ${borderC};border-top:none;border-radius:0 0 14px 14px;padding:16px;position:relative">
                     <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:${barC}"></div>
                     <!-- Close button -->
                     <button onclick="event.stopPropagation();setState({listOpen:null})" style="position:absolute;top:10px;left:10px;width:28px;height:28px;border:none;border-radius:8px;background:var(--surfaceHi);color:var(--textDim);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>
