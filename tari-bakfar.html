@@ -457,6 +457,27 @@ function saveEditSupplier() {
 }
 
 // Seed DB.suppliers from existing expenses (run once on init)
+function migrateCategoryNames() {
+  if (localStorage.getItem('tari_cat_migrated_v1')) return;
+  const CAT_MAP = {'ירקות': 'פירות וירקות', 'פירות': 'פירות וירקות'};
+  const changed = [];
+  DB.expenses.forEach(function(e) {
+    if (CAT_MAP[e.category]) { e.category = CAT_MAP[e.category]; changed.push(e); }
+  });
+  DB.suppliers.forEach(function(s) {
+    if (CAT_MAP[s.defaultCategory]) s.defaultCategory = CAT_MAP[s.defaultCategory];
+  });
+  if (changed.length) {
+    persistLocal();
+    changed.forEach(function(e) {
+      PENDING.push({action:'delete_expense', payload:{id: e.id}});
+      PENDING.push({action:'add_expense', payload:{payload: e}});
+    });
+    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+  }
+  localStorage.setItem('tari_cat_migrated_v1', '1');
+}
+
 function seedSuppliersFromExpenses() {
   if (!DB.suppliers) DB.suppliers = [];
   const supMap = new Map(); // name → {cat: count}
@@ -494,9 +515,9 @@ async function scanInvoice(base64, mime) {
   const prompt = `אתה מערכת OCR לירקניה בכפר מעש.
 קרא את המסמך והחזר JSON בלבד, בלי טקסט נוסף, בלי backticks.
 ${knownSuppliers}
-{"date":"DD/MM/YYYY","supplier":"שם הספק","total_amount":0.00,"vat_amount":0.00,"amount_before_vat":0.00,"category":"ירקות","document_type":"חשבונית מס","document_number":"","notes":""}
+{"date":"DD/MM/YYYY","supplier":"שם הספק","total_amount":0.00,"vat_amount":0.00,"amount_before_vat":0.00,"category":"פירות וירקות","document_type":"חשבונית מס","document_number":"","notes":""}
 
-קטגוריות: ירקות, פירות, עשבי תיבול, פטריות, תוצרת יבשה, אריזות, ציוד, הובלה, שיווק, שירותים, אחר
+קטגוריות: פירות וירקות, מוצרי חלב, פיצוחים, סחורה יבשה, הוצאות שוטפות, הוצאות משרד, אחר
 סוגי מסמך: חשבונית מס, חשבונית מס קבלה, תעודת משלוח, קבלה.`;
 
   let r;
@@ -629,6 +650,7 @@ function handleCheckScanFile(file) {
 // ═══════════════════════════════════════════════════════════════════════════
 // APP STATE
 // ═══════════════════════════════════════════════════════════════════════════
+let _prevTab = null; // track tab for scroll-reset
 let state = {
   tab: 'scan',
   scanStage: 'idle', scanImg: null, scanB64: null, scanMime: null, scanForm: null, scanErr: '',
@@ -677,7 +699,7 @@ const TABS = [
   {id:'scan',label:'סריקה'},{id:'list',label:'שוטף'},{id:'fixed',label:'קבועות'},
   {id:'installments',label:'תשלומים'},{id:'reports',label:'דוחות'},
   {id:'income',label:'הכנסות'},{id:'credits',label:'זיכויים'},
-  {id:'workers',label:'עובדים'},{id:'checks',label:"צ'קים"},{id:'add',label:'הוספה'},
+  {id:'workers',label:'עובדים'},{id:'checks',label:"צ'קים"},
 ];
 
 function renderNav() {
@@ -716,6 +738,7 @@ function renderScan() {
         <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:280px;margin:0 auto">
           <button class="btn-primary" onclick="document.getElementById('camInput').click()">📷 &nbsp;צלם חשבונית</button>
           <button class="btn-secondary" onclick="document.getElementById('galInput').click()">🖼️ &nbsp;העלה מגלריה / קובץ</button>
+          <button class="btn-secondary" onclick="manualForm()">✏️ &nbsp;הוספה ידנית</button>
         </div>
         ${!CFG.apiKey ? `<div onclick="setState({tab:'settings'})" style="margin-top:24px;padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(244,185,66,0.07),rgba(244,185,66,0.03));border:1px solid rgba(244,185,66,0.2);cursor:pointer;text-align:right;line-height:1.6"><div style="color:var(--amber);font-weight:700;font-size:14px;margin-bottom:4px">⚠️ נדרשת הגדרה ראשונית</div><div style="font-size:12px;color:var(--textDim)">הוסף OpenAI API Key כדי לאפשר סריקה אוטומטית →</div></div>` : ''}
         ${!CFG.webAppUrl ? `<div onclick="setState({tab:'settings'})" style="margin-top:12px;padding:14px;border-radius:14px;background:rgba(212,165,116,0.05);border:1px solid rgba(212,165,116,0.2);cursor:pointer;text-align:right;line-height:1.6"><div style="color:var(--accent2);font-weight:700;font-size:13px;margin-bottom:2px">💾 הנתונים נשמרים רק בטלפון</div><div style="font-size:11px;color:var(--textDim)">חבר ל-Google Sheets כדי לקבל גיבוי אוטומטי →</div></div>` : ''}
@@ -801,10 +824,11 @@ async function runScan() {
 }
 
 function manualForm() {
-  setState({scanStage:'confirm', scanForm:{id:uid(),image:state.scanImg,date:todayStr(),
+  setState({tab:'scan', scanStage:'confirm', scanForm:{id:uid(), image:state.scanImg||null,
+    date:todayStr(),
     supplier: addForm.supplier || '',   // use pre-filled supplier if came from orders
-    total_amount:0,vat_amount:0,amount_before_vat:0,category:'אחר',
-    document_type:'חשבונית מס',document_number:'',
+    total_amount:0, vat_amount:0, amount_before_vat:0, category: CATS[0]||'אחר',
+    document_type:'חשבונית מס', document_number:'',
     notes: addForm.notes || ''          // use pre-filled notes if came from orders
   }});
 }
@@ -972,6 +996,7 @@ function renderList() {
                     <div style="text-align:left;flex-shrink:0">
                       <div class="display" style="color:var(--text);font-size:17px">${fmtCurr(e.total_amount)}</div>
                       <div style="font-size:10px;color:var(--textDim);margin-top:2px">${esc(e.document_type||'')}</div>
+                      <div style="font-size:10px;color:var(--textMuted);margin-top:1px">${fmtDate(e.date)}</div>
                     </div>
                   </div>
                 </div>
@@ -996,6 +1021,7 @@ function renderList() {
                     </div>
                     ${e.image ? (typeof e.image==='string' && e.image.startsWith('http') ? `<a href="${e.image}" target="_blank" style="display:block;margin-bottom:12px;text-align:center;color:var(--accent);font-size:13px;text-decoration:none;padding:10px;border:1px solid var(--border);border-radius:8px">📷 צפה בתמונת החשבונית</a>` : `<div style="border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:12px"><img src="${e.image}" style="width:100%;max-height:200px;object-fit:contain;background:#000;display:block"></div>`) : ''}
                     <div style="display:flex;gap:8px">
+                      <button onclick="event.stopPropagation();pushExpenseToCloud('${e.id}')" style="flex:1;border:1px solid rgba(91,156,246,0.3);border-radius:10px;padding:10px;background:rgba(91,156,246,0.08);color:#5b9cf6;cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">💾 שמור</button>
                       <button onclick="openEditExpense('${e.id}')" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;background:transparent;color:var(--text);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">✏️ ערוך</button>
                       <button onclick="deleteExpense('${e.id}')" style="flex:1;border:1px solid rgba(220,98,98,0.2);border-radius:10px;padding:10px;background:rgba(220,98,98,0.07);color:var(--danger);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">🗑️ מחק</button>
                     </div>
@@ -1097,13 +1123,44 @@ async function deleteExpense(id) {
   toast('נמחק', 'success');
 }
 
-function toggleSentToAccountant(id) {
+async function toggleSentToAccountant(id) {
   const e = DB.expenses.find(x => x.id === id);
   if (!e) return;
   e.sentToAccountant = !e.sentToAccountant;
   persistLocal();
   render();
   toast(e.sentToAccountant ? '✓ סומן כהועבר להנה"ח' : 'הסימון בוטל', e.sentToAccountant ? 'success' : 'info');
+  if (!CFG.webAppUrl) return;
+  setSyncStatus('syncing');
+  try {
+    await cloudCall('delete_expense', {id});
+    await cloudCall('add_expense', {payload: e});
+    setSyncStatus('ok');
+  } catch(err) {
+    PENDING.push({action:'delete_expense', payload:{id}});
+    PENDING.push({action:'add_expense', payload:{payload: e}});
+    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    setSyncStatus('offline');
+  }
+}
+
+async function pushExpenseToCloud(id) {
+  const e = DB.expenses.find(x => x.id === id);
+  if (!e) return;
+  if (!CFG.webAppUrl) { toast('אין חיבור לענן', 'info'); return; }
+  setSyncStatus('syncing');
+  try {
+    await cloudCall('delete_expense', {id});
+    await cloudCall('add_expense', {payload: e});
+    setSyncStatus('ok');
+    toast('נשמר בענן ✓', 'success');
+  } catch(err) {
+    PENDING.push({action:'delete_expense', payload:{id}});
+    PENDING.push({action:'add_expense', payload:{payload: e}});
+    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    setSyncStatus('offline');
+    toast('ישמר בהמשך', 'info');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1118,14 +1175,14 @@ function renderAdd() {
       <div class="field"><label class="label">ספק *</label>${supplierInput('addForm','supplier',addForm.supplier||'','category')}</div>
       <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${heToISO(addForm.date)}" oninput="addForm.date=isoToHe(this.value)"></div>
       <div class="row">
-        <div class="field"><label class="label">סכום כולל ₪ *</label><input class="input" type="number" placeholder="0.00" value="${addForm.total_amount}" oninput="addTotal(this.value)"></div>
-        <div class="field"><label class="label">מע"מ</label><input class="input" type="number" placeholder="אוטו" value="${addForm.vat_amount}" oninput="addForm.vat_amount=this.value"></div>
+        <div class="field"><label class="label">סכום כולל ₪ *</label><input class="input" type="number" placeholder="0.00" value="${addForm.total_amount}" oninput="addTotal(this.value)" onkeydown="if(event.key==='Enter')submitAdd()"></div>
+        <div class="field"><label class="label">מע"מ</label><input id="add-vat-inp" class="input" type="number" placeholder="אוטו" value="${addForm.vat_amount}" oninput="addForm.vat_amount=this.value"></div>
       </div>
       <div class="field"><label class="label">קטגוריה</label><select class="input" onchange="addForm.category=this.value">${CATS.map(c=>`<option ${c===addForm.category?'selected':''}>${c}</option>`).join('')}</select></div>
       <div class="field"><label class="label">סוג מסמך</label><select class="input" onchange="addForm.document_type=this.value">${DTYPES.map(d=>`<option ${d===addForm.document_type?'selected':''}>${d}</option>`).join('')}</select></div>
-      <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(addForm.document_number)}" oninput="addForm.document_number=this.value"></div>
-      <div class="field"><label class="label">הערות</label><input class="input" value="${esc(addForm.notes)}" oninput="addForm.notes=this.value"></div>
-      <button class="btn-primary" onclick="submitAdd()" ${!addForm.supplier||!addForm.total_amount?'disabled':''}>שמור הוצאה</button>
+      <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(addForm.document_number)}" oninput="addForm.document_number=this.value" onkeydown="if(event.key==='Enter')submitAdd()"></div>
+      <div class="field"><label class="label">הערות</label><input class="input" value="${esc(addForm.notes)}" oninput="addForm.notes=this.value" onkeydown="if(event.key==='Enter')submitAdd()"></div>
+      <button class="btn-primary" onclick="submitAdd()">שמור הוצאה</button>
     </div>`;
 }
 
@@ -1134,12 +1191,14 @@ function addTotal(v) {
   if (v) {
     const t = +v; const vat = Math.round(t/1.17*0.17*100)/100;
     addForm.vat_amount = vat; addForm.amount_before_vat = Math.round((t-vat)*100)/100;
-    render();
+    const vatEl = document.getElementById('add-vat-inp');
+    if (vatEl) vatEl.value = vat; // update VAT field without re-rendering (prevents focus jump)
   }
 }
 
 async function submitAdd() {
-  if (!addForm.supplier || !addForm.total_amount) return;
+  if (!addForm.supplier) { toast('נא להזין ספק', 'error'); return; }
+  if (!addForm.total_amount) { toast('נא להזין סכום', 'error'); return; }
   const item = {...addForm, id:uid(), total_amount:+addForm.total_amount, vat_amount:+addForm.vat_amount||0, amount_before_vat:+addForm.amount_before_vat||0};
   const dup = findDuplicate(item);
   if (dup && !warnDuplicate(dup)) return;
@@ -1498,7 +1557,7 @@ function renderWorkers() {
             <!-- Add form: date + amount + button -->
             <div style="display:flex;gap:6px;margin-bottom:10px">
               <input type="date" class="input"
-                value="${inp.date||todayStr()}"
+                value="${inp.date||todayISO()}"
                 onchange="state.advanceInputs['${wid}']={...(state.advanceInputs['${wid}']||{}),date:this.value}"
                 style="flex:1;min-width:0;padding:8px 10px;font-size:13px">
               <input type="number" inputmode="decimal" placeholder="₪ סכום" class="input"
@@ -1610,11 +1669,12 @@ function saveAdvance(workerId, workerName) {
   const inp = state.advanceInputs[workerId] || {};
   const amount = +(inp.amount||0);
   if (!amount || amount <= 0) { toast('נא להזין סכום', 'error'); return; }
-  const date = inp.date || todayStr();
-  const item = { id: uid(), workerId, workerName, amount, date, month: date.substring(0,7), image: null };
+  const date = inp.date || todayISO(); // ISO format for type="date" inputs
+  const month = date.substring(0,7); // YYYY-MM from ISO date
+  const item = { id: uid(), workerId, workerName, amount, date, month, image: null };
   DB.advances = [item, ...(DB.advances||[])];
   persistLocal();
-  state.advanceInputs[workerId] = { amount: '', date: todayStr() };
+  state.advanceInputs[workerId] = { amount: '', date: todayISO() };
   render();
   toast('מפרעה נרשמה ✓', 'success');
 }
@@ -1675,7 +1735,9 @@ function checkUrgency(clearDate) {
 
 function addCheck() {
   const cf = state.checkForm;
-  if (!cf.supplier.trim() || !cf.amount || !cf.clearDate) return;
+  if (!cf.supplier.trim()) { toast('נא להזין ספק', 'error'); return; }
+  if (!cf.amount) { toast('נא להזין סכום', 'error'); return; }
+  if (!cf.clearDate) { toast('נא להזין תאריך פירעון', 'error'); return; }
   const item = {
     id: uid(),
     supplier: cf.supplier.trim(),
@@ -1797,16 +1859,16 @@ function renderChecks() {
         ${state.checkScanStage==='done' ? `<div style="font-size:12px;color:var(--accent);background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.3);border-radius:8px;padding:8px 12px;margin-bottom:12px">✓ פרטים חולצו — בדוק ותקן לפי הצורך</div>` : ''}
         <div class="field">
           <label class="label">ספק *</label>
-          <input class="input" placeholder="שם הספק" value="${esc(cf.supplier)}" oninput="state.checkForm.supplier=this.value">
+          <input class="input" placeholder="שם הספק" value="${esc(cf.supplier)}" oninput="state.checkForm.supplier=this.value" onkeydown="if(event.key==='Enter')addCheck()">
         </div>
         <div class="row">
           <div class="field">
             <label class="label">סכום ₪ *</label>
-            <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${cf.amount}" oninput="state.checkForm.amount=this.value">
+            <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${cf.amount}" oninput="state.checkForm.amount=this.value" onkeydown="if(event.key==='Enter')addCheck()">
           </div>
           <div class="field">
             <label class="label">מס' צ'ק</label>
-            <input class="input" placeholder="אופציונלי" value="${esc(cf.checkNum)}" oninput="state.checkForm.checkNum=this.value">
+            <input class="input" placeholder="אופציונלי" value="${esc(cf.checkNum)}" oninput="state.checkForm.checkNum=this.value" onkeydown="if(event.key==='Enter')addCheck()">
           </div>
         </div>
         <div class="row">
@@ -1821,9 +1883,9 @@ function renderChecks() {
         </div>
         <div class="field">
           <label class="label">הערה</label>
-          <input class="input" placeholder="הערה אופציונלית..." value="${esc(cf.note)}" oninput="state.checkForm.note=this.value">
+          <input class="input" placeholder="הערה אופציונלית..." value="${esc(cf.note)}" oninput="state.checkForm.note=this.value" onkeydown="if(event.key==='Enter')addCheck()">
         </div>
-        <button class="btn-primary" onclick="addCheck()" ${!cf.supplier.trim()||!cf.amount||!cf.clearDate?'disabled':''} style="margin-bottom:0">💾 הוסף צ'ק</button>
+        <button class="btn-primary" onclick="addCheck()" style="margin-bottom:0">💾 הוסף צ'ק</button>
       </div>
 
       <!-- Open checks -->
@@ -1914,12 +1976,12 @@ function renderCredits() {
         <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">+ בקשת זיכוי חדשה</div>
         <div class="field">
           <label class="label">ספק *</label>
-          <input class="input" placeholder="שם הספק" value="${esc(cf.supplier)}" oninput="state.creditForm.supplier=this.value">
+          <input class="input" placeholder="שם הספק" value="${esc(cf.supplier)}" oninput="state.creditForm.supplier=this.value" onkeydown="if(event.key==='Enter')addCredit()">
         </div>
         <div class="row">
           <div class="field">
             <label class="label">סכום ₪ *</label>
-            <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${cf.amount}" oninput="state.creditForm.amount=this.value">
+            <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${cf.amount}" oninput="state.creditForm.amount=this.value" onkeydown="if(event.key==='Enter')addCredit()">
           </div>
           <div class="field">
             <label class="label">תאריך</label>
@@ -1928,7 +1990,7 @@ function renderCredits() {
         </div>
         <div class="field">
           <label class="label">סיבת הזיכוי *</label>
-          <input class="input" placeholder="למשל: חיסרון בסחורה, סחורה פגומה..." value="${esc(cf.reason)}" oninput="state.creditForm.reason=this.value">
+          <input class="input" placeholder="למשל: חיסרון בסחורה, סחורה פגומה..." value="${esc(cf.reason)}" oninput="state.creditForm.reason=this.value" onkeydown="if(event.key==='Enter')addCredit()">
         </div>
         <input type="file" accept="image/*" id="credit-img-input" onchange="handleCreditImage(this.files[0])" style="display:none">
         ${cf.image ? `
@@ -1939,7 +2001,7 @@ function renderCredits() {
         ` : `
           <button onclick="document.getElementById('credit-img-input').click()" style="width:100%;padding:11px;border:1px dashed var(--borderHi);border-radius:10px;background:transparent;color:var(--textDim);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;margin-bottom:12px">📎 צרף צילום מסך (אופציונלי)</button>
         `}
-        <button class="btn-primary" onclick="addCredit()" ${!cf.supplier||!cf.amount||!cf.reason?'disabled':''} style="margin-bottom:0">💾 שמור בקשת זיכוי</button>
+        <button class="btn-primary" onclick="addCredit()" style="margin-bottom:0">💾 שמור בקשת זיכוי</button>
       </div>
 
       <!-- Pending list -->
@@ -1999,7 +2061,9 @@ function handleCreditImage(file) {
 
 async function addCredit() {
   const cf = state.creditForm;
-  if (!cf.supplier || !cf.amount || !cf.reason) return;
+  if (!cf.supplier) { toast('נא להזין ספק', 'error'); return; }
+  if (!cf.amount) { toast('נא להזין סכום', 'error'); return; }
+  if (!cf.reason) { toast('נא להזין סיבת הזיכוי', 'error'); return; }
   const dateEl = document.getElementById('credit-date-inp');
   const item = {
     id: uid(), date: state.creditForm.date || (dateEl ? isoToHe(dateEl.value) : todayStr()),
@@ -2142,7 +2206,11 @@ function renderIncome() {
             <label class="label">סכום ₪ *</label>
             <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${f.amount}" oninput="state.incomeForm.amount=this.value" onkeydown="if(event.key==='Enter')addIncome()" style="padding:11px 12px">
           </div>
-          <div style="flex:1.5">
+          <div style="flex:1">
+            <label class="label">תאריך</label>
+            <input class="input" type="date" value="${f.date ? heToISO(f.date) : todayISO()}" oninput="state.incomeForm.date=isoToHe(this.value)" style="padding:11px 10px">
+          </div>
+          <div style="flex:1.3">
             <label class="label">הערות</label>
             <input class="input" placeholder="אופציונלי" value="${esc(f.notes)}" oninput="state.incomeForm.notes=this.value" onkeydown="if(event.key==='Enter')addIncome()" style="padding:11px 12px">
           </div>
@@ -2684,6 +2752,8 @@ function render() {
     case 'settings': content = renderSettings(); break;
   }
   main.innerHTML = content;
+  // Scroll to top when switching tabs
+  if (state.tab !== _prevTab) { main.scrollTop = 0; _prevTab = state.tab; }
   document.getElementById('modal-container').innerHTML = state.viewCreditImage ? renderImageLightbox() : (state.editId ? renderEditModal() : '');
   renderNav();
   updateHeader();
@@ -2871,6 +2941,7 @@ function initApp() {
     } catch(e) {}
   }
 
+  migrateCategoryNames();
   seedSuppliersFromExpenses();
   applyRoleUI();
   render();
