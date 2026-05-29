@@ -268,10 +268,19 @@ async function syncAll() {
   if (!CFG.webAppUrl) { setSyncStatus('local'); return; }
   setSyncStatus('syncing');
   try {
-    // 1. Push pending changes
+    // 1. Push pending changes — skip "Row not found" errors (row already gone or was never synced)
     while (PENDING.length > 0) {
       const op = PENDING[0];
-      await cloudCall(op.action, op.payload);
+      try {
+        await cloudCall(op.action, op.payload);
+      } catch(opErr) {
+        const msg = (opErr.message || '').toLowerCase();
+        if (msg.includes('row not found') || msg.includes('not found')) {
+          console.warn('Skipped pending op (row not found):', op.action);
+        } else {
+          throw opErr; // re-throw real errors
+        }
+      }
       PENDING.shift();
       localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
     }
@@ -469,6 +478,7 @@ function migrateCategoryNames() {
   });
   if (changed.length) {
     persistLocal();
+    // Use delete+add pairs; syncAll will skip "Row not found" gracefully if row never existed in cloud
     changed.forEach(function(e) {
       PENDING.push({action:'delete_expense', payload:{id: e.id}});
       PENDING.push({action:'add_expense', payload:{payload: e}});
