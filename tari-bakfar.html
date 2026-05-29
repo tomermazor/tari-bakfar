@@ -205,6 +205,19 @@ const DB = {
 
 const PENDING = JSON.parse(localStorage.getItem('tari_pending_v1')||'[]'); // pending sync operations
 
+// Persistent accountant flags — survives cloud sync (cloud may not store this field)
+// Map of expense-id → true; never overwritten by syncAll
+const ACC_FLAGS = JSON.parse(localStorage.getItem('tari_acc_flags_v1')||'{}');
+function saveAccFlags() { localStorage.setItem('tari_acc_flags_v1', JSON.stringify(ACC_FLAGS)); }
+function mergeAccFlags(expenses) {
+  // After every cloud pull: restore sentToAccountant from the local flags store
+  (expenses||[]).forEach(e => {
+    if (ACC_FLAGS[e.id]) e.sentToAccountant = true;
+    else if (e.sentToAccountant) ACC_FLAGS[e.id] = true; // cloud already has it → keep flag
+  });
+  saveAccFlags();
+}
+
 function persistLocal() {
   localStorage.setItem('tari_expenses_v2', JSON.stringify(DB.expenses));
   localStorage.setItem('tari_fixed_v1', JSON.stringify(DB.fixed));
@@ -293,7 +306,10 @@ async function syncAll() {
       cloudCall('list_credits', {}),
       cloudCall('list_workers', {}),
     ]);
-    if ((exp||[]).length > 0 || DB.expenses.length === 0) DB.expenses = exp || [];
+    if ((exp||[]).length > 0 || DB.expenses.length === 0) {
+      DB.expenses = exp || [];
+      mergeAccFlags(DB.expenses); // restore sentToAccountant flags that cloud may not store
+    }
     if ((fix||[]).length > 0 || DB.fixed.length === 0) DB.fixed = fix || [];
     if ((ins||[]).length > 0 || DB.installments.length === 0) DB.installments = ins || [];
     // Credits: merge cloud (authoritative) with local images (stored locally only)
@@ -1137,6 +1153,10 @@ async function toggleSentToAccountant(id) {
   const e = DB.expenses.find(x => x.id === id);
   if (!e) return;
   e.sentToAccountant = !e.sentToAccountant;
+  // Persist flag separately so it survives cloud sync overwrites
+  if (e.sentToAccountant) ACC_FLAGS[id] = true;
+  else delete ACC_FLAGS[id];
+  saveAccFlags();
   persistLocal();
   render();
   toast(e.sentToAccountant ? '✓ סומן כהועבר להנה"ח' : 'הסימון בוטל', e.sentToAccountant ? 'success' : 'info');
@@ -2950,6 +2970,7 @@ function initApp() {
     } catch(e) {}
   }
 
+  mergeAccFlags(DB.expenses); // restore any flags saved before this session
   migrateCategoryNames();
   seedSuppliersFromExpenses();
   applyRoleUI();
