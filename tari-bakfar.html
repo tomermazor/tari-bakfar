@@ -1809,7 +1809,6 @@ function renderChecks() {
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
             <div style="flex:1;min-width:0">
               <div style="font-size:15px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.supplier)}</div>
-              ${c.checkNum ? `<div style="font-size:11px;color:var(--textDim);margin-top:2px">מס' צ'ק: ${esc(c.checkNum)}</div>` : ''}
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-right:10px">
               <div class="display" style="font-size:22px;color:${c.cleared?'var(--textDim)':'var(--text)'}">${fmtCurr(c.amount)}</div>
@@ -1818,8 +1817,6 @@ function renderChecks() {
           </div>
           <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:11px;color:var(--textDim)">
             ${!c.cleared && u !== 'normal' ? urgencyBadge[u] : ''}
-            <span>📅 הנפקה: ${fmtDate(c.issueDate)}</span>
-            <span style="margin:0 4px;color:var(--border)">·</span>
             <span style="color:${c.cleared?'var(--textDim)':u==='overdue'?'var(--danger)':u==='soon'?'var(--amber)':'var(--text)'}">⏳ פירעון: ${fmtDate(c.clearDate)}</span>
           </div>
           ${c.note ? `<div style="margin-top:9px;font-size:13px;color:var(--text);padding:8px 12px;background:var(--surfaceHi);border-radius:8px;border-right:3px solid var(--border)">📝 ${esc(c.note)}</div>` : ''}
@@ -1877,23 +1874,13 @@ function renderChecks() {
             <input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${cf.amount}" oninput="state.checkForm.amount=this.value" onkeydown="if(event.key==='Enter')addCheck()">
           </div>
           <div class="field">
-            <label class="label">מס' צ'ק</label>
-            <input class="input" placeholder="אופציונלי" value="${esc(cf.checkNum)}" oninput="state.checkForm.checkNum=this.value" onkeydown="if(event.key==='Enter')addCheck()">
-          </div>
-        </div>
-        <div class="row">
-          <div class="field">
-            <label class="label">תאריך הנפקה</label>
-            <input class="input" type="date" value="${cf.issueDate || todayISO()}" oninput="state.checkForm.issueDate=this.value">
-          </div>
-          <div class="field">
             <label class="label">תאריך פירעון *</label>
             <input class="input" type="date" value="${cf.clearDate}" oninput="state.checkForm.clearDate=this.value">
           </div>
         </div>
         <div class="field">
           <label class="label">הערה</label>
-          <input class="input" placeholder="הערה אופציונלית..." value="${esc(cf.note)}" oninput="state.checkForm.note=this.value" onkeydown="if(event.key==='Enter')addCheck()">
+          <input class="input" placeholder="אופציונלי..." value="${esc(cf.note)}" oninput="state.checkForm.note=this.value" onkeydown="if(event.key==='Enter')addCheck()">
         </div>
         <button class="btn-primary" onclick="addCheck()" style="margin-bottom:0">💾 הוסף צ'ק</button>
       </div>
