@@ -3220,6 +3220,8 @@ function renderSettings() {
           <button class="btn-secondary" style="margin:0" onclick="testConnection()">🔍 בדוק</button>
           <button class="btn-primary" style="margin:0" onclick="saveWebApp()">💾 שמור</button>
         </div>
+        <button onclick="runSyncDiagnose()" style="width:100%;margin-top:10px;padding:10px;border:1.5px solid var(--amber);border-radius:10px;background:var(--amberSoft);color:var(--amber);font-size:13px;font-weight:700;font-family:inherit;cursor:pointer">🩺 אבחן סנכרון — ראה מה עובד ומה לא</button>
+        <div id="sync-diagnose-result"></div>
         ${CFG.webAppUrl ? `<div style="margin-top:12px;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:rgba(143,198,80,0.07)"><div style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></div><span style="font-size:12px;color:var(--accent)">מחובר</span><button onclick="syncAll()" style="margin-right:auto;background:transparent;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-family:inherit;text-decoration:underline">סנכרן עכשיו</button></div>` : ''}
       </div>
 
@@ -3381,6 +3383,52 @@ async function testConnection() {
     setSyncStatus('offline');
     toast('❌ ' + e.message, 'error');
   }
+}
+
+async function runSyncDiagnose() {
+  if (!CFG.webAppUrl) { toast('אין כתובת GAS', 'error'); return; }
+  const el = document.getElementById('sync-diagnose-result');
+  if (el) el.innerHTML = '<div style="padding:10px;color:var(--textDim)">בודק...</div>';
+
+  const tests = [
+    {name:'ping',             action:'ping',             payload:{}},
+    {name:'list_expenses',    action:'list_expenses',    payload:{}},
+    {name:'list_fixed',       action:'list_fixed',       payload:{}},
+    {name:'list_credits',     action:'list_credits',     payload:{}},
+    {name:'list_workers',     action:'list_workers',     payload:{}},
+    {name:'list_checks',      action:'list_checks',      payload:{}},
+    {name:'list_income',      action:'list_income',      payload:{}},
+    {name:'list_advances',    action:'list_advances',    payload:{}},
+    {name:'list_installments',action:'list_installments',payload:{}},
+  ];
+
+  const results = [];
+  for (const t of tests) {
+    try {
+      const data = await cloudCall(t.action, t.payload);
+      const count = Array.isArray(data) ? data.length : '✓';
+      results.push({name: t.name, ok: true, msg: `${count} רשומות`});
+    } catch(e) {
+      results.push({name: t.name, ok: false, msg: e.message.slice(0,60)});
+    }
+  }
+
+  const html = results.map(r => `
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span style="width:14px;height:14px;border-radius:50%;background:${r.ok?'#15803D':'#DC2626'};flex-shrink:0"></span>
+      <code style="font-size:11px;flex:1;color:var(--textDim)">${r.name}</code>
+      <span style="font-size:11px;color:${r.ok?'var(--accent)':'var(--danger)'}">${r.msg}</span>
+    </div>`).join('');
+
+  const failCount = results.filter(r=>!r.ok).length;
+  if (el) el.innerHTML = `
+    <div style="margin-top:10px;padding:12px;background:var(--surfaceHi);border-radius:10px;border:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:700;color:${failCount?'var(--danger)':'var(--accent)'};margin-bottom:8px">
+        ${failCount===0?'✅ הכל עובד!':'⚠️ '+failCount+' endpoints לא עובדים — עדכן את ה-GAS'}
+      </div>
+      ${html}
+      ${failCount>0?'<div style="margin-top:10px;font-size:11px;color:var(--textDim);line-height:1.6">פתח את הקובץ <b>google-apps-script.txt</b> בתיקיית הפרויקט, העתק את כל התוכן, ועדכן ב-<a href="https://script.google.com" target="_blank" style="color:var(--accent)">script.google.com</a> → Deploy → New version</div>':''}
+    </div>`;
 }
 
 async function clearCacheAndReload() {
