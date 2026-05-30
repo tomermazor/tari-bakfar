@@ -229,8 +229,16 @@ function listRows(sheetKey) {
 }
 
 function addRow(sheetKey, payload) {
+  // Upsert: if row with same ID exists → update it, otherwise append
+  // Prevents duplicates when add_expense is called multiple times for same item
+  const existing = findRowById(sheetKey, payload.id);
   const sheet = getSheet(sheetKey);
-  sheet.appendRow(objectToRow(sheetKey, payload));
+  const rowData = objectToRow(sheetKey, payload);
+  if (existing >= 0) {
+    sheet.getRange(existing, 1, 1, rowData.length).setValues([rowData]);
+  } else {
+    sheet.appendRow(rowData);
+  }
   return payload;
 }
 

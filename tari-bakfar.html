@@ -376,8 +376,12 @@ async function triggerTopSync() {
   if (btn) { btn.classList.remove('spinning'); btn.textContent = '✓'; setTimeout(() => { btn.textContent = '🔄'; }, 1500); }
 }
 
+let _syncLock = false; // prevent concurrent syncAll calls → duplicates
+
 async function syncAll() {
   if (!CFG.webAppUrl) { setSyncStatus('local'); return; }
+  if (_syncLock) { console.log('syncAll: already running, skip'); return; }
+  _syncLock = true;
   setSyncStatus('syncing');
   try {
     // 1. Push pending changes — skip "Row not found" errors (row already gone or was never synced)
@@ -412,21 +416,21 @@ async function syncAll() {
       safe(cloudCall('list_advances', {})),
     ]);
     if ((exp||[]).length > 0 || DB.expenses.length === 0) {
-      DB.expenses = exp || [];
-      mergeAccFlags(DB.expenses); // restore sentToAccountant flags that cloud may not store
+      DB.expenses = dedup(exp || []); // dedup by id — removes cloud duplicates
+      mergeAccFlags(DB.expenses);
     }
-    if ((fix||[]).length > 0 || DB.fixed.length === 0) DB.fixed = fix || [];
-    if ((ins||[]).length > 0 || DB.installments.length === 0) DB.installments = ins || [];
+    if ((fix||[]).length > 0 || DB.fixed.length === 0) DB.fixed = dedup(fix || []);
+    if ((ins||[]).length > 0 || DB.installments.length === 0) DB.installments = dedup(ins || []);
     // Credits: merge cloud (authoritative) with local images (stored locally only)
     if (cred !== null && ((cred||[]).length > 0 || DB.credits.length === 0)) {
       const localImgMap = {};
       DB.credits.forEach(c => { if (c.image) localImgMap[c.id] = c.image; });
-      DB.credits = (cred || []).map(c => localImgMap[c.id] ? {...c, image: localImgMap[c.id]} : c);
+      DB.credits = dedup(cred || []).map(c => localImgMap[c.id] ? {...c, image: localImgMap[c.id]} : c);
     }
-    if (wrk !== null && ((wrk||[]).length > 0 || DB.workers.length === 0)) DB.workers = wrk || [];
-    if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) DB.checks = chk || [];
-    if (inc !== null && ((inc||[]).length > 0 || DB.income.length === 0)) DB.income = inc || [];
-    if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) DB.advances = adv || [];
+    if (wrk !== null && ((wrk||[]).length > 0 || DB.workers.length === 0)) DB.workers = dedup(wrk || []);
+    if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) DB.checks = dedup(chk || []);
+    if (inc !== null && ((inc||[]).length > 0 || DB.income.length === 0)) DB.income = dedup(inc || []);
+    if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) DB.advances = dedup(adv || []);
     persistLocal();
     setSyncStatus('ok');
     render();
@@ -435,6 +439,8 @@ async function syncAll() {
     console.error('Sync failed:', e);
     setSyncStatus('offline');
     toast('סנכרון נכשל: ' + e.message, 'error');
+  } finally {
+    _syncLock = false; // always release lock
   }
 }
 
@@ -528,6 +534,17 @@ function changeIncomeWeek(delta) {
   render();
 }
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// Deduplicate array by id — removes cloud duplicates caused by concurrent syncs
+function dedup(arr) {
+  const seen = new Set();
+  return (arr || []).filter(item => {
+    if (!item || !item.id) return false;
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
 
 function navigateTo(url) {
   const app = document.getElementById('app');
