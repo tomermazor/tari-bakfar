@@ -397,13 +397,17 @@ async function syncAll() {
       localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
     }
 
-    // 2. Pull fresh data — only replace local if cloud has more records or local is empty
-    const [exp, fix, ins, cred, wrk] = await Promise.all([
+    // 2. Pull fresh data — individual failures are non-fatal (new GAS endpoints may not exist yet)
+    const safe = fn => fn.catch(() => null);
+    const [exp, fix, ins, cred, wrk, chk, inc, adv] = await Promise.all([
       cloudCall('list_expenses', {}),
       cloudCall('list_fixed', {}),
       cloudCall('list_installments', {}),
-      cloudCall('list_credits', {}),
-      cloudCall('list_workers', {}),
+      safe(cloudCall('list_credits', {})),
+      safe(cloudCall('list_workers', {})),
+      safe(cloudCall('list_checks', {})),
+      safe(cloudCall('list_income', {})),
+      safe(cloudCall('list_advances', {})),
     ]);
     if ((exp||[]).length > 0 || DB.expenses.length === 0) {
       DB.expenses = exp || [];
@@ -412,12 +416,15 @@ async function syncAll() {
     if ((fix||[]).length > 0 || DB.fixed.length === 0) DB.fixed = fix || [];
     if ((ins||[]).length > 0 || DB.installments.length === 0) DB.installments = ins || [];
     // Credits: merge cloud (authoritative) with local images (stored locally only)
-    if ((cred||[]).length > 0 || DB.credits.length === 0) {
+    if (cred !== null && ((cred||[]).length > 0 || DB.credits.length === 0)) {
       const localImgMap = {};
       DB.credits.forEach(c => { if (c.image) localImgMap[c.id] = c.image; });
       DB.credits = (cred || []).map(c => localImgMap[c.id] ? {...c, image: localImgMap[c.id]} : c);
     }
-    if ((wrk||[]).length > 0 || DB.workers.length === 0) DB.workers = wrk || [];
+    if (wrk !== null && ((wrk||[]).length > 0 || DB.workers.length === 0)) DB.workers = wrk || [];
+    if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) DB.checks = chk || [];
+    if (inc !== null && ((inc||[]).length > 0 || DB.income.length === 0)) DB.income = inc || [];
+    if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) DB.advances = adv || [];
     persistLocal();
     setSyncStatus('ok');
     render();
@@ -907,7 +914,7 @@ function renderNav() {
 
   const scanIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`;
 
-  const fab = allowed.includes('scan') ? `
+  const fab = (getUserRole() !== 'scanner') ? `
     <div class="nav-fab-slot">
       <button class="nav-fab${state.tab==='scan'?' active':''}" onclick="setState({tab:'scan'})" title="סרוק חשבונית">
         ${scanIcon}
@@ -1074,17 +1081,18 @@ function renderDashboard() {
 
   const hasAlerts = overdueChecks.length>0||soonChecks.length>0||pendingAcc>0||openCredits.length>0;
 
+  const deskPad = window.innerWidth>=768 ? '24px 28px 32px' : '16px 16px 24px';
   return `
-  <div style="padding:24px 28px 32px" class="fade-up">
+  <div style="padding:${deskPad}" class="fade-up">
 
     <!-- Greeting row -->
-    <div style="margin-bottom:24px">
+    <div style="margin-bottom:${window.innerWidth>=768?'24':'16'}px">
       <h1 class="display" style="font-size:26px;color:#0F172A;margin:0 0 4px">${greeting} 👋</h1>
       <p style="font-size:13px;color:#64748B;margin:0">${dateStr} · הנה סיכום העסק שלך</p>
     </div>
 
     <!-- KPI row -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px">
+    <div style="display:grid;grid-template-columns:${window.innerWidth>=768?'repeat(4,1fr)':'1fr 1fr'};gap:${window.innerWidth>=768?'14':'10'}px;margin-bottom:${window.innerWidth>=768?'24':'16'}px">
       ${card('💰','#DCFCE7','הכנסות השבוע',fmtCurr(weekIncTotal),`היום: ${fmtCurr(todayIncTotal)}`)}
       ${card('📉','#FEE2E2','הוצאות השבוע',fmtCurr(weekExpTotal),`${weekExpCount} רשומות`)}
       ${card(weekProfit>=0?'📈':'📊',weekProfit>=0?'#DCFCE7':'#FEE2E2','רווח השבוע',(weekProfit>=0?'+':'')+fmtCurr(weekProfit),weekIncTotal>0?`${Math.abs(Math.round(weekProfit/weekIncTotal*100))}% מרווח`:'אין הכנסות')}
@@ -1092,7 +1100,7 @@ function renderDashboard() {
     </div>
 
     <!-- Main grid: left alerts + right table -->
-    <div style="display:grid;grid-template-columns:1fr 2.2fr;gap:18px;align-items:start">
+    <div style="display:grid;grid-template-columns:${window.innerWidth>=768?'1fr 2.2fr':'1fr'};gap:${window.innerWidth>=768?'18':'14'}px;align-items:start">
 
       <!-- Left column -->
       <div style="display:flex;flex-direction:column;gap:14px">
@@ -2261,20 +2269,27 @@ function saveAdvance(workerId, workerName) {
   const inp = state.advanceInputs[workerId] || {};
   const amount = +(inp.amount||0);
   if (!amount || amount <= 0) { toast('נא להזין סכום', 'error'); return; }
-  const date = inp.date || todayISO(); // ISO format for type="date" inputs
-  const month = date.substring(0,7); // YYYY-MM from ISO date
+  const date = inp.date || todayISO();
+  const month = date.substring(0,7);
   const item = { id: uid(), workerId, workerName, amount, date, month, image: null };
   DB.advances = [item, ...(DB.advances||[])];
   persistLocal();
   state.advanceInputs[workerId] = { amount: '', date: todayISO() };
   render();
   toast('מפרעה נרשמה ✓', 'success');
+  if (CFG.webAppUrl) {
+    cloudCall('add_advance', {payload: item}).then(()=>setSyncStatus('ok')).catch(()=>{
+      PENDING.push({action:'add_advance', payload:{payload: item}});
+      localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+      setSyncStatus('offline');
+    });
+  }
 }
-function deleteAdvance(id) {
+async function deleteAdvance(id) {
   if (!confirm('למחוק את המפרעה?')) return;
-  DB.advances = (DB.advances||[]).filter(a => a.id !== id);
-  persistLocal();
-  render();
+  await queueAndSync('delete_advance', {id}, () => {
+    DB.advances = (DB.advances||[]).filter(a => a.id !== id);
+  });
   toast('נמחק', 'success');
 }
 function uploadAdvanceImage(advId) {
@@ -2343,6 +2358,15 @@ function addCheck() {
   };
   DB.checks.push(item);
   persistLocal();
+  // Cloud sync
+  if (CFG.webAppUrl) {
+    setSyncStatus('syncing');
+    cloudCall('add_check', {payload: item}).then(()=>setSyncStatus('ok')).catch(()=>{
+      PENDING.push({action:'add_check', payload:{payload: item}});
+      localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+      setSyncStatus('offline');
+    });
+  }
   state.checkForm = {supplier:'', amount:'', checkNum:'', issueDate:'', clearDate:'', note:''};
   state.checkScanStage = 'idle';
 
@@ -2370,13 +2394,28 @@ function toggleCheckCleared(id) {
   persistLocal();
   render();
   toast(c.cleared ? '✓ צ\'ק סומן כמומש' : 'סימון בוטל', c.cleared ? 'success' : 'info');
+  if (CFG.webAppUrl) {
+    setSyncStatus('syncing');
+    (async () => {
+      try {
+        await cloudCall('delete_check', {id});
+        await cloudCall('add_check', {payload: c});
+        setSyncStatus('ok');
+      } catch(e) {
+        PENDING.push({action:'delete_check', payload:{id}});
+        PENDING.push({action:'add_check', payload:{payload: c}});
+        localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+        setSyncStatus('offline');
+      }
+    })();
+  }
 }
 
-function deleteCheck(id) {
-  DB.checks = DB.checks.filter(x => x.id !== id);
-  persistLocal();
-  render();
-  toast('צ\'ק נמחק', 'info');
+async function deleteCheck(id) {
+  await queueAndSync('delete_check', {id}, () => {
+    DB.checks = DB.checks.filter(x => x.id !== id);
+  });
+  toast("צ'ק נמחק", 'info');
 }
 
 function renderChecks() {
@@ -2848,13 +2887,21 @@ function addIncome() {
   state.incomeForm = { type: f.type, amount: '', date: null, notes: '' };
   render();
   toast('הכנסה נשמרה ✓', 'success');
+  if (CFG.webAppUrl) {
+    setSyncStatus('syncing');
+    cloudCall('add_income', {payload: item}).then(()=>setSyncStatus('ok')).catch(()=>{
+      PENDING.push({action:'add_income', payload:{payload: item}});
+      localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+      setSyncStatus('offline');
+    });
+  }
 }
 
-function deleteIncome(id) {
+async function deleteIncome(id) {
   if (!confirm('למחוק הכנסה זו?')) return;
-  DB.income = DB.income.filter(e => e.id !== id);
-  persistLocal();
-  render();
+  await queueAndSync('delete_income', {id}, () => {
+    DB.income = DB.income.filter(e => e.id !== id);
+  });
   toast('נמחק', 'success');
 }
 
@@ -3484,6 +3531,7 @@ function getAllowedTabs() {
 function canAccessTab(tabId) {
   if (tabId === 'settings') return getUserRole() !== 'scanner';
   if (tabId === 'dashboard') return true;
+  if (tabId === 'scan') return true; // accessible via FAB for all roles
   return getAllowedTabs().includes(tabId);
 }
 

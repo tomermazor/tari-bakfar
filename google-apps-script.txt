@@ -1,0 +1,296 @@
+/**
+ * טרי בכפר — מערכת ניהול מלאה
+ * Google Apps Script Backend — גרסה מלאה עם סנכרון לכל הנתונים
+ *
+ * ⚠️ אחרי עריכה: Deploy → New Deployment → Web App → Execute as Me → Anyone
+ */
+
+const SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet().getId();
+const DRIVE_FOLDER_NAME = 'טרי בכפר - חשבוניות';
+
+// ─── שמות גיליונות ────────────────────────────────────────────────────────────
+const SHEETS = {
+  expenses:     'הוצאות',
+  fixed:        'הוצאות קבועות',
+  installments: 'תשלומים',
+  credits:      'זיכויים',
+  workers:      'עובדים',
+  advances:     'מפרעות',
+  checks:       'צ\'קים',
+  income:       'הכנסות',
+};
+
+// ─── כותרות עמודות ────────────────────────────────────────────────────────────
+const HEADERS = {
+  expenses:     ['id','תאריך','ספק','סכום כולל','מע"מ','לפני מע"מ','קטגוריה','סוג מסמך','מספר מסמך','הערות','קישור לתמונה','הועבר להנה"ח'],
+  fixed:        ['id','שם','סכום','קטגוריה','תדירות','יום בחודש','ספק','הערות','פעיל'],
+  installments: ['id','שם','סכום כולל','מספר תשלומים','תשלומים ששולמו','תאריך התחלה','ספק','הערות'],
+  credits:      ['id','תאריך','ספק','סכום','סיבה'],
+  workers:      ['id','שם','תפקיד','שכר','סוג שכר','הערות','פעיל'],
+  advances:     ['id','workerId','workerName','סכום','תאריך','חודש'],
+  checks:       ['id','ספק','סכום','מספר צ\'ק','תאריך הנפקה','תאריך פירעון','הערה','מומש','נוצר ב'],
+  income:       ['id','תאריך','סוג','סכום','הערות'],
+};
+
+// ─── Entry point ──────────────────────────────────────────────────────────────
+function doPost(e) {
+  try {
+    ensureSheetsExist();
+    const data = JSON.parse(e.postData.contents);
+    const action = data.action;
+    let result;
+
+    switch(action) {
+      // ── הוצאות ─────────────────────────────────────────────────────────────
+      case 'list_expenses':      result = listRows('expenses'); break;
+      case 'add_expense':        result = addExpense(data.payload); break;
+      case 'update_expense':     result = updateRow('expenses', data.payload); break;
+      case 'delete_expense':     result = deleteRow('expenses', data.id); break;
+
+      // ── הוצאות קבועות ──────────────────────────────────────────────────────
+      case 'list_fixed':         result = listRows('fixed'); break;
+      case 'add_fixed':          result = addRow('fixed', data.payload); break;
+      case 'update_fixed':       result = updateRow('fixed', data.payload); break;
+      case 'delete_fixed':       result = deleteRow('fixed', data.id); break;
+
+      // ── תשלומים ────────────────────────────────────────────────────────────
+      case 'list_installments':  result = listRows('installments'); break;
+      case 'add_installment':    result = addRow('installments', data.payload); break;
+      case 'update_installment': result = updateRow('installments', data.payload); break;
+      case 'delete_installment': result = deleteRow('installments', data.id); break;
+
+      // ── זיכויים ────────────────────────────────────────────────────────────
+      case 'list_credits':       result = listRows('credits'); break;
+      case 'add_credit':         result = addRow('credits', data.payload); break;
+      case 'delete_credit':      result = deleteRow('credits', data.id); break;
+
+      // ── עובדים ─────────────────────────────────────────────────────────────
+      case 'list_workers':       result = listRows('workers'); break;
+      case 'add_worker':         result = addRow('workers', data.payload); break;
+      case 'update_worker':      result = updateRow('workers', data.payload); break;
+      case 'delete_worker':      result = deleteRow('workers', data.id); break;
+
+      // ── מפרעות ─────────────────────────────────────────────────────────────
+      case 'list_advances':      result = listRows('advances'); break;
+      case 'add_advance':        result = addRow('advances', data.payload); break;
+      case 'delete_advance':     result = deleteRow('advances', data.id); break;
+
+      // ── צ'קים ──────────────────────────────────────────────────────────────
+      case 'list_checks':        result = listRows('checks'); break;
+      case 'add_check':          result = addRow('checks', data.payload); break;
+      case 'update_check':       result = updateRow('checks', data.payload); break;
+      case 'delete_check':       result = deleteRow('checks', data.id); break;
+
+      // ── הכנסות ─────────────────────────────────────────────────────────────
+      case 'list_income':        result = listRows('income'); break;
+      case 'add_income':         result = addRow('income', data.payload); break;
+      case 'delete_income':      result = deleteRow('income', data.id); break;
+
+      // ── כלי עזר ────────────────────────────────────────────────────────────
+      case 'upload_image':       result = uploadImage(data.base64, data.mime, data.filename); break;
+      case 'ping':               result = { ok: true, time: new Date().toISOString() }; break;
+
+      default: throw new Error('Unknown action: ' + action);
+    }
+
+    return jsonResponse({ ok: true, data: result });
+
+  } catch (err) {
+    return jsonResponse({ ok: false, error: err.message });
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput('טרי בכפר API פעיל.').setMimeType(ContentService.MimeType.TEXT);
+}
+
+function jsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ─── יצירת גיליונות ───────────────────────────────────────────────────────────
+function ensureSheetsExist() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  for (const [key, sheetName] of Object.entries(SHEETS)) {
+    let sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      sheet = ss.insertSheet(sheetName);
+      sheet.appendRow(HEADERS[key]);
+      const hr = sheet.getRange(1, 1, 1, HEADERS[key].length);
+      hr.setFontWeight('bold');
+      hr.setBackground('#15803D');
+      hr.setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+  }
+}
+
+// ─── מיפוי שורה → אובייקט ────────────────────────────────────────────────────
+function rowToObject(sheetKey, row) {
+  const h = HEADERS[sheetKey];
+  const obj = {};
+  h.forEach((col, i) => { obj[col] = row[i]; });
+
+  if (sheetKey === 'expenses') return {
+    id: obj.id, date: obj['תאריך'], supplier: obj['ספק'],
+    total_amount: +obj['סכום כולל'] || 0, vat_amount: +obj['מע"מ'] || 0,
+    amount_before_vat: +obj['לפני מע"מ'] || 0, category: obj['קטגוריה'],
+    document_type: obj['סוג מסמך'], document_number: obj['מספר מסמך'],
+    notes: obj['הערות'], image: obj['קישור לתמונה'],
+    sentToAccountant: obj['הועבר להנה"ח'] === true || obj['הועבר להנה"ח'] === 'TRUE' || obj['הועבר להנה"ח'] === 'כן',
+  };
+  if (sheetKey === 'fixed') return {
+    id: obj.id, name: obj['שם'], amount: +obj['סכום'] || 0,
+    category: obj['קטגוריה'], frequency: obj['תדירות'], day: obj['יום בחודש'],
+    supplier: obj['ספק'], notes: obj['הערות'],
+    active: obj['פעיל'] === true || obj['פעיל'] === 'TRUE' || obj['פעיל'] === 'כן',
+  };
+  if (sheetKey === 'installments') return {
+    id: obj.id, name: obj['שם'], total: +obj['סכום כולל'] || 0,
+    installments: +obj['מספר תשלומים'] || 0, paid: +obj['תשלומים ששולמו'] || 0,
+    first_date: obj['תאריך התחלה'], supplier: obj['ספק'], notes: obj['הערות'],
+  };
+  if (sheetKey === 'credits') return {
+    id: obj.id, date: obj['תאריך'], supplier: obj['ספק'],
+    amount: +obj['סכום'] || 0, reason: obj['סיבה'],
+  };
+  if (sheetKey === 'workers') return {
+    id: obj.id, name: obj['שם'], role: obj['תפקיד'],
+    salary: +obj['שכר'] || 0, salary_type: obj['סוג שכר'],
+    notes: obj['הערות'],
+    active: obj['פעיל'] === true || obj['פעיל'] === 'TRUE' || obj['פעיל'] === 'כן' || obj['פעיל'] === '',
+  };
+  if (sheetKey === 'advances') return {
+    id: obj.id, workerId: obj['workerId'], workerName: obj['workerName'],
+    amount: +obj['סכום'] || 0, date: obj['תאריך'], month: obj['חודש'],
+  };
+  if (sheetKey === 'checks') return {
+    id: obj.id, supplier: obj['ספק'], amount: +obj['סכום'] || 0,
+    checkNum: obj['מספר צ\'ק'], issueDate: obj['תאריך הנפקה'],
+    clearDate: obj['תאריך פירעון'], note: obj['הערה'],
+    cleared: obj['מומש'] === true || obj['מומש'] === 'TRUE' || obj['מומש'] === 'כן',
+    createdAt: obj['נוצר ב'],
+  };
+  if (sheetKey === 'income') return {
+    id: obj.id, date: obj['תאריך'], type: obj['סוג'],
+    amount: +obj['סכום'] || 0, notes: obj['הערות'],
+  };
+  return obj;
+}
+
+// ─── מיפוי אובייקט → שורה ────────────────────────────────────────────────────
+function objectToRow(sheetKey, obj) {
+  if (sheetKey === 'expenses') return [
+    obj.id, obj.date, obj.supplier, obj.total_amount, obj.vat_amount, obj.amount_before_vat,
+    obj.category, obj.document_type, obj.document_number, obj.notes, obj.image || '',
+    obj.sentToAccountant ? 'כן' : 'לא',
+  ];
+  if (sheetKey === 'fixed') return [
+    obj.id, obj.name, obj.amount, obj.category, obj.frequency, obj.day,
+    obj.supplier || '', obj.notes || '', obj.active !== false ? 'כן' : 'לא',
+  ];
+  if (sheetKey === 'installments') return [
+    obj.id, obj.name, obj.total, obj.installments, obj.paid,
+    obj.first_date || '', obj.supplier || '', obj.notes || '',
+  ];
+  if (sheetKey === 'credits') return [
+    obj.id, obj.date, obj.supplier, obj.amount, obj.reason || '',
+  ];
+  if (sheetKey === 'workers') return [
+    obj.id, obj.name, obj.role || '', obj.salary || 0, obj.salary_type || 'חודשי',
+    obj.notes || '', obj.active !== false ? 'כן' : 'לא',
+  ];
+  if (sheetKey === 'advances') return [
+    obj.id, obj.workerId, obj.workerName || '', obj.amount, obj.date || '', obj.month || '',
+  ];
+  if (sheetKey === 'checks') return [
+    obj.id, obj.supplier, obj.amount, obj.checkNum || '', obj.issueDate || '',
+    obj.clearDate || '', obj.note || '', obj.cleared ? 'כן' : 'לא', obj.createdAt || new Date().toISOString(),
+  ];
+  if (sheetKey === 'income') return [
+    obj.id, obj.date, obj.type, obj.amount, obj.notes || '',
+  ];
+  return [];
+}
+
+// ─── CRUD ─────────────────────────────────────────────────────────────────────
+function getSheet(key) {
+  ensureSheetsExist();
+  return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS[key]);
+}
+
+function listRows(sheetKey) {
+  const sheet = getSheet(sheetKey);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const numCols = HEADERS[sheetKey].length;
+  const data = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
+  return data.map(row => rowToObject(sheetKey, row)).filter(r => r && r.id);
+}
+
+function addRow(sheetKey, payload) {
+  const sheet = getSheet(sheetKey);
+  sheet.appendRow(objectToRow(sheetKey, payload));
+  return payload;
+}
+
+function addExpense(payload) {
+  if (payload.image && payload.image.startsWith('data:')) {
+    try {
+      const parts = payload.image.split(',');
+      const mime = parts[0].split(':')[1].split(';')[0];
+      const base64 = parts[1];
+      const filename = 'invoice_' + payload.id + '.' + mime.split('/')[1];
+      payload.image = uploadImage(base64, mime, filename);
+    } catch(e) { payload.image = ''; }
+  }
+  return addRow('expenses', payload);
+}
+
+function findRowById(sheetKey, id) {
+  const sheet = getSheet(sheetKey);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return -1;
+  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(id)) return i + 2;
+  }
+  return -1;
+}
+
+function updateRow(sheetKey, payload) {
+  const rowIdx = findRowById(sheetKey, payload.id);
+  if (rowIdx < 0) throw new Error('Row not found: ' + payload.id);
+  const rowData = objectToRow(sheetKey, payload);
+  getSheet(sheetKey).getRange(rowIdx, 1, 1, rowData.length).setValues([rowData]);
+  return payload;
+}
+
+function deleteRow(sheetKey, id) {
+  const rowIdx = findRowById(sheetKey, id);
+  if (rowIdx < 0) throw new Error('Row not found: ' + id);
+  getSheet(sheetKey).deleteRow(rowIdx);
+  return { id, deleted: true };
+}
+
+// ─── העלאת תמונות ─────────────────────────────────────────────────────────────
+function getOrCreateFolder() {
+  const folders = DriveApp.getFoldersByName(DRIVE_FOLDER_NAME);
+  return folders.hasNext() ? folders.next() : DriveApp.createFolder(DRIVE_FOLDER_NAME);
+}
+
+function uploadImage(base64, mime, filename) {
+  const folder = getOrCreateFolder();
+  const decoded = Utilities.base64Decode(base64);
+  const blob = Utilities.newBlob(decoded, mime, filename || 'invoice_' + Date.now() + '.jpg');
+  const file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return file.getUrl();
+}
+
+// ─── התקנה ───────────────────────────────────────────────────────────────────
+function setup() {
+  ensureSheetsExist();
+  getOrCreateFolder();
+  Logger.log('✅ התקנה הושלמה! Spreadsheet: ' + SPREADSHEET_ID);
+}
