@@ -69,9 +69,43 @@ input:-webkit-autofill { -webkit-box-shadow:0 0 0 40px var(--surface) inset; -we
 /* ── Typography ──────────────────────────────────────────────────── */
 .display { font-family:'Frank Ruhl Libre',serif; font-weight:700; letter-spacing:-0.02em; }
 
-/* ── Shell — fixed-height layout, only .main scrolls ────────────── */
+/* ── Shell — mobile: flex column; desktop: sidebar grid ─────────── */
 .app { max-width:480px; margin:0 auto; height:100%; height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
 .main { flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; padding-bottom:24px; }
+
+/* ── Desktop layout (≥ 768px) ────────────────────────────────────── */
+@media (min-width:768px) {
+  .app { max-width:100%; margin:0; display:grid; grid-template-columns:230px 1fr; grid-template-rows:auto auto 1fr; grid-template-areas:"sidebar top" "sidebar subhead" "sidebar main"; }
+  /* app-switcher → top bar */
+  .app-switcher { grid-area:top; position:static; border-radius:0; padding:8px 20px; padding-top:8px; border-bottom:1px solid var(--border); }
+  /* header → sub-header */
+  .header { grid-area:subhead; position:static; border-radius:0; background:var(--surface) !important; padding:12px 24px; }
+  /* main → main content */
+  .main { grid-area:main; padding-bottom:0; }
+  .main > div { max-width:100% !important; padding:20px 28px 28px !important; }
+  /* nav → sidebar */
+  .nav { grid-area:sidebar; flex-direction:column; width:auto; height:auto; border-top:none; border-inline-start:1px solid var(--border); background:var(--surface) !important; align-items:stretch; overflow-y:auto; overflow-x:hidden; padding:0; }
+  /* sidebar nav buttons — horizontal layout with icon on left, text on right (in RTL: icon on right, text on left... adjust) */
+  .nav button { flex:0 0 auto; width:calc(100% - 16px); height:44px; flex-direction:row; justify-content:flex-start; gap:10px; padding:0 14px; margin:2px 8px; border-radius:10px; }
+  .nav button.active { background:var(--accentSoft); }
+  .nav button.active .nav-icon-wrap { background:transparent !important; box-shadow:none !important; transform:none !important; }
+  .nav-icon-wrap { width:20px; height:20px; border-radius:5px; background:transparent !important; box-shadow:none !important; transform:none !important; }
+  .nav button span { font-size:13px; font-weight:600; white-space:nowrap; display:block; }
+  /* sidebar FAB → full-width primary button */
+  .nav-fab-slot { position:static; order:-1; flex:0 0 auto; width:100%; padding:14px 12px 6px; }
+  .nav-fab { position:static; width:100%; height:44px; border-radius:12px; border:none; justify-content:flex-end; flex-direction:row; padding:0 14px; gap:10px; font-size:13px; font-weight:700; font-family:inherit; letter-spacing:0.01em; }
+  .nav-fab:hover { transform:none; box-shadow:var(--shadow-accent); }
+  .nav-fab-label { display:block; }
+  /* sidebar brand (hidden on mobile, shown here via .sidebar-brand) */
+  .sidebar-brand { display:flex !important; }
+  /* sidebar footer */
+  .sidebar-footer { display:flex !important; }
+  /* Adjust app-switcher on desktop — hide redundant elements */
+  .sw-btn { font-size:12px; }
+  /* Desktop content improvements */
+  [data-theme="light"] .nav { background:#fff !important; box-shadow:var(--shadow-sm); }
+  [data-theme="light"] .header { background:#fff !important; }
+}
 
 /* ── App-switcher — always at top of flex, no sticky needed ─────── */
 .app-switcher { display:flex; gap:4px; padding:5px 8px; padding-top:calc(5px + env(safe-area-inset-top,0px)); background:rgba(7,9,10,0.97); backdrop-filter:blur(24px); border-bottom:1px solid var(--border); flex-shrink:0; }
@@ -104,6 +138,9 @@ input:-webkit-autofill { -webkit-box-shadow:0 0 0 40px var(--surface) inset; -we
 .nav button.active .nav-icon-wrap { background:var(--accentSoft); transform:translateY(-1px); box-shadow:0 2px 8px rgba(110,198,58,0.16); }
 .nav button:active .nav-icon-wrap { transform:scale(0.88); }
 .nav button span { font-size:9px; font-weight:700; letter-spacing:0.01em; transition:color var(--t-med); }
+
+/* ── Nav FAB label — hidden on mobile, shown on desktop ─────────── */
+.nav-fab-label { display:none; }
 
 /* ── Nav FAB (center scan button) ───────────────────────────────── */
 .nav-fab-slot { flex:0 0 70px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding-bottom:6px; position:relative; }
@@ -838,25 +875,51 @@ const TABS = [
 
 function renderNav() {
   const allowed = getAllowedTabs();
-  const tabs = TABS.filter(t => allowed.includes(t.id) && t.id !== 'scan'); // scan goes to FAB
+  const tabs = TABS.filter(t => allowed.includes(t.id) && t.id !== 'scan');
   const mid = Math.ceil(tabs.length / 2);
   const left  = tabs.slice(0, mid);
   const right = tabs.slice(mid);
 
   const tabBtn = t => `
     <button class="${state.tab===t.id?'active':''}" onclick="setState({tab:'${t.id}'})">
-      <div class="nav-icon-wrap">${ICONS[t.id]||''}</div>
       <span>${t.label}</span>
+      <div class="nav-icon-wrap">${ICONS[t.id]||''}</div>
     </button>`;
+
+  const scanIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`;
 
   const fab = allowed.includes('scan') ? `
     <div class="nav-fab-slot">
       <button class="nav-fab${state.tab==='scan'?' active':''}" onclick="setState({tab:'scan'})" title="סרוק חשבונית">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+        ${scanIcon}
+        <span class="nav-fab-label">סרוק מסמך</span>
       </button>
     </div>` : '';
 
-  document.getElementById('nav').innerHTML = left.map(tabBtn).join('') + fab + right.map(tabBtn).join('');
+  // Sidebar brand (desktop only — hidden on mobile via CSS)
+  const brand = `
+    <div class="sidebar-brand" style="display:none;align-items:center;gap:12px;padding:20px 16px 12px;border-bottom:1px solid var(--border)">
+      <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(145deg,#c8e8cc,#a8d8ac);border:1px solid rgba(43,122,70,0.25);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🌿</div>
+      <div>
+        <div class="display" style="font-size:15px;color:var(--text);line-height:1.2">טרי בכפר</div>
+        <div style="font-size:10px;color:var(--textMuted)">ניהול הוצאות</div>
+      </div>
+    </div>`;
+
+  // Sidebar footer: orders link + settings (desktop only)
+  const footer = `
+    <div class="sidebar-footer" style="display:none;flex-direction:column;gap:2px;margin-top:auto;padding:8px 8px 12px;border-top:1px solid var(--border)">
+      <a href="orders.html" onclick="event.preventDefault();navigateTo('orders.html')" style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;text-decoration:none;color:var(--textDim);font-size:13px;font-weight:600;transition:background var(--t-fast)" onmouseenter="this.style.background='var(--surfaceHi)'" onmouseleave="this.style.background='transparent'">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        <span>הזמנות</span>
+      </a>
+      <button onclick="setState({tab:'settings'})" style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;border:none;background:transparent;color:var(--textDim);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;width:100%;text-align:right;transition:background var(--t-fast)" onmouseenter="this.style.background='var(--surfaceHi)'" onmouseleave="this.style.background='transparent'">
+        ${ICONS.settings}
+        <span>הגדרות</span>
+      </button>
+    </div>`;
+
+  document.getElementById('nav').innerHTML = brand + fab + left.map(tabBtn).join('') + right.map(tabBtn).join('') + footer;
 }
 
 function updateHeader() {
