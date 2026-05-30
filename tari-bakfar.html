@@ -387,10 +387,12 @@ async function syncAll() {
         await cloudCall(op.action, op.payload);
       } catch(opErr) {
         const msg = (opErr.message || '').toLowerCase();
-        if (msg.includes('row not found') || msg.includes('not found')) {
-          console.warn('Skipped pending op (row not found):', op.action);
+        // Skip: row deleted, GAS doesn't support action yet (old GAS), or action never existed
+        const skippable = msg.includes('row not found') || msg.includes('not found') || msg.includes('unknown action');
+        if (skippable) {
+          console.warn('Skipped pending op:', op.action, '-', opErr.message);
         } else {
-          throw opErr; // re-throw real errors
+          throw opErr; // re-throw real network/auth errors
         }
       }
       PENDING.shift();
@@ -428,6 +430,7 @@ async function syncAll() {
     persistLocal();
     setSyncStatus('ok');
     render();
+    console.log('✅ Sync OK — exp:', (exp||[]).length, 'chk:', (chk||[]).length, 'inc:', (inc||[]).length);
   } catch(e) {
     console.error('Sync failed:', e);
     setSyncStatus('offline');
@@ -2624,14 +2627,14 @@ function renderCredits() {
           <label class="label">סיבת הזיכוי *</label>
           <input class="input" placeholder="למשל: חיסרון בסחורה, סחורה פגומה..." value="${esc(cf.reason)}" oninput="state.creditForm.reason=this.value" onkeydown="if(event.key==='Enter')addCredit()">
         </div>
-        <input type="file" accept="image/*" id="credit-img-input" onchange="handleCreditImage(this.files[0])" style="display:none">
+        <!-- no hidden input needed — pickCreditImage() creates one dynamically -->
         ${cf.image ? `
           <div style="position:relative;margin-bottom:12px;border-radius:10px;overflow:hidden;border:1px solid var(--border)">
             <img src="${cf.image}" style="width:100%;max-height:150px;object-fit:contain;background:#000;display:block">
             <button onclick="state.creditForm.image=null;render()" style="position:absolute;top:6px;left:6px;width:26px;height:26px;border:none;border-radius:50%;background:rgba(0,0,0,0.65);color:#fff;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>
           </div>
         ` : `
-          <button onclick="document.getElementById('credit-img-input').click()" style="width:100%;padding:11px;border:1px dashed var(--borderHi);border-radius:10px;background:transparent;color:var(--textDim);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;margin-bottom:12px">📎 צרף צילום מסך (אופציונלי)</button>
+          <button onclick="pickCreditImage()" style="width:100%;padding:11px;border:1px dashed var(--borderHi);border-radius:10px;background:transparent;color:var(--textDim);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;margin-bottom:12px">📎 צרף צילום מסך (אופציונלי)</button>
         `}
         <button class="btn-primary" onclick="addCredit()" style="margin-bottom:0">💾 שמור בקשת זיכוי</button>
       </div>
@@ -2670,6 +2673,17 @@ function renderCredits() {
         `).join('')
       }
     </div>`;
+}
+
+// Dynamic file picker — more reliable on iOS than hidden input
+function pickCreditImage() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.style.display = 'none';
+  document.body.appendChild(inp);
+  inp.onchange = () => { handleCreditImage(inp.files[0]); document.body.removeChild(inp); };
+  inp.click();
 }
 
 function handleCreditImage(file) {
