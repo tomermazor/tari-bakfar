@@ -32,20 +32,25 @@
   --t-fast:0.12s ease; --t-med:0.2s ease; --t-slow:0.3s ease;
 }
 [data-theme="light"] {
-  --bg:#f0f6ec; --surface:#ffffff; --surfaceHi:#e8f2e2; --surfaceMid:#ecf5e6;
-  --border:#c0d4b8; --borderHi:#96be8a; --borderFocus:#5a9444;
-  --text:#142212; --textDim:#466040; --textMuted:#6e9068;
-  --accent:#3a8a14; --accentHover:#4aa01c; --accentSoft:rgba(58,138,20,0.09); --accentGlow:rgba(58,138,20,0.18);
-  --accent2:#884a18; --accent2Soft:rgba(136,74,24,0.09);
-  --amber:#7a5800; --amberSoft:rgba(122,88,0,0.09);
-  --danger:#b01e1e; --dangerSoft:rgba(176,30,30,0.09);
-  --shadow-sm:0 1px 3px rgba(0,0,0,0.06); --shadow:0 2px 10px rgba(0,0,0,0.08);
-  --shadow-lg:0 8px 32px rgba(0,0,0,0.14); --shadow-accent:0 4px 20px rgba(58,138,20,0.2);
+  --bg:#EEF3EE; --surface:#FFFFFF; --surfaceHi:#F5FAF5; --surfaceMid:#F0F7F0;
+  --border:#D4E6D4; --borderHi:#B0CEB0; --borderFocus:#3D8A58;
+  --text:#182818; --textDim:#4A6A50; --textMuted:#8AAA8A;
+  --accent:#2B7A46; --accentHover:#35904E; --accentSoft:rgba(43,122,70,0.09); --accentGlow:rgba(43,122,70,0.16);
+  --accent2:#C06818; --accent2Soft:rgba(192,104,24,0.09);
+  --amber:#A85E10; --amberSoft:rgba(168,94,16,0.09);
+  --danger:#C02828; --dangerSoft:rgba(192,40,40,0.09);
+  --info:#2070B8; --infoSoft:rgba(32,112,184,0.09);
+  --shadow-sm:0 1px 3px rgba(0,50,0,0.06),0 1px 2px rgba(0,30,0,0.04);
+  --shadow:0 2px 8px rgba(0,40,0,0.08),0 1px 3px rgba(0,30,0,0.05);
+  --shadow-lg:0 8px 24px rgba(0,40,0,0.10),0 3px 8px rgba(0,30,0,0.06);
+  --shadow-accent:0 4px 16px rgba(43,122,70,0.22);
 }
-[data-theme="light"] .app-switcher { background:rgba(240,248,236,0.99); }
-[data-theme="light"] .header { background:rgba(240,248,236,0.99); }
-[data-theme="light"] .nav { background:rgba(240,248,236,0.99); }
+[data-theme="light"] .app-switcher { background:rgba(238,243,238,0.98); border-bottom:1px solid var(--border); }
+[data-theme="light"] .header { background:rgba(238,243,238,0.98); border-bottom:1px solid var(--border); }
+[data-theme="light"] .nav { background:rgba(255,255,255,0.98); border-top:1px solid var(--border); }
 [data-theme="light"] select.input { background-color:#fff; }
+[data-theme="light"] .input { background:var(--surface); }
+[data-theme="light"] select.input { background-color:var(--surface); border-color:var(--border); }
 
 /* ── Reset & base ────────────────────────────────────────────────── */
 * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
@@ -91,14 +96,22 @@ input:-webkit-autofill { -webkit-box-shadow:0 0 0 40px var(--surface) inset; -we
 .sync-badge.local { background:rgba(102,128,106,0.08); color:var(--textDim); border:1px solid var(--border); }
 
 /* ── Bottom nav — in-flow, always at bottom of flex, never scrolled ─ */
-.nav { background:rgba(7,9,10,0.98); border-top:1px solid var(--border); display:flex; flex-shrink:0; padding-bottom:env(safe-area-inset-bottom,0px); overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.nav { background:rgba(7,9,10,0.98); border-top:1px solid var(--border); display:flex; flex-shrink:0; padding-bottom:env(safe-area-inset-bottom,0px); overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; align-items:flex-end; }
 .nav::-webkit-scrollbar { display:none; }
-.nav button { flex:0 0 64px; padding:6px 2px 5px; border:none; background:transparent; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px; font-family:inherit; position:relative; color:var(--textDim); transition:color var(--t-med); }
+.nav button { flex:0 0 60px; padding:6px 2px 6px; border:none; background:transparent; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px; font-family:inherit; position:relative; color:var(--textDim); transition:color var(--t-med); }
 .nav button.active { color:var(--accent); }
-.nav-icon-wrap { width:38px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:10px; transition:background var(--t-med),transform var(--t-fast),box-shadow var(--t-fast); }
-.nav button.active .nav-icon-wrap { background:var(--accentSoft); transform:translateY(-1px); box-shadow:0 2px 10px rgba(110,198,58,0.18); }
+.nav-icon-wrap { width:36px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:10px; transition:background var(--t-med),transform var(--t-fast),box-shadow var(--t-fast); }
+.nav button.active .nav-icon-wrap { background:var(--accentSoft); transform:translateY(-1px); box-shadow:0 2px 8px rgba(110,198,58,0.16); }
 .nav button:active .nav-icon-wrap { transform:scale(0.88); }
 .nav button span { font-size:9px; font-weight:700; letter-spacing:0.01em; transition:color var(--t-med); }
+
+/* ── Nav FAB (center scan button) ───────────────────────────────── */
+.nav-fab-slot { flex:0 0 70px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding-bottom:6px; position:relative; }
+.nav-fab { width:52px; height:52px; border-radius:50%; border:3px solid var(--bg); background:linear-gradient(145deg,#4ec85a,#1e8040); box-shadow:0 4px 16px rgba(43,122,70,0.38),0 1px 0 rgba(255,255,255,0.2) inset; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; position:absolute; bottom:calc(6px + env(safe-area-inset-bottom,0px)); transition:transform var(--t-fast),box-shadow var(--t-fast); }
+.nav-fab:hover { transform:scale(1.06); box-shadow:0 6px 22px rgba(43,122,70,0.48),0 1px 0 rgba(255,255,255,0.2) inset; }
+.nav-fab:active { transform:scale(0.93); }
+.nav-fab.active { background:linear-gradient(145deg,#3aaa48,#165e2c); }
+[data-theme="light"] .nav-fab { border-color:var(--bg); }
 
 /* ── Form elements ───────────────────────────────────────────────── */
 .input { width:100%; background:var(--surfaceHi); border:1.5px solid var(--border); border-radius:var(--r-md); padding:12px 14px; color:var(--text); font-size:15px; font-family:inherit; outline:none; box-sizing:border-box; transition:border-color var(--t-fast),box-shadow var(--t-fast),background var(--t-fast); }
@@ -156,6 +169,15 @@ input[type="date"] { min-width:0; max-width:100%; }
 .toast.error { background:rgba(18,6,6,0.98); border-color:rgba(224,82,82,0.38); color:var(--danger); }
 [data-theme="light"] .toast.error { background:rgba(254,240,240,0.99); }
 
+/* ── Light theme card enhancement ───────────────────────────────── */
+[data-theme="light"] .card { box-shadow:var(--shadow); border-color:var(--border); }
+[data-theme="light"] .btn-primary { color:#fff; }
+[data-theme="light"] .btn-primary:hover:not(:disabled) { filter:brightness(1.06); }
+[data-theme="light"] .sync-badge.ok { background:rgba(43,122,70,0.1); }
+[data-theme="light"] .nav-fab { border-color:var(--bg); }
+[data-theme="light"] .logo { background:linear-gradient(145deg,#e0f2e4,#c8e6cc); border-color:rgba(43,122,70,0.3); box-shadow:0 2px 10px rgba(43,122,70,0.15); }
+[data-theme="light"] .sw-btn:not(.active):hover { background:rgba(0,0,0,0.04); }
+
 /* ── Login ───────────────────────────────────────────────────────── */
 .login-screen { position:fixed; inset:0; z-index:999; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 24px; }
 .login-logo { width:82px; height:82px; border-radius:26px; background:linear-gradient(145deg,#192a12,#0e1c0e); border:1px solid rgba(126,203,66,0.28); display:flex; align-items:center; justify-content:center; font-size:46px; margin-bottom:22px; box-shadow:0 14px 48px rgba(126,203,66,0.22),0 0 0 1px rgba(126,203,66,0.1); }
@@ -187,16 +209,14 @@ input[type="date"] { min-width:0; max-width:100%; }
   </div>
 
   <header class="header">
-    <div class="logo">🌿</div>
     <div style="flex:1;min-width:0">
-      <h1 class="display" style="font-size:17px;color:var(--text);margin:0;line-height:1.1">טרי בכפר</h1>
-      <div style="display:flex;gap:6px;align-items:center;margin-top:2px">
+      <div id="header-greeting" style="font-size:16px;font-weight:800;color:var(--text);line-height:1.2;font-family:'Frank Ruhl Libre',serif">טרי בכפר 🌿</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:3px">
         <div id="sync-badge" class="sync-badge local">⚠ לא מחובר</div>
+        <div id="header-date" style="font-size:10px;color:var(--textMuted);font-weight:600"></div>
       </div>
     </div>
-    <div id="month-total" style="text-align:left;flex-shrink:0;min-width:0">
-      <div class="display" style="font-size:15px;color:var(--accent);line-height:1.1">₪0.00</div>
-    </div>
+    <div id="month-total" style="text-align:left;flex-shrink:0;min-width:0;cursor:pointer" onclick="setState({tab:'list',listPer:'היום'})" title="הוצאות היום"></div>
   </header>
   <main class="main" id="main"></main>
   <nav class="nav" id="nav"></nav>
@@ -818,21 +838,50 @@ const TABS = [
 
 function renderNav() {
   const allowed = getAllowedTabs();
-  document.getElementById('nav').innerHTML = TABS
-    .filter(t => allowed.includes(t.id))
-    .map(t=>`
-      <button class="${state.tab===t.id?'active':''}" onclick="setState({tab:'${t.id}'})">
-        <div class="nav-icon-wrap">${ICONS[t.id]||''}</div>
-        <span>${t.label}</span>
-      </button>`).join('');
+  const tabs = TABS.filter(t => allowed.includes(t.id) && t.id !== 'scan'); // scan goes to FAB
+  const mid = Math.ceil(tabs.length / 2);
+  const left  = tabs.slice(0, mid);
+  const right = tabs.slice(mid);
+
+  const tabBtn = t => `
+    <button class="${state.tab===t.id?'active':''}" onclick="setState({tab:'${t.id}'})">
+      <div class="nav-icon-wrap">${ICONS[t.id]||''}</div>
+      <span>${t.label}</span>
+    </button>`;
+
+  const fab = allowed.includes('scan') ? `
+    <div class="nav-fab-slot">
+      <button class="nav-fab${state.tab==='scan'?' active':''}" onclick="setState({tab:'scan'})" title="סרוק חשבונית">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+      </button>
+    </div>` : '';
+
+  document.getElementById('nav').innerHTML = left.map(tabBtn).join('') + fab + right.map(tabBtn).join('');
 }
 
 function updateHeader() {
-  const wt = DB.expenses.filter(e=>isWeek(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
+  const now = new Date();
+  const h = now.getHours();
+  const greeting = h < 12 ? 'בוקר טוב' : h < 17 ? 'צהריים טובים' : 'ערב טוב';
+  const DAY_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  const dateStr = `יום ${DAY_HE[now.getDay()]}, ${now.toLocaleDateString('he-IL',{day:'numeric',month:'long'})}`;
+
+  const greetEl = document.getElementById('header-greeting');
+  const dateEl  = document.getElementById('header-date');
+  if (greetEl) greetEl.textContent = greeting + ' 👋';
+  if (dateEl)  dateEl.textContent = dateStr;
+
   const td = DB.expenses.filter(e=>isToday(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
   const tdCount = DB.expenses.filter(e=>isToday(e.date)).length;
+  const accPending = DB.expenses.filter(e=>['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)&&!e.sentToAccountant).length;
+
   const el = document.getElementById('month-total');
-  if (el) el.innerHTML = `<div class="display" style="font-size:15px;color:var(--accent);line-height:1.1">${fmtCurr(wt)}</div><div style="font-size:9.5px;color:var(--textMuted);margin-top:2px">היום: ${fmtCurr(td)} · ${tdCount} פריטים</div>`;
+  if (el) el.innerHTML = `
+    <div style="text-align:left">
+      <div class="display" style="font-size:14px;color:var(--accent);line-height:1">${fmtCurr(td)}</div>
+      <div style="font-size:9px;color:var(--textMuted);margin-top:2px;text-align:left">היום · ${tdCount} פריטים</div>
+      ${accPending>0?`<div style="font-size:9px;color:var(--danger);font-weight:700;margin-top:1px">📋 ${accPending} ממתינות</div>`:''}
+    </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2955,7 +3004,7 @@ function render() {
 
 // ─── Theme ──────────────────────────────────────────────────────────────────
 function initTheme() {
-  const t = localStorage.getItem('app-theme') || 'dark';
+  const t = localStorage.getItem('app-theme') || 'light'; // default: light (premium style)
   document.documentElement.setAttribute('data-theme', t);
   const btn = document.getElementById('theme-btn');
   if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
