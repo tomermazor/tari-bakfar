@@ -32,18 +32,19 @@
   --t-fast:0.12s ease; --t-med:0.2s ease; --t-slow:0.3s ease;
 }
 [data-theme="light"] {
-  --bg:#EEF3EE; --surface:#FFFFFF; --surfaceHi:#F5FAF5; --surfaceMid:#F0F7F0;
-  --border:#D4E6D4; --borderHi:#B0CEB0; --borderFocus:#3D8A58;
-  --text:#182818; --textDim:#4A6A50; --textMuted:#8AAA8A;
-  --accent:#2B7A46; --accentHover:#35904E; --accentSoft:rgba(43,122,70,0.09); --accentGlow:rgba(43,122,70,0.16);
+  --bg:#F8FAFC; --surface:#FFFFFF; --surfaceHi:#F1F5F9; --surfaceMid:#F8FAFC;
+  --border:#E2E8F0; --borderHi:#CBD5E1; --borderFocus:#15803D;
+  --text:#0F172A; --textDim:#475569; --textMuted:#94A3B8;
+  --accent:#15803D; --accentHover:#166534; --accentSoft:#DCFCE7; --accentGlow:rgba(21,128,61,0.18);
   --accent2:#C06818; --accent2Soft:rgba(192,104,24,0.09);
-  --amber:#A85E10; --amberSoft:rgba(168,94,16,0.09);
-  --danger:#C02828; --dangerSoft:rgba(192,40,40,0.09);
-  --info:#2070B8; --infoSoft:rgba(32,112,184,0.09);
-  --shadow-sm:0 1px 3px rgba(0,50,0,0.06),0 1px 2px rgba(0,30,0,0.04);
-  --shadow:0 2px 8px rgba(0,40,0,0.08),0 1px 3px rgba(0,30,0,0.05);
-  --shadow-lg:0 8px 24px rgba(0,40,0,0.10),0 3px 8px rgba(0,30,0,0.06);
-  --shadow-accent:0 4px 16px rgba(43,122,70,0.22);
+  --amber:#D97706; --amberSoft:#FEF3C7;
+  --danger:#DC2626; --dangerSoft:#FEE2E2;
+  --info:#2563EB; --infoSoft:#DBEAFE;
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.04),0 1px 3px rgba(0,0,0,0.03);
+  --shadow:0 1px 3px rgba(0,0,0,0.05),0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg:0 8px 24px rgba(0,0,0,0.09),0 3px 8px rgba(0,0,0,0.06);
+  --shadow-accent:0 4px 16px rgba(21,128,61,0.22);
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:20px; --r-2xl:24px;
 }
 [data-theme="light"] .app-switcher { background:rgba(238,243,238,0.98); border-bottom:1px solid var(--border); }
 [data-theme="light"] .header { background:rgba(238,243,238,0.98); border-bottom:1px solid var(--border); }
@@ -85,9 +86,12 @@ input:-webkit-autofill { -webkit-box-shadow:0 0 0 40px var(--surface) inset; -we
   .main > div { max-width:100% !important; padding:20px 28px 28px !important; }
   /* nav → sidebar */
   .nav { grid-area:sidebar; flex-direction:column; width:auto; height:auto; border-top:none; border-inline-start:1px solid var(--border); background:var(--surface) !important; align-items:stretch; overflow-y:auto; overflow-x:hidden; padding:0; }
-  /* sidebar nav buttons — horizontal layout with icon on left, text on right (in RTL: icon on right, text on left... adjust) */
+  /* sidebar nav buttons */
   .nav button { flex:0 0 auto; width:calc(100% - 16px); height:44px; flex-direction:row; justify-content:flex-start; gap:10px; padding:0 14px; margin:2px 8px; border-radius:10px; }
-  .nav button.active { background:var(--accentSoft); }
+  .nav button:hover:not(.active) { background:var(--surfaceHi); }
+  .nav button.active { background:var(--accent); color:#fff; }
+  [data-theme="light"] .nav button.active { background:#15803D; color:#fff; box-shadow:0 2px 8px rgba(21,128,61,0.3); }
+  [data-theme="dark"] .nav button.active { background:var(--accentSoft); color:var(--accent); }
   .nav button.active .nav-icon-wrap { background:transparent !important; box-shadow:none !important; transform:none !important; }
   .nav-icon-wrap { width:20px; height:20px; border-radius:5px; background:transparent !important; box-shadow:none !important; transform:none !important; }
   .nav button span { font-size:13px; font-weight:600; white-space:nowrap; display:block; }
@@ -797,7 +801,7 @@ function handleCheckScanFile(file) {
 // ═══════════════════════════════════════════════════════════════════════════
 let _prevTab = null; // track tab for scroll-reset
 let state = {
-  tab: 'scan',
+  tab: 'dashboard',
   scanStage: 'idle', scanImg: null, scanB64: null, scanMime: null, scanForm: null, scanErr: '',
   listSearch: '', listCat: 'הכל', listPer: 'הכל', listOpen: null,
   reportPer: 'חודש', reportDateFrom: '', reportDateTo: '',
@@ -853,6 +857,7 @@ function clearListSearch() {
 // ICONS & TABS
 // ═══════════════════════════════════════════════════════════════════════════
 const ICONS = {
+  dashboard: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
   scan: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>',
   list: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
   fixed: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
@@ -867,9 +872,10 @@ const ICONS = {
 };
 
 const TABS = [
-  {id:'scan',label:'סריקה'},{id:'list',label:'שוטף'},{id:'fixed',label:'קבועות'},
-  {id:'installments',label:'תשלומים'},{id:'reports',label:'דוחות'},
-  {id:'income',label:'הכנסות'},{id:'credits',label:'זיכויים'},
+  {id:'dashboard',label:'לוח בקרה'},
+  {id:'list',label:'הוצאות'},{id:'income',label:'הכנסות'},
+  {id:'reports',label:'דוחות'},{id:'fixed',label:'קבועות'},
+  {id:'installments',label:'תשלומים'},{id:'credits',label:'זיכויים'},
   {id:'workers',label:'עובדים'},{id:'checks',label:"צ'קים"},
 ];
 
@@ -950,6 +956,213 @@ function updateHeader() {
 // ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — SCAN
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEWS — DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+const isSameDay = (date, target) => { const p=parseD(date); return p&&p.toDateString()===target.toDateString(); };
+
+function renderDashboard() {
+  const now = new Date();
+  const h = now.getHours();
+  const DAY_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  const greeting = h<12?'בוקר טוב':h<17?'צהריים טובים':'ערב טוב';
+  const dateStr = `יום ${DAY_HE[now.getDay()]} · ${now.toLocaleDateString('he-IL',{day:'numeric',month:'long',year:'numeric'})}`;
+
+  // ── Stats ────────────────────────────────────────────────────────
+  const todayExpTotal = DB.expenses.filter(e=>isToday(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
+  const todayIncTotal = DB.income.filter(e=>isToday(e.date)).reduce((s,e)=>s+(+e.amount||0),0);
+  const weekExpTotal  = DB.expenses.filter(e=>isWeek(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
+  const weekIncTotal  = DB.income.filter(e=>isWeek(e.date)).reduce((s,e)=>s+(+e.amount||0),0);
+  const weekExpCount  = DB.expenses.filter(e=>isWeek(e.date)).length;
+  const weekProfit    = weekIncTotal - weekExpTotal;
+  const monthTotal    = DB.expenses.filter(e=>isMonth(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
+  const pendingAcc    = DB.expenses.filter(e=>['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)&&!e.sentToAccountant).length;
+  const openChecks    = (DB.checks||[]).filter(c=>!c.cleared).sort((a,b)=>parseD(a.clearDate)-parseD(b.clearDate));
+  const openChecksTotal = openChecks.reduce((s,c)=>s+(+c.amount||0),0);
+  const overdueChecks = openChecks.filter(c=>checkUrgency(c.clearDate)==='overdue');
+  const soonChecks    = openChecks.filter(c=>checkUrgency(c.clearDate)==='soon');
+  const openCredits   = (DB.credits||[]);
+  const openCreditsTotal = openCredits.reduce((s,c)=>s+(+c.amount||0),0);
+  const recentExp     = DB.expenses.slice(0,8);
+
+  // ── Last 7 days chart ────────────────────────────────────────────
+  const chartDays = [];
+  for(let i=6;i>=0;i--){
+    const d=new Date(now); d.setDate(d.getDate()-i); d.setHours(0,0,0,0);
+    const inc=DB.income.filter(e=>isSameDay(e.date,d)).reduce((s,e)=>s+(+e.amount||0),0);
+    const exp=DB.expenses.filter(e=>isSameDay(e.date,d)).reduce((s,e)=>s+(+e.total_amount||0),0);
+    chartDays.push({label:d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'}),inc,exp,today:i===0});
+  }
+  const maxChart = Math.max(...chartDays.map(d=>Math.max(d.inc,d.exp)),1);
+
+  // ── Helpers ──────────────────────────────────────────────────────
+  const card = (icon,iconBg,title,val,sub,badge) => `
+    <div style="background:#fff;border-radius:16px;padding:20px 22px;box-shadow:var(--shadow);border:1px solid var(--border);cursor:default">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+        <div style="width:44px;height:44px;border-radius:12px;background:${iconBg};display:flex;align-items:center;justify-content:center;font-size:22px">${icon}</div>
+        ${badge||''}
+      </div>
+      <div class="display" style="font-size:26px;color:#0F172A;line-height:1;margin-bottom:5px;letter-spacing:-0.02em">${val}</div>
+      <div style="font-size:13px;color:#475569;font-weight:600">${title}</div>
+      ${sub?`<div style="font-size:11px;color:#94A3B8;margin-top:3px">${sub}</div>`:''}
+    </div>`;
+
+  const badge = (txt,col,bg) => `<span style="font-size:11px;font-weight:700;color:${col};background:${bg};padding:3px 9px;border-radius:100px">${txt}</span>`;
+
+  const alertRow = (icon,title,sub,col,action) => `
+    <div onclick="${action}" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;background:${col}10;border:1px solid ${col}22;cursor:pointer;margin-bottom:8px;transition:background 0.12s ease">
+      <div style="width:36px;height:36px;border-radius:9px;background:${col}18;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:#0F172A">${title}</div>
+        <div style="font-size:11px;color:#64748B;margin-top:1px">${sub}</div>
+      </div>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><polyline points="9 18 3 12 9 6"/></svg>
+    </div>`;
+
+  const qaBtn = (icon,label,onclick) => `
+    <button onclick="${onclick}" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border-radius:12px;border:1.5px solid #E2E8F0;background:#fff;cursor:pointer;font-family:inherit;transition:all 0.12s ease;width:100%">
+      <div style="width:38px;height:38px;border-radius:10px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;font-size:18px">${icon}</div>
+      <span style="font-size:11px;font-weight:600;color:#374151;white-space:nowrap">${label}</span>
+    </button>`;
+
+  const tableRow = e => {
+    const c = getCatColor(e.category);
+    const needsAcc = ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type);
+    const accPending = needsAcc && !e.sentToAccountant;
+    const accOK = needsAcc && e.sentToAccountant;
+    const statusEl = accPending
+      ? badge('ממתינה','#D97706','#FEF3C7')
+      : accOK ? badge('הועברה','#15803D','#DCFCE7')
+      : badge(esc(e.document_type||'—'),'#64748B','#F1F5F9');
+    return `<tr style="border-bottom:1px solid #F1F5F9;transition:background 0.1s">
+      <td style="padding:11px 16px">
+        <div style="font-size:13px;font-weight:600;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${esc(e.supplier||'—')}</div>
+        <div style="font-size:10px;color:#94A3B8;margin-top:1px">${fmtDate(e.date)}</div>
+      </td>
+      <td style="padding:11px 8px"><span style="font-size:10.5px;font-weight:600;background:${c}18;color:${c};padding:2px 8px;border-radius:100px;white-space:nowrap">${esc(e.category)}</span></td>
+      <td style="padding:11px 8px">${statusEl}</td>
+      <td style="padding:11px 16px;text-align:left"><span class="display" style="font-size:13px;color:#0F172A;font-weight:700">${fmtCurr(e.total_amount)}</span></td>
+      <td style="padding:11px 10px;text-align:center">
+        <button onclick="setState({tab:'list',listOpen:'${e.id}'})" style="width:26px;height:26px;border:1px solid #E2E8F0;border-radius:7px;background:#fff;cursor:pointer;color:#64748B;font-size:13px;display:inline-flex;align-items:center;justify-content:center;transition:all 0.12s">→</button>
+      </td></tr>`;
+  };
+
+  const bars = chartDays.map(d=>{
+    const ih = maxChart>0?Math.max((d.inc/maxChart)*100,0):0;
+    const eh = maxChart>0?Math.max((d.exp/maxChart)*100,0):0;
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+      <div style="width:100%;display:flex;align-items:flex-end;height:54px;gap:2px">
+        <div style="flex:1;background:#15803D;border-radius:3px 3px 0 0;height:${ih}%;min-height:${d.inc?'3px':'0'};opacity:0.85"></div>
+        <div style="flex:1;background:#DC2626;border-radius:3px 3px 0 0;height:${eh}%;min-height:${d.exp?'3px':'0'};opacity:0.7"></div>
+      </div>
+      <div style="font-size:9px;color:${d.today?'#15803D':'#94A3B8'};font-weight:${d.today?'700':'400'};white-space:nowrap">${d.label}</div>
+    </div>`;
+  }).join('');
+
+  const hasAlerts = overdueChecks.length>0||soonChecks.length>0||pendingAcc>0||openCredits.length>0;
+
+  return `
+  <div style="padding:24px 28px 32px" class="fade-up">
+
+    <!-- Greeting row -->
+    <div style="margin-bottom:24px">
+      <h1 class="display" style="font-size:26px;color:#0F172A;margin:0 0 4px">${greeting} 👋</h1>
+      <p style="font-size:13px;color:#64748B;margin:0">${dateStr} · הנה סיכום העסק שלך</p>
+    </div>
+
+    <!-- KPI row -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px">
+      ${card('💰','#DCFCE7','הכנסות השבוע',fmtCurr(weekIncTotal),`היום: ${fmtCurr(todayIncTotal)}`)}
+      ${card('📉','#FEE2E2','הוצאות השבוע',fmtCurr(weekExpTotal),`${weekExpCount} רשומות`)}
+      ${card(weekProfit>=0?'📈':'📊',weekProfit>=0?'#DCFCE7':'#FEE2E2','רווח השבוע',(weekProfit>=0?'+':'')+fmtCurr(weekProfit),weekIncTotal>0?`${Math.abs(Math.round(weekProfit/weekIncTotal*100))}% מרווח`:'אין הכנסות')}
+      ${card('📋','#FEF3C7','ממתינות להנה"ח',pendingAcc.toString(),`${fmtCurr(monthTotal)} החודש`,pendingAcc>0?badge('!','#D97706','#FEF3C7'):'')}
+    </div>
+
+    <!-- Main grid: left alerts + right table -->
+    <div style="display:grid;grid-template-columns:1fr 2.2fr;gap:18px;align-items:start">
+
+      <!-- Left column -->
+      <div style="display:flex;flex-direction:column;gap:14px">
+
+        <!-- Alerts -->
+        <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:700;color:#0F172A;margin-bottom:14px;display:flex;align-items:center;gap:6px">🔔 צריך לטפל</div>
+          ${hasAlerts
+            ? (overdueChecks.length>0?alertRow('⚠️',`${overdueChecks.length} צ'קים פגו תוקף`,fmtCurr(overdueChecks.reduce((s,c)=>s+(+c.amount||0),0)),'#DC2626',"setState({tab:'checks'})"):'')
+            + (soonChecks.length>0?alertRow('⏳',`${soonChecks.length} צ'קים יפרעו בקרוב`,fmtCurr(soonChecks.reduce((s,c)=>s+(+c.amount||0),0)),'#D97706',"setState({tab:'checks'})"):'')
+            + (pendingAcc>0?alertRow('📋',`${pendingAcc} חשבוניות להנה"ח`,'לחץ לסימון','#D97706',"setState({tab:'list',listCat:'הכל',listPer:'הכל',listSearch:''})"):'')
+            + (openCredits.length>0?alertRow('🔄',`${openCredits.length} זיכויים ממתינים`,fmtCurr(openCreditsTotal),'#7C3AED',"setState({tab:'credits'})"):'')
+            : `<div style="text-align:center;padding:16px 0">
+                 <div style="font-size:28px;margin-bottom:6px">✅</div>
+                 <div style="font-size:13px;font-weight:700;color:#15803D">הכל מסודר!</div>
+               </div>`
+          }
+        </div>
+
+        <!-- Quick actions -->
+        <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:700;color:#0F172A;margin-bottom:12px">⚡ פעולות מהירות</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            ${qaBtn('📷','סרוק חשבונית',"setState({tab:'scan'})")}
+            ${qaBtn('💰','הוסף הכנסה',"setState({tab:'income'})")}
+            ${qaBtn('📊','דוחות',"setState({tab:'reports'})")}
+            ${qaBtn('👷','עובדים',"setState({tab:'workers'})")}
+          </div>
+        </div>
+
+        <!-- Open checks -->
+        ${openChecks.length>0?`
+        <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:700;color:#0F172A">📝 צ'קים פתוחים</div>
+            <button onclick="setState({tab:'checks'})" style="font-size:11px;color:#15803D;background:transparent;border:none;cursor:pointer;font-weight:600;font-family:inherit">הצג →</button>
+          </div>
+          <div class="display" style="font-size:24px;color:#0F172A;margin-bottom:4px">${fmtCurr(openChecksTotal)}</div>
+          <div style="font-size:11px;color:#64748B">${openChecks.length} צ'קים · הבא: ${fmtDate(openChecks[0]?.clearDate||'')}</div>
+        </div>`:''}
+
+      </div>
+
+      <!-- Right column -->
+      <div style="display:flex;flex-direction:column;gap:14px">
+
+        <!-- Bar chart -->
+        <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:700;color:#0F172A">📈 7 ימים אחרונים</div>
+            <div style="display:flex;gap:12px;font-size:10.5px;color:#64748B">
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#15803D;display:inline-block;opacity:0.85"></span>הכנסות</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#DC2626;display:inline-block;opacity:0.7"></span>הוצאות</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:5px;height:68px">${bars}</div>
+        </div>
+
+        <!-- Recent expenses table -->
+        <div style="background:#fff;border-radius:16px;box-shadow:var(--shadow);border:1px solid var(--border);overflow:hidden">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #F1F5F9">
+            <div style="font-size:13px;font-weight:700;color:#0F172A">🧾 הוצאות אחרונות</div>
+            <button onclick="setState({tab:'list'})" style="font-size:11px;color:#15803D;background:transparent;border:none;cursor:pointer;font-weight:600;font-family:inherit">הצג הכל →</button>
+          </div>
+          ${recentExp.length===0
+            ? `<div style="text-align:center;padding:36px 20px;color:#94A3B8;font-size:13px">אין הוצאות עדיין</div>`
+            : `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:400px">
+                <thead><tr style="background:#F8FAFC">
+                  <th style="padding:9px 16px;text-align:right;font-size:10.5px;font-weight:600;color:#64748B;letter-spacing:0.04em;border-bottom:1px solid #F1F5F9">ספק</th>
+                  <th style="padding:9px 8px;text-align:right;font-size:10.5px;font-weight:600;color:#64748B;letter-spacing:0.04em;border-bottom:1px solid #F1F5F9">קטגוריה</th>
+                  <th style="padding:9px 8px;text-align:right;font-size:10.5px;font-weight:600;color:#64748B;letter-spacing:0.04em;border-bottom:1px solid #F1F5F9">סטטוס</th>
+                  <th style="padding:9px 16px;text-align:left;font-size:10.5px;font-weight:600;color:#64748B;letter-spacing:0.04em;border-bottom:1px solid #F1F5F9">סכום</th>
+                  <th style="padding:9px 10px;border-bottom:1px solid #F1F5F9"></th>
+                </tr></thead>
+                <tbody>${recentExp.map(tableRow).join('')}</tbody>
+              </table></div>`
+          }
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderScan() {
   if (state.scanStage === 'idle') {
     return `
@@ -3031,6 +3244,7 @@ function render() {
 
   let content = '';
   switch(state.tab) {
+    case 'dashboard': content = renderDashboard(); break;
     case 'scan': content = renderScan(); break;
     case 'list': content = renderList(); break;
     case 'fixed': content = renderFixed(); break;
@@ -3113,6 +3327,7 @@ function getAllowedTabs() {
 }
 function canAccessTab(tabId) {
   if (tabId === 'settings') return getUserRole() !== 'scanner';
+  if (tabId === 'dashboard') return true;
   return getAllowedTabs().includes(tabId);
 }
 
