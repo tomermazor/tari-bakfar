@@ -692,6 +692,7 @@ let state = {
   checkForm: {supplier:'', amount:'', checkNum:'', issueDate:'', clearDate:'', note:''},
   checksShowCleared: false,
   checkScanStage: 'idle', checkScanErr: '',
+  batchProgress: null,
   supplierEditId: null, supplierEditName: '',
 };
 function setState(patch) { Object.assign(state, patch); render(); }
@@ -760,10 +761,10 @@ function renderScan() {
         <h1 class="display" style="font-size:28px;margin:0 0 6px">סרוק חשבונית</h1>
         <p style="color:var(--textDim);font-size:14px;margin-bottom:32px;margin-top:0">ה-AI יחלץ את כל הפרטים בעברית</p>
         <input type="file" accept="image/*" capture="environment" id="camInput" onchange="handleFile(this.files[0])" style="display:none">
-        <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf" id="galInput" onchange="handleFile(this.files[0])" style="display:none">
+        <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf" multiple id="galInput" onchange="handleMultipleFiles(this.files);this.value=''" style="display:none">
         <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:280px;margin:0 auto">
           <button class="btn-primary" onclick="document.getElementById('camInput').click()">📷 &nbsp;צלם חשבונית</button>
-          <button class="btn-secondary" onclick="document.getElementById('galInput').click()">🖼️ &nbsp;העלה מגלריה / קובץ</button>
+          <button class="btn-secondary" onclick="document.getElementById('galInput').click()">🖼️ &nbsp;העלה מגלריה / קבצים</button>
           <button class="btn-secondary" onclick="manualForm()">✏️ &nbsp;הוספה ידנית</button>
         </div>
         ${!CFG.apiKey ? `<div onclick="setState({tab:'settings'})" style="margin-top:24px;padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(244,185,66,0.07),rgba(244,185,66,0.03));border:1px solid rgba(244,185,66,0.2);cursor:pointer;text-align:right;line-height:1.6"><div style="color:var(--amber);font-weight:700;font-size:14px;margin-bottom:4px">⚠️ נדרשת הגדרה ראשונית</div><div style="font-size:12px;color:var(--textDim)">הוסף OpenAI API Key כדי לאפשר סריקה אוטומטית →</div></div>` : ''}
@@ -818,6 +819,23 @@ function renderScan() {
         <button class="btn-ghost" onclick="setState({scanStage:'idle',scanImg:null})">ביטול</button>
       </div>`;
   }
+  if (state.scanStage === 'batch') {
+    const {total=0, done=0, errors=0} = state.batchProgress || {};
+    const pct = total > 0 ? Math.round((done/total)*100) : 0;
+    return `
+      <div style="padding:80px 20px;text-align:center" class="fade-up">
+        <div style="position:relative;width:90px;height:90px;margin:0 auto 28px">
+          <div class="spin" style="position:absolute;inset:0;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent)"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--accent);font-family:'Frank Ruhl Libre',serif">${done}/${total}</div>
+        </div>
+        <div class="display" style="font-size:22px;color:var(--text);margin-bottom:6px">סורק מסמכים...</div>
+        <div style="font-size:13px;color:var(--textDim);margin-bottom:24px">מעבד מסמך ${Math.min(done+1,total)} מתוך ${total}</div>
+        <div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden;max-width:240px;margin:0 auto">
+          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--accent),#6fa83a);border-radius:4px;transition:width 0.4s ease"></div>
+        </div>
+        ${errors > 0 ? `<div style="margin-top:14px;font-size:12px;color:var(--danger)">${errors} שגיאות עד כה</div>` : ''}
+      </div>`;
+  }
   return '';
 }
 
@@ -829,6 +847,126 @@ function handleFile(file) {
     setState({scanImg:full,scanB64:full.split(',')[1],scanMime:file.type,scanStage:'preview',scanErr:''});
   };
   rd.readAsDataURL(file);
+}
+
+// Resize a File/Blob to JPEG base64 — returns Promise<{b64, mime}>
+function resizeFileToB64(file, maxPx) {
+  return new Promise((resolve, reject) => {
+    const MAX = maxPx || 1400;
+    const rd = new FileReader();
+    rd.onerror = reject;
+    rd.onload = ev => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const scale = img.width > MAX ? MAX / img.width : 1;
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve({ b64: canvas.toDataURL('image/jpeg', 0.85).split(',')[1], mime: 'image/jpeg' });
+      };
+      img.src = ev.target.result;
+    };
+    rd.readAsDataURL(file);
+  });
+}
+
+// Batch scan multiple expense invoices
+async function handleMultipleFiles(files) {
+  if (!files || files.length === 0) return;
+  if (files.length === 1) { handleFile(files[0]); return; } // single → normal flow
+  if (!CFG.apiKey) { toast('חסר API Key — הגדר בהגדרות', 'error'); return; }
+
+  const arr = Array.from(files);
+  const total = arr.length;
+  setState({ tab: 'scan', scanStage: 'batch', batchProgress: { total, done: 0, errors: 0 } });
+
+  let saved = 0, errors = 0;
+  for (const file of arr) {
+    try {
+      const { b64, mime } = await resizeFileToB64(file);
+      const data = await scanInvoice(b64, mime);
+      const item = {
+        id: uid(), image: '',
+        date: data.date || todayStr(),
+        supplier: data.supplier || '',
+        total_amount: +data.total_amount || 0,
+        vat_amount: +data.vat_amount || 0,
+        amount_before_vat: +data.amount_before_vat || 0,
+        category: data.category || CATS[0],
+        document_type: data.document_type || 'חשבונית מס',
+        document_number: data.document_number || '',
+        notes: data.notes || '',
+      };
+      DB.expenses.unshift(item);
+      persistLocal();
+      if (CFG.webAppUrl) {
+        cloudCall('add_expense', { payload: item }).catch(() => {
+          PENDING.push({ action: 'add_expense', payload: { payload: item } });
+          localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+        });
+      }
+      saved++;
+    } catch(e) {
+      console.error('batch scan error:', e);
+      errors++;
+    }
+    state.batchProgress = { total, done: saved + errors, errors };
+    render();
+  }
+
+  setState({ scanStage: 'idle', scanImg: null, batchProgress: null, tab: 'list' });
+  toast(
+    saved > 0
+      ? `${saved} הוצאות נשמרו ✓` + (errors ? ` · ${errors} נכשלו` : '')
+      : `${errors} מסמכים נכשלו`,
+    saved > 0 ? 'success' : 'error'
+  );
+}
+
+// Batch scan multiple checks
+async function handleMultipleCheckFiles(files) {
+  if (!files || files.length === 0) return;
+  if (files.length === 1) { handleCheckScanFile(files[0]); return; }
+  if (!CFG.apiKey) { toast('חסר API Key — הגדר בהגדרות', 'error'); return; }
+
+  const arr = Array.from(files);
+  const total = arr.length;
+  setState({ checkScanStage: 'scanning', checkScanErr: '' });
+
+  let saved = 0, errors = 0;
+  for (const file of arr) {
+    try {
+      const { b64 } = await resizeFileToB64(file);
+      const data = await scanCheck(b64, 'image/jpeg');
+      const item = {
+        id: uid(),
+        supplier: (data.supplier || '').trim(),
+        amount: +data.amount || 0,
+        checkNum: (data.checkNum || '').trim(),
+        issueDate: data.issueDate ? isoToHe(data.issueDate) : todayStr(),
+        clearDate: data.clearDate ? isoToHe(data.clearDate) : '',
+        note: (data.note || '').trim(),
+        cleared: false,
+        createdAt: new Date().toISOString(),
+      };
+      DB.checks.push(item);
+      persistLocal();
+      saved++;
+    } catch(e) {
+      console.error('batch check scan error:', e);
+      errors++;
+    }
+  }
+
+  setState({ checkScanStage: 'idle' });
+  toast(
+    saved > 0
+      ? `${saved} צ'קים נשמרו ✓` + (errors ? ` · ${errors} נכשלו` : '')
+      : `${errors} מסמכים נכשלו`,
+    saved > 0 ? 'success' : 'error'
+  );
 }
 
 async function runScan() {
@@ -1866,7 +2004,7 @@ function renderChecks() {
       <!-- Add check form -->
       <div style="padding:16px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
         <input type="file" id="check-scan-cam" accept="image/*" capture="environment" style="display:none" onchange="handleCheckScanFile(this.files[0]);this.value=''">
-        <input type="file" id="check-scan-gallery" accept="image/*" style="display:none" onchange="handleCheckScanFile(this.files[0]);this.value=''">
+        <input type="file" id="check-scan-gallery" accept="image/*" multiple style="display:none" onchange="handleMultipleCheckFiles(this.files);this.value=''">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase">+ צ'ק חדש</div>
           <div style="display:flex;gap:6px">
