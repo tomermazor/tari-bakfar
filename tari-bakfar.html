@@ -692,6 +692,8 @@ let state = {
   checkForm: {supplier:'', amount:'', checkNum:'', issueDate:'', clearDate:'', note:''},
   checksShowCleared: false,
   checkScanStage: 'idle', checkScanErr: '',
+  batchQueue: [], batchTotal: 0,
+  checkBatchQueue: [], checkBatchTotal: 0,
   supplierEditId: null, supplierEditName: '',
 };
 function setState(patch) { Object.assign(state, patch); render(); }
@@ -760,7 +762,7 @@ function renderScan() {
         <h1 class="display" style="font-size:28px;margin:0 0 6px">סרוק חשבונית</h1>
         <p style="color:var(--textDim);font-size:14px;margin-bottom:32px;margin-top:0">ה-AI יחלץ את כל הפרטים בעברית</p>
         <input type="file" accept="image/*" capture="environment" id="camInput" onchange="handleFile(this.files[0])" style="display:none">
-        <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf" id="galInput" onchange="handleFile(this.files[0]);this.value=''" style="display:none">
+        <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf" multiple id="galInput" onchange="handleMultipleFiles(this.files);this.value=''" style="display:none">
         <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:280px;margin:0 auto">
           <button class="btn-primary" onclick="document.getElementById('camInput').click()">📷 &nbsp;צלם חשבונית</button>
           <button class="btn-secondary" onclick="document.getElementById('galInput').click()">🖼️ &nbsp;העלה מגלריה / קובץ</button>
@@ -771,16 +773,18 @@ function renderScan() {
       </div>`;
   }
   if (state.scanStage === 'preview') {
+    const batchCur = state.batchTotal > 1 ? state.batchTotal - state.batchQueue.length : 0;
     return `
       <div style="padding:20px 20px 100px" class="fade-up">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-          <div style="font-size:15px;font-weight:700;color:var(--text)">תצוגה מקדימה</div>
-          <button onclick="setState({scanStage:'idle',scanImg:null,scanErr:''})" style="width:44px;height:44px;border:none;border-radius:12px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:26px;font-weight:300;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+          <div style="font-size:15px;font-weight:700;color:var(--text)">תצוגה מקדימה${state.batchTotal>1?` · <span style="color:var(--accent)">${batchCur}/${state.batchTotal}</span>`:''}</div>
+          <button onclick="exitBatch()" style="width:44px;height:44px;border:none;border-radius:12px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:26px;font-weight:300;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
         </div>
         <div style="position:relative;margin-bottom:16px;border-radius:16px;overflow:hidden;border:1px solid var(--border)"><img src="${state.scanImg}" alt="" style="width:100%;max-height:360px;object-fit:contain;background:#000;display:block"></div>
         ${state.scanErr ? `<div class="err">⚠️ ${esc(state.scanErr)}</div>` : ''}
         <button class="btn-primary" onclick="runScan()">✨ &nbsp;קרא עם AI</button>
         <button class="btn-secondary" onclick="manualForm()">✏️ &nbsp;הזן ידנית</button>
+        ${state.batchTotal>1&&state.batchQueue.length>0?`<button class="btn-ghost" onclick="skipBatchFile()">⏭ דלג לקובץ הבא (${state.batchQueue.length} נותרו)</button>`:''}
       </div>`;
   }
   if (state.scanStage === 'scanning') {
@@ -796,12 +800,13 @@ function renderScan() {
   }
   if (state.scanStage === 'confirm' && state.scanForm) {
     const f = state.scanForm;
+    const batchCur2 = state.batchTotal > 1 ? state.batchTotal - state.batchQueue.length : 0;
     return `
       <div style="padding:20px 20px 100px" class="fade-up">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:10px 14px;border-radius:12px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2)">
           <div style="width:24px;height:24px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;color:#0a1505">✓</div>
-          <div style="flex:1;color:var(--accent);font-weight:700;font-size:14px">נחלצו הפרטים — בדוק ושמור</div>
-          <button onclick="setState({scanStage:'idle',scanImg:null})" style="width:44px;height:44px;border:none;border-radius:12px;background:rgba(0,0,0,0.25);color:var(--text);cursor:pointer;font-size:26px;font-weight:300;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+          <div style="flex:1;color:var(--accent);font-weight:700;font-size:14px">${state.batchTotal>1?`מסמך ${batchCur2} מתוך ${state.batchTotal} — `:''}נחלצו הפרטים — בדוק ושמור</div>
+          <button onclick="exitBatch()" style="width:44px;height:44px;border:none;border-radius:12px;background:rgba(0,0,0,0.25);color:var(--text);cursor:pointer;font-size:26px;font-weight:300;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
         </div>
         ${f.image ? `<div style="border-radius:14px;overflow:hidden;border:1px solid var(--border);margin-bottom:18px"><img src="${f.image}" style="width:100%;max-height:180px;object-fit:contain;background:#000;display:block"></div>` : ''}
         <div class="field"><label class="label">ספק</label>${supplierInput('state.scanForm','supplier',f.supplier,'category')}</div>
@@ -814,8 +819,8 @@ function renderScan() {
         <div class="field"><label class="label">סוג מסמך</label><select class="input" onchange="state.scanForm.document_type=this.value">${DTYPES.map(d=>`<option ${d===f.document_type?'selected':''}>${d}</option>`).join('')}</select></div>
         <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(f.document_number)}" oninput="state.scanForm.document_number=this.value"></div>
         <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.scanForm.notes=this.value"></div>
-        <button class="btn-primary" onclick="saveScanResult()">💾 &nbsp;שמור הוצאה</button>
-        <button class="btn-ghost" onclick="setState({scanStage:'idle',scanImg:null})">ביטול</button>
+        <button class="btn-primary" onclick="saveScanResult()">${state.batchQueue&&state.batchQueue.length>0?`💾 שמור ועבור לבא (${state.batchQueue.length} נותרו)`:'💾 שמור הוצאה'}</button>
+        ${state.batchTotal>1&&state.batchQueue.length>0?`<button class="btn-ghost" onclick="skipBatchFile()">⏭ דלג</button>`:`<button class="btn-ghost" onclick="exitBatch()">ביטול</button>`}
       </div>`;
   }
   return '';
@@ -829,6 +834,41 @@ function handleFile(file) {
     setState({scanImg:full,scanB64:full.split(',')[1],scanMime:file.type,scanStage:'preview',scanErr:''});
   };
   rd.readAsDataURL(file);
+}
+
+// Load multiple files — process first, queue the rest
+function handleMultipleFiles(files) {
+  if (!files || files.length === 0) return;
+  const arr = Array.from(files);
+  if (arr.length === 1) { handleFile(arr[0]); return; }
+  state.batchQueue = arr.slice(1);
+  state.batchTotal = arr.length;
+  handleFile(arr[0]);
+}
+
+// Skip current file, load next from queue
+function skipBatchFile() {
+  if (state.batchQueue && state.batchQueue.length > 0) {
+    const next = state.batchQueue.shift();
+    handleFile(next);
+  } else {
+    exitBatch();
+  }
+}
+
+// Exit batch mode entirely
+function exitBatch() {
+  setState({scanStage:'idle', scanImg:null, scanErr:'', scanForm:null, batchQueue:[], batchTotal:0});
+}
+
+// Multiple checks — process first, queue the rest
+function handleMultipleCheckFiles(files) {
+  if (!files || files.length === 0) return;
+  const arr = Array.from(files);
+  if (arr.length === 1) { handleCheckScanFile(arr[0]); return; }
+  state.checkBatchQueue = arr.slice(1);
+  state.checkBatchTotal = arr.length;
+  handleCheckScanFile(arr[0]);
 }
 
 
@@ -907,8 +947,20 @@ async function saveScanResult() {
   // ── Synchronous: apply locally + navigate in the SAME JS tick ──
   DB.expenses.unshift(localItem);
   persistLocal();
-  toast('נשמר בהצלחה ✓', 'success');
-  setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null}); // gone before first await
+
+  // If batch mode: load next file instead of navigating away
+  if (state.batchQueue && state.batchQueue.length > 0) {
+    const next = state.batchQueue.shift();
+    const remaining = state.batchQueue.length;
+    const done = state.batchTotal - remaining - 1;
+    toast(`✓ נשמר (${done}/${state.batchTotal}) · עוד ${remaining} מסמכים`, 'success');
+    handleFile(next); // loads preview of next file
+  } else {
+    const wasInBatch = state.batchTotal > 1;
+    const total = state.batchTotal;
+    toast(wasInBatch ? `✓ כל ${total} המסמכים נשמרו` : 'נשמר בהצלחה ✓', 'success');
+    setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null, batchQueue:[], batchTotal:0});
+  }
   // ── Async: cloud sync in background ──
   if (!CFG.webAppUrl) return;
   setSyncStatus('syncing');
@@ -1784,8 +1836,22 @@ function addCheck() {
   persistLocal();
   state.checkForm = {supplier:'', amount:'', checkNum:'', issueDate:'', clearDate:'', note:''};
   state.checkScanStage = 'idle';
+
+  // Batch: load next check scan if queued
+  if (state.checkBatchQueue && state.checkBatchQueue.length > 0) {
+    const next = state.checkBatchQueue.shift();
+    const done = state.checkBatchTotal - state.checkBatchQueue.length;
+    render();
+    toast(`✓ צ'ק נשמר (${done}/${state.checkBatchTotal}) · סורק את הבא...`, 'success');
+    handleCheckScanFile(next);
+    return;
+  }
+
+  const wasInBatch = state.checkBatchTotal > 1;
+  const total = state.checkBatchTotal;
+  if (wasInBatch) { state.checkBatchTotal = 0; }
   render();
-  toast("צ'ק נוסף ✓", 'success');
+  toast(wasInBatch ? `✓ כל ${total} הצ'קים נשמרו` : "צ'ק נוסף ✓", 'success');
 }
 
 function toggleCheckCleared(id) {
@@ -1867,9 +1933,9 @@ function renderChecks() {
       <!-- Add check form -->
       <div style="padding:16px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
         <input type="file" id="check-scan-cam" accept="image/*" capture="environment" style="display:none" onchange="handleCheckScanFile(this.files[0]);this.value=''">
-        <input type="file" id="check-scan-gallery" accept="image/*" style="display:none" onchange="handleCheckScanFile(this.files[0]);this.value=''">
+        <input type="file" id="check-scan-gallery" accept="image/*" multiple style="display:none" onchange="handleMultipleCheckFiles(this.files);this.value=''">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase">+ צ'ק חדש</div>
+          <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase">+ צ'ק חדש${state.checkBatchTotal>1?' · <span style="color:var(--accent)">'+((state.checkBatchTotal-state.checkBatchQueue.length))+'/'+state.checkBatchTotal+'</span>':''}</div>
           <div style="display:flex;gap:6px">
             ${state.checkScanStage==='scanning'
               ? `<div style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--borderHi);border-radius:10px;background:var(--surfaceHi);color:var(--textDim);font-size:12px;font-weight:600"><div class="spin" style="width:13px;height:13px;border:2px solid var(--textDim);border-top-color:var(--accent);border-radius:50%"></div> מחלץ...</div>`
