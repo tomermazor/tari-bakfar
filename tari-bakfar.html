@@ -412,6 +412,37 @@ const parseD = d => { try { const s=String(d); if(s.includes('T')||/^\d{4}-\d{2}
 const isToday = d => { const p=parseD(d); const n=new Date(); return p && p.toDateString()===n.toDateString(); };
 const isWeek = d => { const p=parseD(d); if(!p) return false; const sun=new Date(); sun.setDate(sun.getDate()-sun.getDay()); sun.setHours(0,0,0,0); return p>=sun && p<=new Date(); };
 const isMonth = d => { const p=parseD(d); const n=new Date(); return p && p.getMonth()===n.getMonth() && p.getFullYear()===n.getFullYear(); };
+const isYear  = d => { const p=parseD(d); return p && p.getFullYear()===new Date().getFullYear(); };
+
+// Week-offset helpers (offset: 0=current, -1=last week, etc.)
+function getWeekBounds(offset) {
+  const now = new Date();
+  const sun = new Date(now);
+  sun.setDate(now.getDate() - now.getDay() + (offset||0)*7);
+  sun.setHours(0,0,0,0);
+  const sat = new Date(sun);
+  sat.setDate(sun.getDate()+6);
+  sat.setHours(23,59,59,999);
+  return {sun, sat};
+}
+function isInWeekOffset(date, offset) {
+  const {sun, sat} = getWeekBounds(offset||0);
+  const p = parseD(date);
+  return p && p >= sun && p <= sat;
+}
+function weekOffsetDefaultDate(offset) {
+  if (!offset) return todayISO();
+  const {sat} = getWeekBounds(offset);
+  return sat.getFullYear()+'-'+String(sat.getMonth()+1).padStart(2,'0')+'-'+String(sat.getDate()).padStart(2,'0');
+}
+function toISO(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function changeIncomeWeek(delta) {
+  const newOffset = (state.incomeWeekOffset||0) + delta;
+  if (newOffset > 0) return; // no future weeks
+  state.incomeWeekOffset = newOffset;
+  state.incomeForm = {...state.incomeForm, date: null}; // reset date to new week default
+  render();
+}
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function navigateTo(url) {
@@ -716,6 +747,7 @@ let state = {
   editId: null, editForm: null,
   installOpen: null, fixedAdding: false, fixedForm: null, installAdding: false, installForm: null,
   incomeForm: {type: 'מכירות אונליין', amount: '', date: null, notes: ''},
+  incomeWeekOffset: 0, // 0=current week, -1=last week, -2=2 weeks ago …
   creditForm: {supplier: '', amount: '', reason: '', image: null},
   workerAdding: false, workerForm: null,
   advanceInputs: {},
@@ -2251,26 +2283,24 @@ const INCOME_BG     = {'מכירות אונליין': 'rgba(91,156,246,0.1)',  '
 const INCOME_ICONS  = {'מכירות אונליין': '🛒', 'הזמנות קופה': '🏪', 'וולט': '🛵', 'אחר': '💵'};
 
 function renderIncome() {
-  const now = new Date();
-  const dayIdx = now.getDay(); // 0=Sun … 6=Sat
-  const isSaturday = dayIdx === 6;
-  const DAY_NAMES = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-
-  // Week: Sunday → Saturday
-  const sun = new Date(now); sun.setDate(sun.getDate() - dayIdx); sun.setHours(0,0,0,0);
-  const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
+  const offset = state.incomeWeekOffset || 0;
+  const {sun, sat} = getWeekBounds(offset);
+  const isCurrentWeek = offset === 0;
   const fmtD = d => d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'});
-  const weekLabel = fmtD(sun) + ' — ' + sat.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const weekLabel = fmtD(sun) + ' – ' + fmtD(sat);
+  const sunISO = toISO(sun), satISO = toISO(sat);
+  const maxDate = isCurrentWeek ? todayISO() : satISO;
 
-  // This week's income & expenses
-  const weekIncome   = DB.income.filter(e => isWeek(e.date)).sort((a,b) => String(b.id).localeCompare(String(a.id)));
-  const weekExpenses = DB.expenses.filter(e => isWeek(e.date)).sort((a,b) => String(b.id).localeCompare(String(a.id)));
+  // Data for this week
+  const weekIncome   = DB.income.filter(e => isInWeekOffset(e.date, offset)).sort((a,b) => String(b.id).localeCompare(String(a.id)));
+  const weekExpenses = DB.expenses.filter(e => isInWeekOffset(e.date, offset)).sort((a,b) => String(b.id).localeCompare(String(a.id)));
   const totalIncome   = weekIncome.reduce((s,e) => s+(+e.amount||0), 0);
   const totalExpenses = weekExpenses.reduce((s,e) => s+(+e.total_amount||0), 0);
   const profit = totalIncome - totalExpenses;
   const pct = totalIncome > 0 ? Math.min(100,(totalExpenses/totalIncome)*100) : (totalExpenses > 0 ? 100 : 0);
 
   const f = state.incomeForm || {type:'מכירות אונליין',amount:'',date:null,notes:''};
+  const formDate = f.date ? heToISO(f.date) : weekOffsetDefaultDate(offset);
 
   const typeBtn = (type) => {
     const sel = f.type === type;
@@ -2311,49 +2341,53 @@ function renderIncome() {
   };
 
   return `
-    <div style="padding:16px 16px 90px" class="fade-up">
+    <div style="padding:16px 16px 24px" class="fade-up">
 
-      <!-- Week P&L card -->
-      <div style="padding:18px 20px;margin-bottom:14px;border-radius:18px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
-        <div style="position:absolute;top:-30px;right:-30px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,rgba(143,198,80,0.1),transparent 70%)"></div>
+      <!-- Week navigation -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <button onclick="changeIncomeWeek(-1)" style="width:40px;height:40px;border:1px solid var(--border);border-radius:11px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background var(--t-fast)" title="שבוע קודם">‹</button>
+        <div style="flex:1;text-align:center;padding:9px 12px;border-radius:12px;background:var(--surface);border:1px solid ${isCurrentWeek?'rgba(110,198,58,0.3)':'var(--border)'}">
+          <div style="font-size:14px;font-weight:700;color:var(--text);line-height:1.2">${weekLabel}</div>
+          <div style="font-size:10px;color:${isCurrentWeek?'var(--accent)':'var(--textDim)'};margin-top:2px;font-weight:600">${isCurrentWeek?'● השבוע הנוכחי':sun.toLocaleDateString('he-IL',{month:'long',year:'numeric'})}</div>
+        </div>
+        <button onclick="changeIncomeWeek(1)" ${isCurrentWeek?'disabled':''} style="width:40px;height:40px;border:1px solid var(--border);border-radius:11px;background:var(--surfaceHi);color:${isCurrentWeek?'var(--textMuted)':'var(--text)'};cursor:${isCurrentWeek?'not-allowed':'pointer'};font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:${isCurrentWeek?0.35:1};transition:background var(--t-fast)" title="שבוע הבא">›</button>
+      </div>
+      ${!isCurrentWeek ? `<button onclick="changeIncomeWeek(${-offset})" style="width:100%;margin-bottom:10px;padding:8px;border:1px solid rgba(110,198,58,0.28);border-radius:10px;background:var(--accentSoft);color:var(--accent);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">↩ חזור לשבוע הנוכחי</button>` : ''}
+
+      <!-- P&L card -->
+      <div style="padding:15px 16px;margin-bottom:14px;border-radius:16px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
+        <div style="position:absolute;top:-25px;right:-25px;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,rgba(110,198,58,0.09),transparent 70%)"></div>
         <div style="position:relative">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
-            <div>
-              <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.07em;text-transform:uppercase">שבוע נוכחי</div>
-              <div style="font-size:12px;color:var(--textMuted);margin-top:1px">${weekLabel}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:${(totalIncome>0||totalExpenses>0)?'12px':'0'}">
+            <div style="text-align:center;padding:9px 4px;border-radius:10px;background:rgba(110,198,58,0.07);border:1px solid rgba(110,198,58,0.18)">
+              <div style="font-size:9px;color:var(--textDim);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">הכנסות</div>
+              <div class="display" style="font-size:15px;color:var(--accent);line-height:1">${fmtCurr(totalIncome)}</div>
             </div>
-            <div style="font-size:12px;color:var(--textDim);font-weight:600">יום ${DAY_NAMES[dayIdx]}</div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
-            <div style="text-align:center;padding:10px 4px;border-radius:11px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.18)">
-              <div style="font-size:9px;color:var(--textDim);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px">הכנסות</div>
-              <div class="display" style="font-size:17px;color:var(--accent);line-height:1">${fmtCurr(totalIncome)}</div>
+            <div style="text-align:center;padding:9px 4px;border-radius:10px;background:rgba(217,79,79,0.06);border:1px solid rgba(217,79,79,0.15)">
+              <div style="font-size:9px;color:var(--textDim);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">הוצאות</div>
+              <div class="display" style="font-size:15px;color:var(--danger);line-height:1">${fmtCurr(totalExpenses)}</div>
             </div>
-            <div style="text-align:center;padding:10px 4px;border-radius:11px;background:rgba(220,98,98,0.06);border:1px solid rgba(220,98,98,0.15)">
-              <div style="font-size:9px;color:var(--textDim);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px">הוצאות</div>
-              <div class="display" style="font-size:17px;color:var(--danger);line-height:1">${fmtCurr(totalExpenses)}</div>
-            </div>
-            <div style="text-align:center;padding:10px 4px;border-radius:11px;background:${profit>=0?'rgba(143,198,80,0.1)':'rgba(220,98,98,0.08)'};border:1px solid ${profit>=0?'rgba(143,198,80,0.25)':'rgba(220,98,98,0.2)'}">
-              <div style="font-size:9px;color:var(--textDim);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px">רווח</div>
-              <div class="display" style="font-size:17px;color:${profit>=0?'var(--accent)':'var(--danger)'};line-height:1">${profit>=0?'+':''}${fmtCurr(profit)}</div>
+            <div style="text-align:center;padding:9px 4px;border-radius:10px;background:${profit>=0?'rgba(110,198,58,0.1)':'rgba(217,79,79,0.08)'};border:1px solid ${profit>=0?'rgba(110,198,58,0.25)':'rgba(217,79,79,0.2)'}">
+              <div style="font-size:9px;color:var(--textDim);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">רווח</div>
+              <div class="display" style="font-size:15px;color:${profit>=0?'var(--accent)':'var(--danger)'};line-height:1">${profit>=0?'+':''}${fmtCurr(profit)}</div>
             </div>
           </div>
           ${totalIncome > 0 || totalExpenses > 0 ? `
           <div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
               <span style="font-size:10px;color:var(--textDim)">הוצאות מתוך הכנסות</span>
               <span style="font-size:10px;font-weight:700;color:${pct>100?'var(--danger)':pct>80?'var(--amber)':'var(--accent)'}">${Math.round(pct)}%</span>
             </div>
-            <div style="height:7px;background:var(--bg);border-radius:4px;overflow:hidden">
-              <div style="height:100%;width:${Math.min(100,pct)}%;background:${pct>100?'var(--danger)':pct>80?'linear-gradient(90deg,var(--amber),var(--danger))':'linear-gradient(90deg,var(--accent),#6fa83a)'};border-radius:4px"></div>
+            <div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(100,pct)}%;background:${pct>100?'var(--danger)':pct>80?'linear-gradient(90deg,var(--amber),var(--danger))':'linear-gradient(90deg,var(--accent),#6fa83a)'};border-radius:3px"></div>
             </div>
-          </div>` : '<div style="text-align:center;font-size:12px;color:var(--textMuted);padding:4px 0">הזן הכנסות והוצאות יופיעו אוטומטית</div>'}
+          </div>` : `<div style="text-align:center;font-size:11px;color:var(--textMuted);padding:2px 0">אין נתונים לשבוע זה</div>`}
         </div>
       </div>
 
       <!-- Quick add income -->
       <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
-        <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:10px">+ הוספת הכנסה</div>
+        <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:10px">+ הוספת הכנסה${!isCurrentWeek?' לשבוע זה':''}</div>
         <div style="display:flex;gap:7px;margin-bottom:10px">${INCOME_TYPES.map(typeBtn).join('')}</div>
         <div style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1.2">
@@ -2362,7 +2396,7 @@ function renderIncome() {
           </div>
           <div style="flex:1">
             <label class="label">תאריך</label>
-            <input class="input" type="date" value="${f.date ? heToISO(f.date) : todayISO()}" oninput="state.incomeForm.date=isoToHe(this.value)" style="padding:11px 10px">
+            <input class="input" type="date" value="${formDate}" min="${sunISO}" max="${maxDate}" oninput="state.incomeForm.date=isoToHe(this.value)" style="padding:11px 10px">
           </div>
           <div style="flex:1.3">
             <label class="label">הערות</label>
@@ -2372,33 +2406,23 @@ function renderIncome() {
         </div>
       </div>
 
-      <!-- Income this week -->
+      <!-- Income list -->
       <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline">
-        <span>💰 הכנסות השבוע (${weekIncome.length})</span>
+        <span>💰 הכנסות (${weekIncome.length})</span>
         ${totalIncome > 0 ? `<span class="display" style="font-size:15px;color:var(--accent)">${fmtCurr(totalIncome)}</span>` : ''}
       </div>
       ${weekIncome.length === 0
-        ? `<div style="text-align:center;padding:18px;color:var(--textMuted);font-size:13px;border:1px dashed var(--border);border-radius:12px;margin-bottom:14px">עדיין לא הוזנו הכנסות השבוע</div>`
-        : weekIncome.map(incomeRow).join('')
-      }
+        ? `<div style="text-align:center;padding:16px;color:var(--textMuted);font-size:13px;border:1px dashed var(--border);border-radius:12px;margin-bottom:14px">אין הכנסות לשבוע זה</div>`
+        : weekIncome.map(incomeRow).join('')}
 
-      <!-- Expenses this week -->
+      <!-- Expense list -->
       <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin:16px 0 10px;display:flex;justify-content:space-between;align-items:baseline">
-        <span>📉 הוצאות השבוע (${weekExpenses.length})</span>
+        <span>📉 הוצאות (${weekExpenses.length})</span>
         ${totalExpenses > 0 ? `<span class="display" style="font-size:15px;color:var(--danger)">${fmtCurr(totalExpenses)}</span>` : ''}
       </div>
       ${weekExpenses.length === 0
-        ? `<div style="text-align:center;padding:18px;color:var(--textMuted);font-size:13px;border:1px dashed var(--border);border-radius:12px">אין הוצאות השבוע עדיין</div>`
-        : weekExpenses.map(expenseRow).join('')
-      }
-
-      <!-- Saturday reset -->
-      ${isSaturday ? `
-        <div style="margin-top:32px;padding-top:20px;border-top:1px solid var(--border);text-align:center">
-          <div style="font-size:12px;color:var(--textDim);margin-bottom:12px">שבת — ניתן לאפס את מסך ההכנסות לקראת שבוע חדש</div>
-          <button onclick="resetWeek()" style="width:100%;padding:14px;border:1px solid rgba(244,185,66,0.35);border-radius:14px;background:rgba(244,185,66,0.07);color:var(--amber);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">🔄 סגור שבוע ואפס</button>
-        </div>
-      ` : ''}
+        ? `<div style="text-align:center;padding:16px;color:var(--textMuted);font-size:13px;border:1px dashed var(--border);border-radius:12px">אין הוצאות לשבוע זה</div>`
+        : weekExpenses.map(expenseRow).join('')}
 
     </div>`;
 }
@@ -2406,7 +2430,9 @@ function renderIncome() {
 function addIncome() {
   const f = state.incomeForm;
   if (!f.amount) { toast('הזן סכום', 'error'); return; }
-  const item = { id: uid(), date: f.date || todayStr(), type: f.type, amount: +f.amount, notes: f.notes || '' };
+  const defaultDate = isoToHe(weekOffsetDefaultDate(state.incomeWeekOffset||0));
+  const date = f.date || defaultDate;
+  const item = { id: uid(), date, type: f.type, amount: +f.amount, notes: f.notes || '' };
   DB.income.unshift(item);
   persistLocal();
   state.incomeForm = { type: f.type, amount: '', date: null, notes: '' };
@@ -2422,44 +2448,25 @@ function deleteIncome(id) {
   toast('נמחק', 'success');
 }
 
-function resetWeek() {
-  const wInc  = DB.income.filter(e => isWeek(e.date));
-  const wExp  = DB.expenses.filter(e => isWeek(e.date));
-  const totI  = wInc.reduce((s,e) => s+(+e.amount||0), 0);
-  const totE  = wExp.reduce((s,e) => s+(+e.total_amount||0), 0);
-  const prof  = totI - totE;
-  const msg = `סיכום שבוע:\n💰 הכנסות: ${fmtCurr(totI)}\n📉 הוצאות: ${fmtCurr(totE)}\n${prof>=0?'✅':'❌'} רווח: ${prof>=0?'+':''}${fmtCurr(prof)}\n\nלאפס את הכנסות השבוע?`;
-  if (!confirm(msg)) return;
-  DB.income = DB.income.filter(e => !isWeek(e.date));
-  persistLocal();
-  render();
-  toast('השבוע אופס — שבוע טוב! 🌿', 'success');
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — REPORTS
 // ═══════════════════════════════════════════════════════════════════════════
 function renderReports() {
-  const rows = DB.expenses.filter(e=>{
-    if(state.reportPer==='הכל') return true;
-    if(state.reportPer==='היום') return isToday(e.date);
-    if(state.reportPer==='שבוע') return isWeek(e.date);
-    if(state.reportPer==='חודש') return isMonth(e.date);
-    if(state.reportPer==='מותאם'){const p=parseD(e.date);if(!p)return false;const from=state.reportDateFrom?new Date(state.reportDateFrom):null;const to=state.reportDateTo?new Date(state.reportDateTo):null;return(!from||p>=from)&&(!to||p<=to);}
+  function reportFilter(date) {
+    const p = state.reportPer;
+    if(p==='הכל') return true;
+    if(p==='היום') return isToday(date);
+    if(p==='שבוע') return isWeek(date);
+    if(p==='שבוע שעבר') return isInWeekOffset(date, -1);
+    if(p==='חודש') return isMonth(date);
+    if(p==='שנה') return isYear(date);
+    if(p==='מותאם'){const d=parseD(date);if(!d)return false;const from=state.reportDateFrom?new Date(state.reportDateFrom):null;const to=state.reportDateTo?new Date(state.reportDateTo):null;return(!from||d>=from)&&(!to||d<=to);}
     return true;
-  });
+  }
+  const rows = DB.expenses.filter(e=>reportFilter(e.date));
   const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
   const totalVat = rows.reduce((s,e)=>s+(+e.vat_amount||0),0);
-
-  // Income rows for same period
-  const incomeRows = DB.income.filter(e=>{
-    if(state.reportPer==='הכל') return true;
-    if(state.reportPer==='היום') return isToday(e.date);
-    if(state.reportPer==='שבוע') return isWeek(e.date);
-    if(state.reportPer==='חודש') return isMonth(e.date);
-    if(state.reportPer==='מותאם'){const p=parseD(e.date);if(!p)return false;const from=state.reportDateFrom?new Date(state.reportDateFrom):null;const to=state.reportDateTo?new Date(state.reportDateTo):null;return(!from||p>=from)&&(!to||p<=to);}
-    return true;
-  });
+  const incomeRows = DB.income.filter(e=>reportFilter(e.date));
   const totalIncome = incomeRows.reduce((s,e)=>s+(+e.amount||0),0);
   const profit = totalIncome - total;
 
@@ -2474,21 +2481,25 @@ function renderReports() {
   const _fmtS = d => d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'});
   let dateLabel = '';
   if(state.reportPer==='היום') dateLabel = _fmt(_today);
-  else if(state.reportPer==='שבוע'){const sun=new Date();sun.setDate(sun.getDate()-sun.getDay());sun.setHours(0,0,0,0);dateLabel=_fmtS(sun)+' — '+_fmt(_today);}
+  else if(state.reportPer==='שבוע'){const {sun,sat}=getWeekBounds(0);dateLabel=_fmtS(sun)+' — '+_fmt(_today);}
+  else if(state.reportPer==='שבוע שעבר'){const {sun,sat}=getWeekBounds(-1);dateLabel=_fmtS(sun)+' — '+_fmtS(sat);}
   else if(state.reportPer==='חודש') dateLabel = _today.toLocaleDateString('he-IL',{month:'long',year:'numeric'});
+  else if(state.reportPer==='שנה') dateLabel = _today.getFullYear().toString();
+
+  const PERIODS = ['היום','שבוע','שבוע שעבר','חודש','שנה','הכל','מותאם'];
 
   return `
-    <div style="padding:16px 16px 90px" class="fade-up">
-      <div style="display:flex;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:3px;margin-bottom:${state.reportPer==='מותאם'?'8px':'18px'}">
-        ${['היום','שבוע','חודש','הכל','מותאם'].map(p=>`<button onclick="setState({reportPer:'${p}'})" style="flex:1;padding:9px 2px;border-radius:9px;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;background:${state.reportPer===p?'linear-gradient(135deg,var(--accent),#6fa83a)':'transparent'};color:${state.reportPer===p?'#0a1505':'var(--textDim)'}">${p}</button>`).join('')}
+    <div style="padding:16px 16px 24px" class="fade-up">
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:${state.reportPer==='מותאם'?'8px':'14px'}">
+        ${PERIODS.map(p=>`<button onclick="setState({reportPer:'${p}'})" style="flex:1;min-width:0;padding:8px 4px;border-radius:9px;border:1px solid ${state.reportPer===p?'transparent':'var(--border)'};cursor:pointer;font-size:11.5px;font-weight:600;font-family:inherit;background:${state.reportPer===p?'linear-gradient(135deg,var(--accent),#6fa83a)':'var(--surfaceHi)'};color:${state.reportPer===p?'#0a1505':'var(--textDim)'};transition:all var(--t-fast);white-space:nowrap">${p}</button>`).join('')}
       </div>
-      ${state.reportPer==='מותאם'?`<div style="display:flex;gap:8px;margin-bottom:18px"><div style="flex:1"><div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">מ-</div><input type="date" value="${state.reportDateFrom}" onchange="setState({reportDateFrom:this.value})" style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surfaceHi);color:var(--text);font-size:14px;font-family:inherit"></div><div style="flex:1"><div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">עד-</div><input type="date" value="${state.reportDateTo}" onchange="setState({reportDateTo:this.value})" style="width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surfaceHi);color:var(--text);font-size:14px;font-family:inherit"></div></div>`:''}
-      ${dateLabel?`<div style="text-align:center;font-size:12px;color:var(--textMuted);margin:-6px 0 14px;letter-spacing:0.02em">${dateLabel}</div>`:''}
-      <div style="padding:24px 20px;margin-bottom:14px;border-radius:18px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
-        <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(143,198,80,0.13),transparent 70%)"></div>
-        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;position:relative">סה״כ הוצאות</div>
-        <div class="display" style="font-size:38px;color:var(--text);margin-bottom:4px;position:relative">${fmtCurr(total)}</div>
-        <div style="font-size:12px;color:var(--textDim);position:relative">${rows.length} רשומות · ${fmtCurr(totalVat)} מע"מ</div>
+      ${state.reportPer==='מותאם'?`<div style="display:flex;gap:8px;margin-bottom:14px"><div style="flex:1"><div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">מ-</div><input type="date" value="${state.reportDateFrom}" onchange="setState({reportDateFrom:this.value})" class="input" style="padding:8px 10px;font-size:14px"></div><div style="flex:1"><div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">עד-</div><input type="date" value="${state.reportDateTo}" onchange="setState({reportDateTo:this.value})" class="input" style="padding:8px 10px;font-size:14px"></div></div>`:''}
+      ${dateLabel?`<div style="text-align:center;font-size:11.5px;color:var(--textMuted);margin:-2px 0 12px;letter-spacing:0.02em">${dateLabel}</div>`:''}
+      <div style="padding:20px 18px;margin-bottom:14px;border-radius:16px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
+        <div style="position:absolute;top:-30px;right:-30px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,rgba(110,198,58,0.12),transparent 70%)"></div>
+        <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:5px;position:relative">סה״כ הוצאות</div>
+        <div class="display" style="font-size:34px;color:var(--text);margin-bottom:3px;position:relative">${fmtCurr(total)}</div>
+        <div style="font-size:11.5px;color:var(--textDim);position:relative">${rows.length} רשומות · ${fmtCurr(totalVat)} מע"מ</div>
       </div>
       <div class="row" style="margin-bottom:${totalIncome > 0 ? '12px' : '18px'}">
         <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border)"><div style="font-size:18px;margin-bottom:6px">💰</div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">לפני מע״מ</div><div style="font-size:15px;font-weight:700;color:var(--accent2)">${fmtCurr(total-totalVat)}</div></div>
