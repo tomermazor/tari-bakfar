@@ -116,12 +116,23 @@ input[type="date"] { min-width:0; max-width:100%; }
 .ok { background:var(--accentSoft); border:1px solid rgba(126,203,66,0.38); border-radius:var(--r-md); padding:14px; color:var(--accent); font-size:14px; font-weight:700; margin-bottom:14px; text-align:center; }
 
 /* ── Animations ──────────────────────────────────────────────────── */
-.fade-up { animation:fadeUp 0.28s cubic-bezier(0.22,1,0.36,1) backwards; }
-@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+.fade-up { animation:fadeUp 0.24s cubic-bezier(0.22,1,0.36,1) both; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 .spin { animation:spin 1s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 .pulse { animation:pulse 1.5s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
+
+/* Suppress animations on same-tab re-renders (filter/search/expand) */
+.no-anim .fade-up, .no-anim .fade-up * { animation:none !important; transition:none !important; }
+
+/* App enter animation (on login → app reveal) */
+#app:not([hidden]) { animation:appIn 0.32s cubic-bezier(0.22,1,0.36,1) both; }
+@keyframes appIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+/* App leave (navigating to orders) */
+.app-leaving { animation:appLeave 0.18s ease both; pointer-events:none; }
+@keyframes appLeave { to { opacity:0; transform:translateY(-4px); } }
 
 /* ── Toast ───────────────────────────────────────────────────────── */
 .toast { position:fixed; top:74px; left:50%; transform:translateX(-50%); background:var(--surfaceHi); border:1px solid var(--border); border-radius:var(--r-md); padding:11px 20px; color:var(--text); font-weight:600; font-size:13px; z-index:9999; box-shadow:var(--shadow-lg); animation:fadeUp 0.25s cubic-bezier(0.22,1,0.36,1); max-width:88vw; transition:opacity 0.4s ease; white-space:nowrap; }
@@ -152,7 +163,7 @@ input[type="date"] { min-width:0; max-width:100%; }
 <div class="app" id="app" hidden>
 
   <div class="app-switcher">
-    <a href="orders.html" class="sw-btn">📦 הזמנות</a>
+    <a href="orders.html" class="sw-btn" onclick="event.preventDefault();navigateTo('orders.html')">📦 הזמנות</a>
     <span class="sw-btn active">💰 הוצאות</span>
     <button class="sw-icon-btn" id="sync-top-btn" onclick="triggerTopSync()" title="סנכרן עכשיו">🔄</button>
     <button class="sw-icon-btn" id="settings-sw-btn" onclick="setState({tab:'settings'})" title="הגדרות">⚙️</button>
@@ -388,6 +399,12 @@ const isToday = d => { const p=parseD(d); const n=new Date(); return p && p.toDa
 const isWeek = d => { const p=parseD(d); if(!p) return false; const sun=new Date(); sun.setDate(sun.getDate()-sun.getDay()); sun.setHours(0,0,0,0); return p>=sun && p<=new Date(); };
 const isMonth = d => { const p=parseD(d); const n=new Date(); return p && p.getMonth()===n.getMonth() && p.getFullYear()===n.getFullYear(); };
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function navigateTo(url) {
+  const app = document.getElementById('app');
+  app.classList.add('app-leaving');
+  setTimeout(() => { location.href = url; }, 180);
+}
 
 function toast(msg, type='info') {
   const el = document.createElement('div');
@@ -698,12 +715,16 @@ let state = {
 };
 function setState(patch) { Object.assign(state, patch); render(); }
 
-// Search input: re-render then restore focus + cursor so typing isn't interrupted
+// Search input: debounced render so typing is smooth, focus+cursor restored after
+let _searchTimer = null;
 function setListSearch(val, cursorPos) {
   state.listSearch = val;
-  render();
-  const el = document.getElementById('list-search-inp');
-  if (el) { el.focus(); try { el.setSelectionRange(cursorPos, cursorPos); } catch(e){} }
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => {
+    render();
+    const el = document.getElementById('list-search-inp');
+    if (el) { el.focus(); try { el.setSelectionRange(cursorPos, cursorPos); } catch(e){} }
+  }, 130);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2833,6 +2854,9 @@ function render() {
     state.tab = getAllowedTabs()[0] || 'scan';
   }
   const main = document.getElementById('main');
+  const tabChanged = state.tab !== _prevTab;
+  const savedScroll = tabChanged ? 0 : main.scrollTop; // preserve scroll on same-tab renders
+
   let content = '';
   switch(state.tab) {
     case 'scan': content = renderScan(); break;
@@ -2847,9 +2871,18 @@ function render() {
     case 'add': content = renderAdd(); break;
     case 'settings': content = renderSettings(); break;
   }
+
+  // Tab change → allow fade-up animations; same-tab → suppress them (no flash)
+  if (tabChanged) {
+    main.classList.remove('no-anim');
+    _prevTab = state.tab;
+  } else {
+    main.classList.add('no-anim');
+  }
+
   main.innerHTML = content;
-  // Scroll to top when switching tabs
-  if (state.tab !== _prevTab) { main.scrollTop = 0; _prevTab = state.tab; }
+  main.scrollTop = savedScroll; // restore scroll after innerHTML replace
+
   document.getElementById('modal-container').innerHTML = state.viewCreditImage ? renderImageLightbox() : (state.editId ? renderEditModal() : '');
   renderNav();
   updateHeader();
