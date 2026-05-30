@@ -86,29 +86,42 @@ input:-webkit-autofill { -webkit-box-shadow:0 0 0 40px var(--surface) inset; -we
   .main > div { max-width:100% !important; padding:20px 28px 28px !important; }
   /* nav → sidebar */
   .nav { grid-area:sidebar; flex-direction:column; width:auto; height:auto; border-top:none; border-inline-start:1px solid var(--border); background:var(--surface) !important; align-items:stretch; overflow-y:auto; overflow-x:hidden; padding:0; }
-  /* sidebar nav buttons */
-  .nav button { flex:0 0 auto; width:calc(100% - 16px); height:44px; flex-direction:row; justify-content:flex-start; gap:10px; padding:0 14px; margin:2px 8px; border-radius:10px; }
+  /* ── Sidebar nav buttons (desktop) ──────────────────────────────── */
+  .nav button { flex:0 0 auto; width:calc(100% - 16px); height:52px; flex-direction:row; justify-content:flex-start; gap:12px; padding:0 16px; margin:2px 8px; border-radius:12px; transition:all 0.12s ease; }
   .nav button:hover:not(.active) { background:var(--surfaceHi); }
-  .nav button.active { background:var(--accent); color:#fff; }
-  [data-theme="light"] .nav button.active { background:#15803D; color:#fff; box-shadow:0 2px 8px rgba(21,128,61,0.3); }
-  [data-theme="dark"] .nav button.active { background:var(--accentSoft); color:var(--accent); }
-  .nav button.active .nav-icon-wrap { background:transparent !important; box-shadow:none !important; transform:none !important; }
-  .nav-icon-wrap { width:20px; height:20px; border-radius:5px; background:transparent !important; box-shadow:none !important; transform:none !important; }
-  .nav button span { font-size:13px; font-weight:600; white-space:nowrap; display:block; }
-  /* sidebar FAB → full-width primary button */
-  .nav-fab-slot { position:static; order:-1; flex:0 0 auto; width:100%; padding:14px 12px 6px; }
-  .nav-fab { position:static; width:100%; height:44px; border-radius:12px; border:none; justify-content:flex-end; flex-direction:row; padding:0 14px; gap:10px; font-size:13px; font-weight:700; font-family:inherit; letter-spacing:0.01em; }
-  .nav-fab:hover { transform:none; box-shadow:var(--shadow-accent); }
+  .nav button.active { background:#15803D; color:#fff; box-shadow:0 2px 10px rgba(21,128,61,0.28); }
+  .nav button.active .nav-icon-wrap { background:transparent !important; box-shadow:none !important; transform:none !important; color:#fff; }
+  .nav-icon-wrap { width:22px; height:22px; border-radius:5px; background:transparent !important; box-shadow:none !important; transform:none !important; flex-shrink:0; }
+  .nav button span { font-size:14px; font-weight:600; white-space:nowrap; display:block; letter-spacing:0; }
+  /* ── Sidebar FAB ─────────────────────────────────────────────────── */
+  .nav-fab-slot { position:static; order:-1; flex:0 0 auto; width:100%; padding:16px 12px 8px; }
+  .nav-fab { position:static; width:100%; height:48px; border-radius:12px; border:none; justify-content:flex-start; flex-direction:row; padding:0 16px; gap:12px; font-size:14px; font-weight:700; font-family:inherit; letter-spacing:0; }
+  .nav-fab:hover { transform:none; box-shadow:0 4px 14px rgba(21,128,61,0.4); filter:brightness(1.06); }
   .nav-fab-label { display:block; }
-  /* sidebar brand (hidden on mobile, shown here via .sidebar-brand) */
+  /* ── Sidebar brand / footer ───────────────────────────────────────── */
   .sidebar-brand { display:flex !important; }
-  /* sidebar footer */
   .sidebar-footer { display:flex !important; }
-  /* Adjust app-switcher on desktop — hide redundant elements */
+  /* ── App-switcher desktop ──────────────────────────────────────────── */
   .sw-btn { font-size:12px; }
-  /* Desktop content improvements */
-  [data-theme="light"] .nav { background:#fff !important; box-shadow:var(--shadow-sm); }
-  [data-theme="light"] .header { background:#fff !important; }
+  /* ── Theme overrides ───────────────────────────────────────────────── */
+  [data-theme="light"] .nav { background:#fff !important; box-shadow:2px 0 8px rgba(0,0,0,0.04); }
+  [data-theme="light"] .header { background:#fff !important; border-bottom:1px solid #E2E8F0; }
+  [data-theme="dark"] .nav button.active { background:var(--accentSoft); color:var(--accent); box-shadow:none; }
+  /* ── Page containers on desktop ───────────────────────────────────── */
+  .page-desktop { padding:28px 32px 36px !important; }
+  .desk-grid-2 { display:grid !important; grid-template-columns:1fr 1fr !important; gap:20px; }
+  .desk-grid-3 { display:grid !important; grid-template-columns:1fr 1fr 1fr !important; gap:16px; }
+  .desk-grid-4 { display:grid !important; grid-template-columns:repeat(4,1fr) !important; gap:14px; }
+  .desk-grid-sidebar { display:grid !important; grid-template-columns:340px 1fr !important; gap:20px; align-items:start; }
+  /* ── Premium table styles ─────────────────────────────────────────── */
+  .dtable { width:100%; border-collapse:collapse; }
+  .dtable th { padding:10px 16px; text-align:right; font-size:11px; font-weight:600; color:#64748B; letter-spacing:0.05em; text-transform:uppercase; background:#F8FAFC; border-bottom:1px solid #E2E8F0; white-space:nowrap; }
+  .dtable td { padding:13px 16px; border-bottom:1px solid #F1F5F9; font-size:13px; vertical-align:middle; }
+  .dtable tbody tr { transition:background 0.1s; }
+  .dtable tbody tr:hover { background:#F8FAFC; }
+  .dtable tbody tr:last-child td { border-bottom:none; }
+  /* ── Section card ────────────────────────────────────────────────── */
+  .scard { background:#fff; border-radius:16px; padding:22px; box-shadow:0 1px 3px rgba(0,0,0,0.05),0 4px 12px rgba(0,0,0,0.06); border:1px solid #E2E8F0; }
 }
 
 /* ── App-switcher — always at top of flex, no sticky needed ─────── */
@@ -1510,16 +1523,71 @@ function renderExpenseListBody(rows) {
 function renderList() {
   const rows = filterExpenseRows();
   const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
-
   const monthTotal = DB.expenses.filter(e=>isMonth(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
   const weekTotal  = DB.expenses.filter(e=>isWeek(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
   const monthCount = DB.expenses.filter(e=>isMonth(e.date)).length;
   const weekCount  = DB.expenses.filter(e=>isWeek(e.date)).length;
+  const isDesk = window.innerWidth >= 768;
 
+  const searchBar = `
+    <div style="position:relative;flex:1;min-width:200px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--textDim)" stroke-width="2" style="position:absolute;right:13px;top:50%;transform:translateY(-50%);pointer-events:none"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="list-search-inp" class="input" style="padding-right:38px${isDesk?';height:40px;font-size:13.5px':''}" placeholder="חיפוש ספק, מספר מסמך..." value="${esc(state.listSearch)}" oninput="setListSearch(this.value,this.selectionStart)">
+      ${state.listSearch ? `<button onclick="clearListSearch()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:none;border-radius:50%;background:var(--borderHi);color:var(--textDim);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>` : ''}
+    </div>`;
+
+  const periodPills = ['הכל','היום','שבוע','חודש'].map(p=>`<button class="pill ${state.listPer===p?'active':''}" onclick="setState({listPer:'${p}'})" style="${isDesk?'padding:6px 14px;font-size:12.5px':''}">${p}</button>`).join('');
+
+  const catPills = `<button class="pill ${state.listCat==='הכל'?'active':''}" onclick="setState({listCat:'הכל'})" style="${isDesk?'padding:6px 14px;font-size:12.5px':''}">הכל</button>${CATS.map(c=>`<button class="pill ${state.listCat===c?'active':''}" onclick="setState({listCat:'${c}'})" style="${isDesk?'padding:6px 14px;font-size:12.5px':''}">${c}</button>`).join('')}`;
+
+  if (isDesk) {
+    // ── Desktop layout ──────────────────────────────────────────────────
+    return `<div style="padding:24px 28px 32px" class="fade-up">
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px">
+        ${[
+          ['החודש',fmtCurr(monthTotal),monthCount+' רשומות','var(--accent)'],
+          ['השבוע',fmtCurr(weekTotal),weekCount+' רשומות','var(--text)'],
+          ['בסינון הנוכחי',fmtCurr(total),rows.length+' רשומות','#2563EB'],
+          ['ממתינות להנה"ח',DB.expenses.filter(e=>['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)&&!e.sentToAccountant).length+'','חשבוניות','var(--amber)'],
+        ].map(([t,v,s,c])=>`
+          <div class="scard" style="cursor:default">
+            <div style="font-size:10px;color:#64748B;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">${t}</div>
+            <div class="display" style="font-size:24px;color:${c};line-height:1;margin-bottom:4px">${v}</div>
+            <div style="font-size:11px;color:#94A3B8">${s}</div>
+          </div>`).join('')}
+      </div>
+
+      <!-- Filter bar -->
+      <div class="scard" style="padding:16px 20px;margin-bottom:16px">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          ${searchBar}
+          <div style="display:flex;gap:5px;flex-wrap:nowrap">${periodPills}</div>
+          <div style="width:1px;height:28px;background:#E2E8F0;flex-shrink:0"></div>
+          <div style="display:flex;gap:5px;overflow-x:auto;max-width:480px">${catPills}</div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="scard" style="padding:0;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #F1F5F9">
+          <div style="font-size:14px;font-weight:700;color:#0F172A">הוצאות</div>
+          <div id="list-meta-el" style="display:flex;align-items:baseline;gap:12px">
+            <span style="font-size:12px;color:#64748B">${rows.length} רשומות</span>
+            <span class="display" style="font-size:20px;color:#15803D">${fmtCurr(total)}</span>
+          </div>
+        </div>
+        ${rows.length===0
+          ? `<div style="text-align:center;padding:60px 20px;color:#94A3B8"><div style="font-size:36px;margin-bottom:10px">📭</div><div style="font-size:14px">אין תוצאות</div></div>`
+          : `<div style="overflow-x:auto"><div id="expense-list-body" style="min-width:640px">${renderExpenseListBody(rows)}</div></div>`
+        }
+      </div>
+    </div>`;
+  }
+
+  // ── Mobile layout (unchanged) ─────────────────────────────────────────
   return `
-    <div style="padding:16px 16px 90px" class="fade-up">
-
-      <!-- Summary strip -->
+    <div style="padding:16px 16px 24px" class="fade-up">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
         <div style="background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);border-radius:var(--r-lg);padding:13px 14px;box-shadow:var(--shadow)">
           <div style="font-size:9.5px;color:var(--textDim);font-weight:700;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:5px">החודש</div>
@@ -1532,17 +1600,9 @@ function renderList() {
           <div style="font-size:10.5px;color:var(--textMuted);margin-top:3px">${weekCount} רשומות</div>
         </div>
       </div>
-
-      <div style="position:relative;margin-bottom:12px">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--textDim)" stroke-width="2" style="position:absolute;right:13px;top:50%;transform:translateY(-50%);pointer-events:none"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="list-search-inp" class="input" style="padding-right:38px" placeholder="חיפוש ספק, מספר מסמך..." value="${esc(state.listSearch)}" oninput="setListSearch(this.value,this.selectionStart)">
-        ${state.listSearch ? `<button onclick="clearListSearch()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:none;border-radius:50%;background:var(--borderHi);color:var(--textDim);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>` : ''}
-      </div>
-      <div style="display:flex;gap:5px;overflow-x:auto;margin-bottom:7px;padding-bottom:2px">${['הכל','היום','שבוע','חודש'].map(p=>`<button class="pill ${state.listPer===p?'active':''}" onclick="setState({listPer:'${p}'})">${p}</button>`).join('')}</div>
-      <div style="display:flex;gap:4px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px">
-        <button class="pill ${state.listCat==='הכל'?'active':''}" onclick="setState({listCat:'הכל'})">הכל</button>
-        ${CATS.map(c=>`<button class="pill ${state.listCat===c?'active':''}" onclick="setState({listCat:'${c}'})">${c}</button>`).join('')}
-      </div>
+      <div style="position:relative;margin-bottom:12px">${searchBar.replace('flex:1;min-width:200px','width:100%')}</div>
+      <div style="display:flex;gap:5px;overflow-x:auto;margin-bottom:7px;padding-bottom:2px">${periodPills}</div>
+      <div style="display:flex;gap:4px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px">${catPills}</div>
       <div id="list-meta-el" style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;padding:0 2px">
         <span style="font-size:11.5px;color:var(--textDim);font-weight:600;letter-spacing:0.04em;text-transform:uppercase">${rows.length} רשומות</span>
         <span class="display" style="font-size:21px;color:var(--accent)">${fmtCurr(total)}</span>
@@ -1742,38 +1802,63 @@ function renderFixed() {
     return s + (+x.amount||0)*mult;
   },0);
 
+  const isDesk = window.innerWidth >= 768;
+  const fixedCard = x => `
+    <div style="padding:${isDesk?'18px':'16px'};border-radius:14px;background:${isDesk?'#fff':'var(--surface)'};border:1px solid ${isDesk?'#E2E8F0':'var(--border)'};box-shadow:${isDesk?'var(--shadow)':'none'};opacity:${x.active?1:0.55}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:${isDesk?'14':'10'}px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;color:${isDesk?'#0F172A':'var(--text)'};font-size:${isDesk?'15':'15'}px;margin-bottom:6px">${esc(x.name)}</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span style="background:${isDesk?'#FEF3C7':'rgba(212,165,116,0.13)'};color:${isDesk?'#D97706':'var(--accent2)'};border-radius:100px;padding:2px 10px;font-size:11px;font-weight:600">${esc(x.category)}</span>
+            <span style="background:${isDesk?'#F1F5F9':'var(--border)'};color:${isDesk?'#64748B':'var(--textDim)'};border-radius:100px;padding:2px 10px;font-size:11px;font-weight:600">${esc(x.frequency)}</span>
+            ${x.day?`<span style="font-size:11px;color:${isDesk?'#94A3B8':'var(--textDim)'}">ב-${esc(x.day)} לחודש</span>`:''}
+            ${!x.active?`<span style="background:#FEE2E2;color:#DC2626;border-radius:100px;padding:2px 8px;font-size:10px;font-weight:700">מושהה</span>`:''}
+          </div>
+        </div>
+        <div style="text-align:left;flex-shrink:0;margin-right:8px">
+          <div class="display" style="color:${isDesk?'#0F172A':'var(--text)'};font-size:${isDesk?'20':'18'}px;font-weight:700">${fmtCurr(x.amount)}</div>
+          ${x.supplier?`<div style="font-size:11px;color:${isDesk?'#94A3B8':'var(--textDim)'};margin-top:2px">${esc(x.supplier)}</div>`:''}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="toggleFixed('${x.id}')" style="flex:1;padding:8px;border:1px solid ${isDesk?'#E2E8F0':'var(--border)'};border-radius:9px;font-size:12px;font-weight:600;background:transparent;color:${x.active?'var(--amber)':'var(--accent)'};cursor:pointer;font-family:inherit;transition:background 0.12s">${x.active?'⏸ השהה':'▶️ הפעל'}</button>
+        <button onclick="editFixed('${x.id}')" style="flex:1;padding:8px;border:1px solid ${isDesk?'#E2E8F0':'var(--border)'};border-radius:9px;font-size:12px;font-weight:600;background:transparent;color:${isDesk?'#374151':'var(--text)'};cursor:pointer;font-family:inherit">✏️ ערוך</button>
+        <button onclick="delFixed('${x.id}','${esc(x.name).replace(/'/g,'')}')" style="flex:1;padding:8px;border:1px solid ${isDesk?'#FECACA':'rgba(220,98,98,0.2)'};border-radius:9px;font-size:12px;font-weight:600;background:${isDesk?'#FEF2F2':'rgba(220,98,98,0.05)'};color:var(--danger);cursor:pointer;font-family:inherit">🗑️ מחק</button>
+      </div>
+    </div>`;
+
+  if (isDesk) {
+    return `<div style="padding:24px 28px 32px" class="fade-up">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px">
+        <div class="scard" style="cursor:default">
+          <div style="font-size:10px;color:#64748B;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">עלות חודשית כוללת</div>
+          <div class="display" style="font-size:28px;color:#0F172A;margin-bottom:4px">${fmtCurr(monthly)}</div>
+          <div style="font-size:11px;color:#94A3B8">${DB.fixed.filter(x=>x.active).length} פעילות</div>
+        </div>
+        <div class="scard" style="cursor:default">
+          <div style="font-size:10px;color:#64748B;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">עלות שנתית</div>
+          <div class="display" style="font-size:28px;color:#0F172A;margin-bottom:4px">${fmtCurr(monthly*12)}</div>
+          <div style="font-size:11px;color:#94A3B8">לפי הוצאות פעילות</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center">
+          <button class="btn-primary" onclick="startFixed()" style="margin:0;width:auto;padding:14px 24px;font-size:14px">+ הוצאה קבועה חדשה</button>
+        </div>
+      </div>
+      ${DB.fixed.length===0?`<div class="scard" style="text-align:center;padding:48px 20px;color:#94A3B8"><div style="font-size:36px;margin-bottom:10px">🏠</div><div style="font-size:14px">אין הוצאות קבועות עדיין</div></div>`:
+      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">${DB.fixed.map(fixedCard).join('')}</div>`}
+    </div>`;
+  }
+
   return `
-    <div style="padding:16px 16px 90px" class="fade-up">
-      <div style="padding:24px 20px;margin-bottom:14px;border-radius:18px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
-        <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(212,165,116,0.13),transparent 70%)"></div>
-        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;position:relative">הוצאות קבועות חודשיות</div>
-        <div class="display" style="font-size:36px;color:var(--text);margin-bottom:4px;position:relative">${fmtCurr(monthly)}</div>
-        <div style="font-size:12px;color:var(--textDim);position:relative">שנתי: ${fmtCurr(monthly*12)} · ${DB.fixed.filter(x=>x.active).length} פעילות</div>
+    <div style="padding:16px 16px 24px" class="fade-up">
+      <div style="padding:20px;margin-bottom:14px;border-radius:16px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px">הוצאות קבועות חודשיות</div>
+        <div class="display" style="font-size:32px;color:var(--text);margin-bottom:4px">${fmtCurr(monthly)}</div>
+        <div style="font-size:12px;color:var(--textDim)">שנתי: ${fmtCurr(monthly*12)} · ${DB.fixed.filter(x=>x.active).length} פעילות</div>
       </div>
       <button class="btn-primary" onclick="startFixed()">+ &nbsp;הוצאה קבועה חדשה</button>
-      ${DB.fixed.length===0 ? `<div style="text-align:center;padding:40px 20px;color:var(--textMuted)"><div style="font-size:48px;margin-bottom:10px;opacity:0.4">🏠</div><div style="font-size:14px">אין הוצאות קבועות עדיין</div></div>` : ''}
-      ${DB.fixed.map(x=>`
-        <div style="margin-bottom:8px;padding:16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);opacity:${x.active?1:0.55}" class="fade-up">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:600;color:var(--text);font-size:15px;margin-bottom:5px">${esc(x.name)}</div>
-              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <span style="background:rgba(212,165,116,0.13);color:var(--accent2);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${esc(x.category)}</span>
-                <span style="background:var(--border);color:var(--textDim);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${esc(x.frequency)}</span>
-                ${x.day?`<span style="font-size:11px;color:var(--textDim)">ב-${esc(x.day)} לחודש</span>`:''}
-              </div>
-            </div>
-            <div style="text-align:left;flex-shrink:0;margin-right:8px">
-              <div class="display" style="color:var(--text);font-size:18px">${fmtCurr(x.amount)}</div>
-              ${x.supplier?`<div style="font-size:11px;color:var(--textDim);margin-top:2px">${esc(x.supplier)}</div>`:''}
-            </div>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button onclick="toggleFixed('${x.id}')" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:8px;font-size:11px;font-weight:600;background:transparent;color:${x.active?'var(--amber)':'var(--accent)'};cursor:pointer;font-family:inherit">${x.active?'⏸️ השהה':'▶️ הפעל'}</button>
-            <button onclick="editFixed('${x.id}')" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:8px;font-size:11px;font-weight:600;background:transparent;color:var(--text);cursor:pointer;font-family:inherit">✏️ ערוך</button>
-            <button onclick="delFixed('${x.id}','${esc(x.name).replace(/'/g,'')}')" style="flex:1;padding:7px;border:1px solid rgba(220,98,98,0.2);border-radius:8px;font-size:11px;font-weight:600;background:rgba(220,98,98,0.05);color:var(--danger);cursor:pointer;font-family:inherit">🗑️</button>
-          </div>
-        </div>`).join('')}
+      ${DB.fixed.length===0?`<div style="text-align:center;padding:40px 20px;color:var(--textMuted)"><div style="font-size:48px;margin-bottom:10px;opacity:0.4">🏠</div><div style="font-size:14px">אין הוצאות קבועות עדיין</div></div>`:
+      DB.fixed.map(fixedCard).join('')}
     </div>`;
 }
 
@@ -2813,13 +2898,84 @@ function renderReports() {
 
   const PERIODS = ['היום','שבוע','שבוע שעבר','חודש','שנה','הכל','מותאם'];
 
+  const isDesk = window.innerWidth >= 768;
+  const periodBar = `<div style="display:flex;flex-wrap:wrap;gap:6px">
+    ${PERIODS.map(p=>`<button onclick="setState({reportPer:'${p}'})" style="padding:${isDesk?'8px 16px':'7px 10px'};border-radius:9px;border:1px solid ${state.reportPer===p?'transparent':'var(--border)'};cursor:pointer;font-size:${isDesk?'13':'11.5'}px;font-weight:600;font-family:inherit;background:${state.reportPer===p?'#15803D':'var(--surfaceHi)'};color:${state.reportPer===p?'#fff':'var(--textDim)'};transition:all var(--t-fast);white-space:nowrap">${p}</button>`).join('')}
+  </div>`;
+  const customRange = state.reportPer==='מותאם'?`<div style="display:flex;gap:8px;margin-top:10px"><div style="flex:1"><div class="label">מ-</div><input type="date" value="${state.reportDateFrom}" onchange="setState({reportDateFrom:this.value})" class="input" style="padding:8px 10px;font-size:14px"></div><div style="flex:1"><div class="label">עד-</div><input type="date" value="${state.reportDateTo}" onchange="setState({reportDateTo:this.value})" class="input" style="padding:8px 10px;font-size:14px"></div></div>`:'';
+
+  if (isDesk) {
+    // Desktop: 4-stat header + 2-column body
+    const statCard = (icon, title, val, col) => `<div class="scard" style="cursor:default">
+      <div style="font-size:11px;color:#64748B;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:10px">${icon} ${title}</div>
+      <div class="display" style="font-size:28px;color:${col};line-height:1;letter-spacing:-0.02em">${val}</div>
+    </div>`;
+    const catBar = (name, val, max, color) => `<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+        <span style="font-size:13px;color:#374151;font-weight:500">${name}</span>
+        <span style="font-size:13px;font-weight:700;color:#0F172A">${fmtCurr(val)}</span>
+      </div>
+      <div style="height:7px;background:#F1F5F9;border-radius:4px;overflow:hidden"><div style="height:100%;width:${(val/max)*100}%;background:${color};border-radius:4px"></div></div>
+    </div>`;
+    return `<div style="padding:24px 28px 32px" class="fade-up">
+      <!-- Filter bar -->
+      <div class="scard" style="padding:16px 20px;margin-bottom:20px">
+        ${periodBar}${customRange}
+        ${dateLabel?`<div style="margin-top:8px;font-size:12px;color:#64748B">${dateLabel}</div>`:''}
+      </div>
+      <!-- KPI row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+        ${statCard('📉','סה״כ הוצאות',fmtCurr(total),'#0F172A')}
+        ${statCard('💰','הכנסות',fmtCurr(totalIncome),totalIncome>0?'#15803D':'#94A3B8')}
+        ${statCard(profit>=0?'📈':'📊','רווח גולמי',(profit>=0?'+':'')+fmtCurr(profit),profit>=0?'#15803D':'#DC2626')}
+        ${statCard('🧾','מע"מ',fmtCurr(totalVat),'#D97706')}
+      </div>
+      <!-- 2-column body -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        <!-- By category -->
+        <div class="scard">
+          <div style="font-size:14px;font-weight:700;color:#0F172A;margin-bottom:16px">לפי קטגוריה</div>
+          ${byCat.length>0?byCat.map(c=>{const color=getCatColor(c.name);return catBar(c.name,c.v,maxC,color);}).join(''):
+            '<div style="text-align:center;padding:24px;color:#94A3B8;font-size:13px">אין נתונים</div>'}
+        </div>
+        <!-- By supplier -->
+        <div class="scard">
+          <div style="font-size:14px;font-weight:700;color:#0F172A;margin-bottom:16px">ספקים מובילים</div>
+          ${bySupp.length>0?bySupp.map(([name,v],i)=>catBar(`<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#F1F5F9;font-size:10px;font-weight:700;color:#64748B;margin-left:6px">${i+1}</span>${esc(name)}`,v,maxS,'#15803D')).join(''):
+            '<div style="text-align:center;padding:24px;color:#94A3B8;font-size:13px">אין נתונים</div>'}
+        </div>
+        ${totalIncome>0?`
+        <!-- Income vs expenses -->
+        <div class="scard" style="grid-column:1/-1">
+          <div style="font-size:14px;font-weight:700;color:#0F172A;margin-bottom:16px">הכנסות מול הוצאות</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+            <div style="padding:14px;border-radius:12px;background:#DCFCE7;border:1px solid #BBF7D0">
+              <div style="font-size:10px;color:#15803D;font-weight:700;text-transform:uppercase;margin-bottom:6px">הכנסות</div>
+              <div class="display" style="font-size:22px;color:#15803D">${fmtCurr(totalIncome)}</div>
+              <div style="font-size:11px;color:#16A34A;margin-top:3px">${incomeRows.length} רשומות</div>
+            </div>
+            <div style="padding:14px;border-radius:12px;background:#FEE2E2;border:1px solid #FECACA">
+              <div style="font-size:10px;color:#DC2626;font-weight:700;text-transform:uppercase;margin-bottom:6px">הוצאות</div>
+              <div class="display" style="font-size:22px;color:#DC2626">${fmtCurr(total)}</div>
+              <div style="font-size:11px;color:#EF4444;margin-top:3px">${rows.length} רשומות</div>
+            </div>
+            <div style="padding:14px;border-radius:12px;background:${profit>=0?'#DCFCE7':'#FEE2E2'};border:1px solid ${profit>=0?'#BBF7D0':'#FECACA'}">
+              <div style="font-size:10px;color:${profit>=0?'#15803D':'#DC2626'};font-weight:700;text-transform:uppercase;margin-bottom:6px">רווח גולמי</div>
+              <div class="display" style="font-size:22px;color:${profit>=0?'#15803D':'#DC2626'}">${profit>=0?'+':''}${fmtCurr(profit)}</div>
+              ${totalIncome>0?`<div style="font-size:11px;color:${profit>=0?'#16A34A':'#EF4444'};margin-top:3px">${Math.round(Math.abs(profit/totalIncome)*100)}% מרווח</div>`:''}
+            </div>
+          </div>
+          <div>${INCOME_TYPES.filter(t=>incomeRows.some(e=>e.type===t)).map(t=>{const v=incomeRows.filter(e=>e.type===t).reduce((s,e)=>s+(+e.amount||0),0);const color=INCOME_COLORS[t]||'var(--accent)';return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #F1F5F9"><span style="font-size:13px;color:#64748B">${INCOME_ICONS[t]} ${t}</span><span style="font-size:14px;font-weight:700;color:${color}">${fmtCurr(v)}</span></div>`;}).join('')}</div>
+        </div>`:''}
+      </div>
+    </div>`;
+  }
+
   return `
     <div style="padding:16px 16px 24px" class="fade-up">
-      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:${state.reportPer==='מותאם'?'8px':'14px'}">
-        ${PERIODS.map(p=>`<button onclick="setState({reportPer:'${p}'})" style="flex:1;min-width:0;padding:8px 4px;border-radius:9px;border:1px solid ${state.reportPer===p?'transparent':'var(--border)'};cursor:pointer;font-size:11.5px;font-weight:600;font-family:inherit;background:${state.reportPer===p?'linear-gradient(135deg,var(--accent),#6fa83a)':'var(--surfaceHi)'};color:${state.reportPer===p?'#0a1505':'var(--textDim)'};transition:all var(--t-fast);white-space:nowrap">${p}</button>`).join('')}
-      </div>
-      ${state.reportPer==='מותאם'?`<div style="display:flex;gap:8px;margin-bottom:14px"><div style="flex:1"><div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">מ-</div><input type="date" value="${state.reportDateFrom}" onchange="setState({reportDateFrom:this.value})" class="input" style="padding:8px 10px;font-size:14px"></div><div style="flex:1"><div style="font-size:11px;color:var(--textDim);font-weight:600;margin-bottom:4px">עד-</div><input type="date" value="${state.reportDateTo}" onchange="setState({reportDateTo:this.value})" class="input" style="padding:8px 10px;font-size:14px"></div></div>`:''}
-      ${dateLabel?`<div style="text-align:center;font-size:11.5px;color:var(--textMuted);margin:-2px 0 12px;letter-spacing:0.02em">${dateLabel}</div>`:''}
+      <div style="margin-bottom:${state.reportPer==='מותאם'?'8px':'14px'}">${periodBar}</div>
+      ${customRange}
+      ${dateLabel?`<div style="text-align:center;font-size:11.5px;color:var(--textMuted);margin:4px 0 12px;letter-spacing:0.02em">${dateLabel}</div>`:''}
       <div style="padding:20px 18px;margin-bottom:14px;border-radius:16px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
         <div style="position:absolute;top:-30px;right:-30px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,rgba(110,198,58,0.12),transparent 70%)"></div>
         <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:5px;position:relative">סה״כ הוצאות</div>
