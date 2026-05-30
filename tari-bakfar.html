@@ -1985,17 +1985,17 @@ function renderChecks() {
   }
 
   return `
-    <div style="padding:16px 16px 90px" class="fade-up">
+    <div style="padding:16px 16px 24px" class="fade-up">
 
       <!-- Summary banner -->
       ${open.length > 0 ? `
-      <div style="padding:14px 18px;margin-bottom:14px;border-radius:14px;background:linear-gradient(135deg,rgba(59,130,246,0.1),rgba(59,130,246,0.04));border:1px solid rgba(59,130,246,0.35);display:flex;justify-content:space-between;align-items:center">
+      <div style="padding:14px 18px;margin-bottom:14px;border-radius:14px;background:var(--infoSoft);border:1px solid rgba(79,159,217,0.35);display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-size:13px;font-weight:700;color:#60a5fa">צ'קים ממתינים לפירעון</div>
-          <div style="font-size:11px;color:var(--textDim);margin-top:2px">${open.length} צ'קים פתוחים</div>
+          <div style="font-size:13px;font-weight:700;color:var(--info)">צ'קים ממתינים לפירעון</div>
+          <div style="font-size:11px;color:var(--textDim);margin-top:2px">${open.length} ${open.length===1?"צ'ק פתוח":"צ'קים פתוחים"}</div>
         </div>
-        <div class="display" style="font-size:26px;color:#60a5fa">${fmtCurr(totalOpen)}</div>
-      </div>` : ''}
+        <div class="display" style="font-size:26px;color:var(--info)">${fmtCurr(totalOpen)}</div>
+      </div>` : `<div style="text-align:center;padding:10px 0 16px;color:var(--textMuted);font-size:13px">אין צ'קים פתוחים ✓</div>`}
 
       <!-- Add check form -->
       <div style="padding:16px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
