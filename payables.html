@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="חובות">
+<link rel="manifest" href="manifest.json">
+<title>חובות ספקים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Frank+Ruhl+Libre:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer onload="onGoogleScriptLoad()"></script>
+<style>
+:root {
+  --bg:#0a0e0a; --surface:#11161a; --surfaceHi:#1a2025;
+  --border:#1f2a30; --borderHi:#2a3640;
+  --text:#e8efe5; --textDim:#7a8a82; --textMuted:#475259;
+  --accent:#8fc650; --accent2:#d4a574; --amber:#f4b942; --danger:#dc6262; --blue:#5b9cf6;
+}
+[data-theme="light"] {
+  --bg:#f0f5ee; --surface:#ffffff; --surfaceHi:#e6ede1;
+  --border:#c4d4bc; --borderHi:#a8c09a;
+  --text:#1a2a14; --textDim:#4a6040; --textMuted:#7a9470;
+  --accent:#4a8818; --accent2:#9a5e20; --amber:#a87008; --danger:#b83030; --blue:#1a5cb8;
+}
+[data-theme="light"] .app-switcher { background:rgba(240,246,238,0.97); padding-top:calc(6px + env(safe-area-inset-top,0px)); }
+[data-theme="light"] .header { background:rgba(240,246,238,0.95); }
+[data-theme="light"] .modal { background:var(--surface); }
+[data-theme="light"] .overlay { background:rgba(0,0,0,0.45); }
+[data-theme="light"] .toast { box-shadow:0 4px 20px rgba(0,0,0,0.15); }
+.theme-toggle-btn { background:transparent; border:none; padding:7px 10px; cursor:pointer; font-size:17px; flex-shrink:0; border-radius:10px; line-height:1; }
+.sw-icon-btn { background:transparent; border:none; padding:7px 8px; cursor:pointer; font-size:16px; flex-shrink:0; border-radius:10px; line-height:1; color:var(--textDim); }
+.sw-icon-btn:active { background:rgba(255,255,255,0.08); }
+[data-theme="light"] .sw-icon-btn:active { background:rgba(0,0,0,0.05); }
+.sw-icon-btn.spinning { animation:spin 0.8s linear infinite; display:inline-block; }
+* { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
+[hidden] { display:none !important; }
+html,body { margin:0; padding:0; min-height:100%; background:var(--bg); color:var(--text); font-family:'Heebo',-apple-system,sans-serif; overscroll-behavior:none; }
+::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+.display { font-family:'Frank Ruhl Libre',serif; font-weight:700; letter-spacing:-0.02em; }
+.app { max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; }
+
+/* App switcher */
+.app-switcher { display:flex; gap:6px; padding:6px 10px; padding-top:calc(6px + env(safe-area-inset-top,0px)); background:rgba(10,14,10,0.97); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:20; }
+.sw-btn { flex:1; text-align:center; padding:9px 8px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; color:var(--textDim); border:1px solid transparent; display:block; }
+.sw-btn.active { background:rgba(143,198,80,0.1); color:var(--accent); border-color:rgba(143,198,80,0.3); }
+
+/* Header */
+.header { padding:14px 20px 12px; position:sticky; top:calc(44px + env(safe-area-inset-top,0px)); z-index:10; background:rgba(10,14,10,0.95); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; }
+[data-theme="light"] .header { background:rgba(240,246,238,0.95); }
+.header-title { flex:1; min-width:0; }
+.header-title h1 { font-size:17px; margin:0; line-height:1.1; }
+.header-title .sub { font-size:11px; color:var(--textDim); margin-top:1px; }
+.icon-btn { width:36px; height:36px; border:1px solid var(--border); border-radius:10px; background:var(--surface); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; color:var(--textDim); }
+.icon-btn:active { background:var(--surfaceHi); }
+
+/* Main */
+.main { flex:1; overflow-y:auto; padding:16px; padding-bottom:100px; }
+
+/* Summary cards */
+.summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
+.summary-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; }
+.summary-card-label { font-size:11px; color:var(--textDim); font-weight:600; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:6px; display:flex; align-items:center; gap:5px; }
+.summary-card-amount { font-size:20px; font-weight:800; font-family:'Frank Ruhl Libre',serif; }
+.summary-card.overdue { border-color:rgba(220,98,98,0.3); }
+.summary-card.overdue .summary-card-amount { color:var(--danger); }
+.summary-card.week { border-color:rgba(244,185,66,0.3); }
+.summary-card.week .summary-card-amount { color:var(--amber); }
+.summary-card.future { border-color:rgba(143,198,80,0.3); }
+.summary-card.future .summary-card-amount { color:var(--accent); }
+.summary-card.total { border-color:rgba(91,156,246,0.3); }
+.summary-card.total .summary-card-amount { color:var(--blue); }
+
+/* Section titles */
+.section-title { font-size:11px; color:var(--textDim); font-weight:600; letter-spacing:0.05em; text-transform:uppercase; margin:20px 0 10px; }
+
+/* Supplier debt rows */
+.debt-supplier-row { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; display:flex; align-items:center; gap:12px; margin-bottom:8px; cursor:pointer; }
+.debt-supplier-row:active { background:var(--surfaceHi); }
+.debt-supplier-icon { width:40px; height:40px; border-radius:11px; background:rgba(143,198,80,0.1); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.debt-supplier-info { flex:1; min-width:0; }
+.debt-supplier-name { font-size:15px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.debt-supplier-meta { font-size:12px; color:var(--textDim); margin-top:2px; }
+.status-pill { font-size:11px; font-weight:700; padding:4px 9px; border-radius:7px; flex-shrink:0; }
+.status-pill.overdue { background:rgba(220,98,98,0.12); color:var(--danger); border:1px solid rgba(220,98,98,0.3); }
+.status-pill.week { background:rgba(244,185,66,0.12); color:var(--amber); border:1px solid rgba(244,185,66,0.3); }
+.status-pill.ok { background:rgba(143,198,80,0.1); color:var(--accent); border:1px solid rgba(143,198,80,0.25); }
+.status-pill.gray { background:rgba(120,120,120,0.08); color:var(--textDim); border:1px solid var(--border); }
+.status-pill.paid { background:rgba(143,198,80,0.1); color:var(--accent); border:1px solid rgba(143,198,80,0.25); }
+.status-pill.partial { background:rgba(244,185,66,0.12); color:var(--amber); border:1px solid rgba(244,185,66,0.3); }
+.status-pill.cancelled { background:rgba(120,120,120,0.08); color:var(--textMuted); border:1px solid var(--border); }
+
+/* Debt cards */
+.debt-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; margin-bottom:10px; overflow:hidden; cursor:pointer; }
+.debt-card:active { background:var(--surfaceHi); }
+.debt-card-header { padding:14px 16px 10px; }
+.debt-card-row1 { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.debt-card-inv { font-size:14px; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.debt-card-date { font-size:11px; color:var(--textDim); }
+.debt-card-amounts { display:flex; gap:8px; font-size:12px; color:var(--textDim); flex-wrap:wrap; }
+.debt-card-total { font-weight:700; color:var(--text); }
+.debt-card-due { font-size:11px; font-weight:600; }
+.debt-card-due.overdue { color:var(--danger); }
+.debt-card-due.week { color:var(--amber); }
+.debt-card-due.ok { color:var(--accent); }
+
+/* DN rows */
+.dn-row { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.dn-row-info { flex:1; min-width:0; }
+.dn-row-date { font-size:12px; color:var(--textDim); }
+.dn-row-num { font-size:14px; font-weight:700; }
+.dn-row-amount { font-size:14px; font-weight:700; color:var(--accent); flex-shrink:0; }
+.dn-cancel-btn { width:28px; height:28px; border:none; border-radius:7px; background:rgba(220,98,98,0.1); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--danger); flex-shrink:0; }
+.dn-cancel-btn:active { background:rgba(220,98,98,0.2); }
+.dn-check { width:20px; height:20px; border-radius:5px; border:2px solid var(--border); cursor:pointer; flex-shrink:0; accent-color:var(--accent); }
+
+/* Invoice rows */
+.invoice-row { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-bottom:8px; }
+.invoice-row-top { display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+.invoice-row-num { font-size:14px; font-weight:700; flex:1; }
+.invoice-row-date { font-size:11px; color:var(--textDim); }
+.invoice-row-amount { font-size:14px; font-weight:700; color:var(--accent); }
+.invoice-row-meta { font-size:12px; color:var(--textDim); }
+.btn-create-debt { border:1px solid rgba(143,198,80,0.35); border-radius:9px; padding:5px 12px; font-size:12px; font-weight:700; font-family:inherit; cursor:pointer; background:rgba(143,198,80,0.08); color:var(--accent); flex-shrink:0; }
+.btn-create-debt:active { background:rgba(143,198,80,0.15); }
+
+/* Detail info */
+.info-row { display:flex; gap:12px; align-items:center; padding:12px 0; border-bottom:1px solid var(--border); }
+.info-row:last-child { border-bottom:none; }
+.info-label { font-size:12px; color:var(--textDim); font-weight:600; width:90px; flex-shrink:0; }
+.info-value { flex:1; font-size:14px; font-weight:600; }
+.info-value.editable { cursor:pointer; color:var(--accent); text-decoration:underline; text-decoration-style:dotted; }
+.info-block { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:4px 14px; margin-bottom:14px; }
+
+/* Progress bar */
+.progress-wrap { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; margin-bottom:14px; }
+.progress-bar-bg { height:10px; border-radius:5px; background:var(--surfaceHi); margin:10px 0 8px; overflow:hidden; }
+.progress-bar-fill { height:100%; border-radius:5px; background:linear-gradient(90deg,var(--accent),#6fa83a); transition:width 0.4s ease; }
+.progress-labels { display:flex; justify-content:space-between; font-size:12px; color:var(--textDim); }
+.progress-paid { font-weight:700; color:var(--accent); }
+
+/* Payments list */
+.payment-row { background:var(--surface); border:1px solid var(--border); border-radius:11px; padding:11px 14px; margin-bottom:7px; display:flex; gap:10px; align-items:center; }
+.payment-row-info { flex:1; min-width:0; }
+.payment-row-date { font-size:11px; color:var(--textDim); }
+.payment-row-method { font-size:12px; color:var(--textDim); }
+.payment-row-amount { font-size:15px; font-weight:800; color:var(--accent); flex-shrink:0; }
+
+/* FAB */
+.fab { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); max-width:calc(480px - 32px); width:calc(100% - 32px); border:none; border-radius:14px; padding:15px 20px; font-size:15px; font-weight:700; font-family:inherit; cursor:pointer; background:linear-gradient(135deg,var(--accent) 0%,#6fa83a 100%); color:#0a1505; box-shadow:0 8px 24px -8px rgba(143,198,80,0.5); display:flex; align-items:center; justify-content:center; gap:8px; z-index:10; }
+.fab:active { transform:translateX(-50%) scale(0.98); }
+
+/* Forms */
+.input { width:100%; background:var(--surfaceHi); border:1px solid var(--border); border-radius:12px; padding:12px 14px; color:var(--text); font-size:15px; font-family:inherit; outline:none; }
+.input:focus { border-color:var(--borderHi); }
+.label { font-size:11px; color:var(--textDim); margin-bottom:6px; display:block; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; }
+.field { margin-bottom:14px; }
+select.input { appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a8a82' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:left 12px center; padding-left:32px; }
+
+/* Buttons */
+.btn-primary { width:100%; border:none; border-radius:14px; padding:14px 16px; font-size:15px; font-weight:700; font-family:inherit; cursor:pointer; background:linear-gradient(135deg,var(--accent) 0%,#6fa83a 100%); color:#0a1505; box-shadow:0 6px 20px -6px rgba(143,198,80,0.4); }
+.btn-primary:active { transform:scale(0.98); }
+.btn-secondary { width:100%; border:1px solid var(--border); border-radius:14px; padding:13px 16px; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); }
+.btn-secondary:active { background:var(--surfaceHi); }
+.btn-danger { width:100%; border:1px solid rgba(220,98,98,0.3); border-radius:14px; padding:13px; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer; background:rgba(220,98,98,0.06); color:var(--danger); }
+.btn-danger:active { background:rgba(220,98,98,0.12); }
+
+/* Overlay / Modal */
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,0.72); z-index:50; display:flex; align-items:flex-end; justify-content:center; }
+.modal { background:var(--surface); border-radius:24px 24px 0 0; width:100%; max-width:480px; padding:20px 20px; padding-bottom:calc(28px + env(safe-area-inset-bottom,0px)); max-height:90vh; overflow-y:auto; border-top:1px solid var(--border); }
+.modal-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 20px; }
+.modal h2 { font-size:18px; margin:0 0 4px; font-family:'Frank Ruhl Libre',serif; }
+.modal .hint { font-size:13px; color:var(--textDim); margin:0 0 16px; }
+
+/* Empty state */
+.empty { text-align:center; padding:60px 20px; }
+.empty-icon { font-size:52px; margin-bottom:16px; }
+.empty-title { font-size:18px; font-weight:700; margin-bottom:8px; }
+.empty-desc { font-size:14px; color:var(--textDim); line-height:1.6; }
+
+/* Toast */
+.toast { position:fixed; top:80px; left:50%; transform:translateX(-50%); background:var(--surfaceHi); border:1px solid var(--border); border-radius:12px; padding:12px 18px; color:var(--text); font-weight:600; font-size:13px; z-index:200; box-shadow:0 8px 32px rgba(0,0,0,0.4); max-width:90vw; pointer-events:none; animation:fadeUp 0.3s ease; transition:opacity 0.4s ease; }
+.toast.success { border-color:rgba(143,198,80,0.4); color:var(--accent); }
+.toast.error { border-color:rgba(220,98,98,0.4); color:var(--danger); }
+
+/* Animations */
+.fade-up { animation:fadeUp 0.3s ease-out backwards; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Login */
+.login-screen { position:fixed; inset:0; z-index:999; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 24px; }
+.login-logo { width:76px; height:76px; border-radius:22px; background:#fff; display:flex; align-items:center; justify-content:center; font-size:42px; margin-bottom:20px; box-shadow:0 8px 32px rgba(143,198,80,0.3),0 0 0 1px rgba(143,198,80,0.15); }
+.login-title { font-size:28px; font-weight:800; font-family:'Frank Ruhl Libre',serif; margin-bottom:4px; text-align:center; }
+.login-sub { font-size:14px; color:var(--textDim); margin-bottom:28px; text-align:center; }
+.login-err { color:var(--danger); font-size:13px; text-align:center; margin-top:14px; min-height:20px; font-weight:600; }
+
+/* Checklist */
+.dn-check-row { display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--surfaceHi); border:1px solid var(--border); border-radius:11px; margin-bottom:7px; cursor:pointer; }
+.dn-check-row:active { background:var(--border); }
+.dn-check-row input[type=checkbox] { width:18px; height:18px; border-radius:4px; flex-shrink:0; accent-color:var(--accent); cursor:pointer; }
+.dn-check-row-info { flex:1; min-width:0; }
+.dn-check-row-num { font-size:13px; font-weight:700; }
+.dn-check-row-date { font-size:11px; color:var(--textDim); }
+.dn-check-row-amount { font-size:14px; font-weight:700; color:var(--accent); flex-shrink:0; }
+.running-total { background:rgba(143,198,80,0.08); border:1px solid rgba(143,198,80,0.25); border-radius:10px; padding:10px 14px; font-size:14px; font-weight:700; color:var(--accent); text-align:center; margin:10px 0; }
+
+/* Supplier amount badge */
+.supplier-debt-amount { font-size:15px; font-weight:800; font-family:'Frank Ruhl Libre',serif; flex-shrink:0; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="login-screen" hidden>
+  <div class="login-logo">📒</div>
+  <div class="login-title">טרי בכפר</div>
+  <div class="login-sub">חובות ספקים</div>
+  <div id="google-signin-btn"></div>
+  <div class="login-err" id="login-err"></div>
+</div>
+
+<div class="app" id="app" hidden>
+
+  <!-- App Switcher -->
+  <div class="app-switcher">
+    <a href="tari-bakfar.html" class="sw-btn">💰 הוצאות</a>
+    <a href="orders.html" class="sw-btn">📦 הזמנות</a>
+    <a href="products.html" class="sw-btn">🏷️ מוצרים</a>
+    <span class="sw-btn active">📒 חובות</span>
+    <button class="sw-icon-btn" id="sync-top-btn" onclick="triggerSync()" title="סנכרן">🔄</button>
+    <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()"></button>
+    <button class="sw-icon-btn" onclick="logout()" title="התנתק">🔒</button>
+  </div>
+
+  <!-- ═══ VIEW: DASHBOARD ═══ -->
+  <div id="view-dashboard">
+    <header class="header">
+      <div class="header-title">
+        <h1 class="display">חובות ספקים 📒</h1>
+        <div class="sub" id="dashboard-sub">טוען...</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#f4b942;flex-shrink:0" title="מסנכרן..."></div>
+      </div>
+    </header>
+    <div class="main" id="dashboard-main"></div>
+    <button class="fab" onclick="openAddDirectDebt()">+ חוב ישיר</button>
+  </div>
+
+  <!-- ═══ VIEW: SUPPLIER CARD ═══ -->
+  <div id="view-supplier" hidden>
+    <header class="header">
+      <button class="icon-btn" onclick="show('dashboard');renderDashboard()">←</button>
+      <div class="header-title">
+        <h1 class="display" id="supplier-title" style="font-size:17px"></h1>
+        <div class="sub" id="supplier-owed-badge"></div>
+      </div>
+    </header>
+    <div class="main" id="supplier-main"></div>
+  </div>
+
+  <!-- ═══ VIEW: DEBT DETAIL ═══ -->
+  <div id="view-debt" hidden>
+    <header class="header">
+      <button class="icon-btn" id="debt-back-btn" onclick="backFromDebt()">←</button>
+      <div class="header-title">
+        <h1 class="display" id="debt-title" style="font-size:17px"></h1>
+        <div class="sub" id="debt-supplier-sub"></div>
+      </div>
+    </header>
+    <div class="main" id="debt-main"></div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ═══ MODAL: Link DN to Invoice ═══ -->
+<div id="modal-link-dn" class="overlay" hidden onclick="if(event.target===this)closeModal('modal-link-dn')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2>שייך לחשבונית מס</h2>
+    <p class="hint" id="link-dn-supplier-hint"></p>
+
+    <div id="link-dn-step1">
+      <div class="section-title" style="margin-top:0">תעודות משלוח פתוחות</div>
+      <div id="link-dn-checklist"></div>
+      <div class="running-total" id="link-dn-total">סה"כ נבחר: ₪0</div>
+      <button class="btn-primary" onclick="goLinkDNStep2()" style="margin-top:4px">המשך לפרטי חשבונית ←</button>
+      <button class="btn-secondary" onclick="closeModal('modal-link-dn')" style="margin-top:8px">ביטול</button>
+    </div>
+
+    <div id="link-dn-step2" hidden>
+      <div class="section-title" style="margin-top:0">פרטי חשבונית מס</div>
+      <div class="field">
+        <label class="label">מספר חשבונית *</label>
+        <input class="input" id="link-inv-number" type="text" placeholder="לדוגמה: 12345" autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="label">תאריך חשבונית</label>
+        <input class="input" id="link-inv-date" type="date">
+      </div>
+      <div class="field">
+        <label class="label">סכום חשבונית</label>
+        <input class="input" id="link-inv-amount" type="number" step="0.01" min="0" placeholder="0.00">
+      </div>
+      <div class="field">
+        <label class="label">תאריך לתשלום</label>
+        <input class="input" id="link-inv-due" type="date">
+      </div>
+      <div class="field">
+        <label class="label">אופן תשלום</label>
+        <select class="input" id="link-inv-method">
+          <option value="">- לא נקבע -</option>
+          <option value="check">צ'ק</option>
+          <option value="transfer">העברה בנקאית</option>
+          <option value="cash">מזומן</option>
+          <option value="credit">אשראי</option>
+        </select>
+      </div>
+      <div class="field" id="link-check-field" hidden>
+        <label class="label">מספר צ'ק</label>
+        <input class="input" id="link-inv-check" type="text" placeholder="מספר הצ'ק" autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="label">הערות</label>
+        <input class="input" id="link-inv-notes" type="text" placeholder="הערות נוספות..." autocomplete="off">
+      </div>
+      <button class="btn-primary" onclick="confirmLinkDN()">← צור חוב</button>
+      <button class="btn-secondary" onclick="document.getElementById('link-dn-step1').hidden=false;document.getElementById('link-dn-step2').hidden=true" style="margin-top:8px">← חזור לתעודות</button>
+      <button class="btn-secondary" onclick="closeModal('modal-link-dn')" style="margin-top:8px">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Add Direct Debt ═══ -->
+<div id="modal-add-direct" class="overlay" hidden onclick="if(event.target===this)closeModal('modal-add-direct')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2>+ חוב ישיר</h2>
+    <p class="hint">הוסף חוב לספק שמגיע ישירות עם חשבונית מס</p>
+    <div class="field">
+      <label class="label">שם ספק *</label>
+      <input class="input" id="direct-supplier" type="text" placeholder="שם הספק" list="supplier-datalist" autocomplete="off">
+      <datalist id="supplier-datalist"></datalist>
+    </div>
+    <div class="field">
+      <label class="label">מספר חשבונית *</label>
+      <input class="input" id="direct-inv-number" type="text" placeholder="לדוגמה: 12345" autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="label">תאריך חשבונית</label>
+      <input class="input" id="direct-inv-date" type="date">
+    </div>
+    <div class="field">
+      <label class="label">סכום *</label>
+      <input class="input" id="direct-amount" type="number" step="0.01" min="0" placeholder="0.00">
+    </div>
+    <div class="field">
+      <label class="label">תאריך לתשלום</label>
+      <input class="input" id="direct-due-date" type="date">
+    </div>
+    <div class="field">
+      <label class="label">אופן תשלום</label>
+      <select class="input" id="direct-method" onchange="toggleCheckField('direct')">
+        <option value="">- לא נקבע -</option>
+        <option value="check">צ'ק</option>
+        <option value="transfer">העברה בנקאית</option>
+        <option value="cash">מזומן</option>
+        <option value="credit">אשראי</option>
+      </select>
+    </div>
+    <div class="field" id="direct-check-field" hidden>
+      <label class="label">מספר צ'ק</label>
+      <input class="input" id="direct-check-number" type="text" placeholder="מספר הצ'ק" autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="label">הערות</label>
+      <input class="input" id="direct-notes" type="text" placeholder="הערות נוספות..." autocomplete="off">
+    </div>
+    <button class="btn-primary" onclick="confirmAddDirectDebt()">← הוסף חוב</button>
+    <button class="btn-secondary" onclick="closeModal('modal-add-direct')" style="margin-top:8px">ביטול</button>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Record Payment ═══ -->
+<div id="modal-record-payment" class="overlay" hidden onclick="if(event.target===this)closeModal('modal-record-payment')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2>רשום תשלום</h2>
+    <p class="hint" id="payment-modal-hint"></p>
+    <div class="field">
+      <label class="label">סכום *</label>
+      <input class="input" id="payment-amount" type="number" step="0.01" min="0.01" placeholder="0.00">
+    </div>
+    <div class="field">
+      <label class="label">תאריך תשלום</label>
+      <input class="input" id="payment-date" type="date">
+    </div>
+    <div class="field">
+      <label class="label">אופן תשלום</label>
+      <select class="input" id="payment-method" onchange="toggleCheckField('payment')">
+        <option value="">- לא נקבע -</option>
+        <option value="check">צ'ק</option>
+        <option value="transfer">העברה בנקאית</option>
+        <option value="cash">מזומן</option>
+        <option value="credit">אשראי</option>
+      </select>
+    </div>
+    <div class="field" id="payment-check-field" hidden>
+      <label class="label">מספר צ'ק / אסמכתא</label>
+      <input class="input" id="payment-reference" type="text" placeholder="מספר הצ'ק או אסמכתא" autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="label">הערות</label>
+      <input class="input" id="payment-notes" type="text" placeholder="הערות..." autocomplete="off">
+    </div>
+    <button class="btn-primary" onclick="confirmRecordPayment()">← רשום תשלום</button>
+    <button class="btn-secondary" onclick="closeModal('modal-record-payment')" style="margin-top:8px">ביטול</button>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Cancel Delivery Note ═══ -->
+<div id="modal-cancel-dn" class="overlay" hidden onclick="if(event.target===this)closeModal('modal-cancel-dn')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2>ביטול תעודת משלוח</h2>
+    <p class="hint" id="cancel-dn-hint"></p>
+    <div class="field">
+      <label class="label">סיבה (אופציונלי)</label>
+      <input class="input" id="cancel-dn-reason" type="text" placeholder="לדוגמה: הוחזרה, שגיאה..." autocomplete="off">
+    </div>
+    <button class="btn-danger" onclick="confirmCancelDN()">ביטול תעודה ✕</button>
+    <button class="btn-secondary" onclick="closeModal('modal-cancel-dn')" style="margin-top:8px">חזור</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast" hidden></div>
+
+<script>
+// ─── Constants ──────────────────────────────────────────────────────────────
+const STORE_KEY = 'payables-v1';
+const ORDERS_URL = 'https://script.google.com/macros/s/AKfycbxdXp4ZXpt2EAXYXHSKdjrNZRNFuAIiOEdyXktShtnSlRSYHXLoNlSyOf-LJYJkS7ndjw/exec';
+const TARI_URL   = 'https://script.google.com/macros/s/AKfycbzWpFmhtMf7uAUlRaI28RRlKPNo3nSjBiEWpO2AVJY7ycDIXqnxgCER4zPr-VGNmx9iMQ/exec';
+const GOOGLE_CLIENT_ID = '536002139707-9r2ruube0h3p5g8vau42e4ltnrj58vma.apps.googleusercontent.com';
+const ALLOWED_EMAILS = ['tomermazor@gmail.com', 'limor1987@gmail.com', 'tari@taribakfar.co.il'];
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let pv = {
+  taxInvoices: [],
+  debts: [],
+  cancelledDNIds: [],
+  _lastSynced: 0,
+  _localModified: 0
+};
+
+let allExpenses = [];         // loaded from tari-bakfar GAS
+let currentView = 'dashboard';
+let currentSupplierName = ''; // active supplier card
+let currentDebtId = '';       // active debt detail
+let debtFromSupplier = false; // whether debt was opened from supplier card
+let _linkDNSupplier = '';     // supplier name being linked
+let _cancelDNId = '';         // expense id being cancelled
+let _paymentDebtId = '';      // debt id being paid
+
+// ─── Storage ─────────────────────────────────────────────────────────────────
+function loadPv() {
+  try {
+    const s = localStorage.getItem(STORE_KEY);
+    if (s) pv = JSON.parse(s);
+  } catch(e) {}
+  if (!pv.taxInvoices)    pv.taxInvoices = [];
+  if (!pv.debts)          pv.debts = [];
+  if (!pv.cancelledDNIds) pv.cancelledDNIds = [];
+  if (!pv._lastSynced)    pv._lastSynced = 0;
+  if (!pv._localModified) pv._localModified = 0;
+}
+
+function savePv(dirty) {
+  if (dirty) pv._localModified = Date.now();
+  localStorage.setItem(STORE_KEY, JSON.stringify(pv));
+}
+
+// ─── Cloud Sync ───────────────────────────────────────────────────────────────
+async function cloudCall(action, payload) {
+  const res = await fetch(ORDERS_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, ...payload }),
+    headers: { 'Content-Type': 'text/plain' }
+  });
+  const json = JSON.parse(await res.text());
+  if (!json.ok) throw new Error(json.error || 'Cloud error');
+  return json.data;
+}
+
+async function syncPayables() {
+  try {
+    setSyncDot('syncing');
+    const hasPending = pv._localModified > pv._lastSynced;
+    if (hasPending) {
+      await cloudCall('save_payables', { payload: pv });
+      pv._lastSynced = Date.now();
+      savePv();
+    } else {
+      const cloud = await cloudCall('list_payables', {});
+      if (cloud && typeof cloud === 'object') {
+        const prevStr = JSON.stringify(pv);
+        pv = { ...pv, ...cloud };
+        pv._lastSynced = Date.now();
+        pv._localModified = pv._lastSynced;
+        savePv();
+        if (JSON.stringify(pv) !== prevStr && currentView === 'dashboard') renderDashboard();
+      } else if (pv.debts.length > 0 || pv.taxInvoices.length > 0) {
+        await cloudCall('save_payables', { payload: pv });
+        pv._lastSynced = Date.now();
+        pv._localModified = pv._lastSynced;
+        savePv();
+      }
+    }
+    setSyncDot('ok');
+  } catch(e) {
+    setSyncDot('err');
+    console.log('Sync payables failed:', e.message);
+  }
+}
+
+async function pushPayables() {
+  try {
+    setSyncDot('syncing');
+    await cloudCall('save_payables', { payload: pv });
+    pv._lastSynced = Date.now();
+    savePv();
+    setSyncDot('ok');
+  } catch(e) {
+    setSyncDot('err');
+    console.warn('Push payables failed:', e.message);
+  }
+}
+
+function setSyncDot(status) {
+  const dot = document.getElementById('sync-dot');
+  if (!dot) return;
+  dot.style.background = status === 'ok' ? '#8fc650' : status === 'syncing' ? '#f4b942' : '#dc6262';
+  dot.title = status === 'ok' ? 'מסונכרן' : status === 'syncing' ? 'מסנכרן...' : 'שגיאת סנכרון';
+}
+
+async function triggerSync() {
+  const btn = document.getElementById('sync-top-btn');
+  if (btn) btn.classList.add('spinning');
+  try {
+    setSyncDot('syncing');
+    await Promise.all([loadExpenses(), pushPayables()]);
+    setSyncDot('ok');
+    if (btn) { btn.classList.remove('spinning'); btn.textContent = '✓'; setTimeout(() => { btn.textContent = '🔄'; }, 1500); }
+    toast('סנכרון הושלם ✓', 'success');
+    if (currentView === 'dashboard') renderDashboard();
+    else if (currentView === 'supplier') renderSupplierCard(currentSupplierName);
+  } catch(e) {
+    setSyncDot('err');
+    if (btn) btn.classList.remove('spinning');
+    toast('סנכרון נכשל', 'error');
+  }
+}
+
+// ─── Load Expenses from tari-bakfar ──────────────────────────────────────────
+async function loadExpenses() {
+  try {
+    const res = await fetch(TARI_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'list_expenses' }),
+      headers: { 'Content-Type': 'text/plain' }
+    });
+    const json = JSON.parse(await res.text());
+    if (json.ok && Array.isArray(json.data)) {
+      allExpenses = json.data;
+    }
+  } catch(e) {
+    console.log('Load expenses failed:', e.message);
+  }
+}
+
+// ─── Data Helpers ─────────────────────────────────────────────────────────────
+function normName(s) { return (s || '').trim(); }
+
+function getDeliveryNotes(supplierName) {
+  const n = normName(supplierName).toLowerCase();
+  return allExpenses.filter(e =>
+    e.document_type === 'תעודת משלוח' &&
+    normName(e.supplier).toLowerCase() === n
+  );
+}
+
+function getOpenDNs(supplierName) {
+  const linkedIds = new Set();
+  pv.taxInvoices.forEach(ti => ti.deliveryNoteIds.forEach(id => linkedIds.add(id)));
+  const cancelledIds = new Set(pv.cancelledDNIds);
+  return getDeliveryNotes(supplierName).filter(e =>
+    !linkedIds.has(e.id) && !cancelledIds.has(e.id)
+  );
+}
+
+function getSupplierDebts(supplierName) {
+  const n = normName(supplierName).toLowerCase();
+  return pv.debts.filter(d => normName(d.supplierName).toLowerCase() === n);
+}
+
+function getSupplierDebt(supplierName) {
+  return getSupplierDebts(supplierName)
+    .filter(d => d.status === 'open' || d.status === 'partial')
+    .reduce((sum, d) => sum + (d.totalAmount - d.paidAmount), 0);
+}
+
+function today() { return new Date().toISOString().split('T')[0]; }
+
+function isOverdue(debt) {
+  if (!debt.dueDate) return false;
+  if (debt.status === 'paid' || debt.status === 'cancelled') return false;
+  return debt.dueDate < today();
+}
+
+function isDueThisWeek(debt) {
+  if (!debt.dueDate) return false;
+  if (debt.status === 'paid' || debt.status === 'cancelled') return false;
+  const t = today();
+  const weekOut = new Date(); weekOut.setDate(weekOut.getDate() + 7);
+  const weekStr = weekOut.toISOString().split('T')[0];
+  return debt.dueDate >= t && debt.dueDate <= weekStr;
+}
+
+function getAllSuppliers() {
+  const names = new Set();
+  allExpenses.forEach(e => { if (normName(e.supplier)) names.add(normName(e.supplier)); });
+  pv.debts.forEach(d => { if (normName(d.supplierName)) names.add(normName(d.supplierName)); });
+  pv.taxInvoices.forEach(ti => { if (normName(ti.supplierName)) names.add(normName(ti.supplierName)); });
+  return Array.from(names).sort();
+}
+
+function getDebtDueClass(debt) {
+  if (isOverdue(debt)) return 'overdue';
+  if (isDueThisWeek(debt)) return 'week';
+  return 'ok';
+}
+
+function methodLabel(m) {
+  return { check: "צ'ק", transfer: 'העברה', cash: 'מזומן', credit: 'אשראי' }[m] || '-';
+}
+
+function statusLabel(s) {
+  return { open: 'פתוח', partial: 'שולם חלקית', paid: 'שולם', cancelled: 'בוטל' }[s] || s;
+}
+
+// ─── View Routing ─────────────────────────────────────────────────────────────
+function show(view) {
+  currentView = view;
+  ['dashboard','supplier','debt'].forEach(v =>
+    document.getElementById('view-' + v).hidden = (v !== view)
+  );
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+function renderDashboard() {
+  show('dashboard');
+
+  const allDebts = pv.debts;
+  const t = today();
+  const weekOut = new Date(); weekOut.setDate(weekOut.getDate() + 7);
+  const weekStr = weekOut.toISOString().split('T')[0];
+
+  let overdueTotal = 0, weekTotal = 0, futureTotal = 0, grandTotal = 0;
+  allDebts.forEach(d => {
+    if (d.status === 'paid' || d.status === 'cancelled') return;
+    const rem = d.totalAmount - d.paidAmount;
+    grandTotal += rem;
+    if (d.dueDate && d.dueDate < t) overdueTotal += rem;
+    else if (d.dueDate && d.dueDate >= t && d.dueDate <= weekStr) weekTotal += rem;
+    else futureTotal += rem;
+  });
+
+  const suppliers = getAllSuppliers();
+  document.getElementById('dashboard-sub').textContent =
+    suppliers.length ? suppliers.length + ' ספקים' : 'אין נתונים עדיין';
+
+  const main = document.getElementById('dashboard-main');
+
+  // Summary cards
+  const cards = `
+    <div class="summary-grid fade-up">
+      <div class="summary-card overdue">
+        <div class="summary-card-label">🔴 מאחר</div>
+        <div class="summary-card-amount">${fmtMoney(overdueTotal)}</div>
+      </div>
+      <div class="summary-card week">
+        <div class="summary-card-label">🟡 השבוע</div>
+        <div class="summary-card-amount">${fmtMoney(weekTotal)}</div>
+      </div>
+      <div class="summary-card future">
+        <div class="summary-card-label">🟢 עתידי</div>
+        <div class="summary-card-amount">${fmtMoney(futureTotal)}</div>
+      </div>
+      <div class="summary-card total">
+        <div class="summary-card-label">📊 סה"כ חוב</div>
+        <div class="summary-card-amount">${fmtMoney(grandTotal)}</div>
+      </div>
+    </div>`;
+
+  // Supplier list sorted by highest debt
+  const supplierRows = suppliers
+    .map(name => {
+      const debt = getSupplierDebt(name);
+      const debts = getSupplierDebts(name);
+      const openDNs = getOpenDNs(name);
+      let pillClass = 'gray', pillText = 'אין חוב';
+      if (debt > 0) {
+        if (debts.some(isOverdue)) { pillClass = 'overdue'; pillText = '🔴 מאחר'; }
+        else if (debts.some(isDueThisWeek)) { pillClass = 'week'; pillText = '🟡 השבוע'; }
+        else { pillClass = 'ok'; pillText = '🟢 תקין'; }
+      }
+      return { name, debt, openDNs: openDNs.length, pillClass, pillText };
+    })
+    .sort((a, b) => b.debt - a.debt);
+
+  if (!supplierRows.length) {
+    main.innerHTML = cards + `
+      <div class="empty fade-up">
+        <div class="empty-icon">📒</div>
+        <div class="empty-title">אין ספקים עדיין</div>
+        <div class="empty-desc">הוסף חוב ישיר או סנכרן הוצאות<br>כדי להתחיל לעקוב אחר חובות</div>
+      </div>`;
+    return;
+  }
+
+  const rows = supplierRows.map((s, i) => `
+    <div class="debt-supplier-row fade-up" style="animation-delay:${i*.04}s" onclick="openSupplierCard('${esc(s.name)}')">
+      <div class="debt-supplier-icon">🏭</div>
+      <div class="debt-supplier-info">
+        <div class="debt-supplier-name">${esc(s.name)}</div>
+        <div class="debt-supplier-meta">${s.openDNs > 0 ? `${s.openDNs} תעודות פתוחות · ` : ''}${getSupplierDebts(s.name).filter(d => d.status !== 'cancelled').length} חשבוניות</div>
+      </div>
+      ${s.debt > 0 ? `<div class="supplier-debt-amount" style="color:var(--danger)">${fmtMoney(s.debt)}</div>` : ''}
+      <span class="status-pill ${s.pillClass}">${s.pillText}</span>
+    </div>`).join('');
+
+  main.innerHTML = cards + `<div class="section-title">ספקים</div>` + rows;
+}
+
+// ─── SUPPLIER CARD ────────────────────────────────────────────────────────────
+function openSupplierCard(name) {
+  currentSupplierName = name;
+  renderSupplierCard(name);
+  show('supplier');
+}
+
+function renderSupplierCard(name) {
+  document.getElementById('supplier-title').textContent = name;
+  const totalOwed = getSupplierDebt(name);
+  document.getElementById('supplier-owed-badge').textContent =
+    totalOwed > 0 ? `חוב: ${fmtMoney(totalOwed)}` : 'אין חוב פעיל';
+
+  const openDNs = getOpenDNs(name);
+  const invoices = pv.taxInvoices.filter(ti => normName(ti.supplierName).toLowerCase() === normName(name).toLowerCase());
+  const debts = getSupplierDebts(name);
+
+  const main = document.getElementById('supplier-main');
+
+  // Section: open delivery notes
+  let dnSection = `<div class="section-title">תעודות משלוח פתוחות</div>`;
+  if (!openDNs.length) {
+    dnSection += `<div style="text-align:center;padding:16px 0;font-size:13px;color:var(--textDim)">✅ כל התעודות שויכו</div>`;
+  } else {
+    dnSection += openDNs.map(dn => `
+      <div class="dn-row fade-up">
+        <div class="dn-row-info">
+          <div class="dn-row-num">תעודה ${esc(dn.document_number || '—')}</div>
+          <div class="dn-row-date">${esc(dn.date || '')}</div>
+        </div>
+        <div class="dn-row-amount">${fmtMoney(dn.total_amount || 0)}</div>
+        <button class="dn-cancel-btn" onclick="openCancelDN('${esc(dn.id)}')" title="סמן כבוטלת">✕</button>
+      </div>`).join('');
+
+    dnSection += `<button onclick="openLinkDN('${esc(name)}')" style="width:100%;border:1px solid rgba(143,198,80,0.35);border-radius:12px;padding:12px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;background:rgba(143,198,80,0.08);color:var(--accent);margin-top:6px">🔗 שייך לחשבונית</button>`;
+  }
+
+  // Section: tax invoices
+  let invSection = `<div class="section-title">חשבוניות מס</div>`;
+  if (!invoices.length) {
+    invSection += `<div style="text-align:center;padding:16px 0;font-size:13px;color:var(--textDim)">אין חשבוניות מס</div>`;
+  } else {
+    invSection += invoices.map(ti => {
+      const linkedDebt = pv.debts.find(d => d.invoiceId === ti.id);
+      return `
+        <div class="invoice-row fade-up">
+          <div class="invoice-row-top">
+            <div class="invoice-row-num">חשבונית ${esc(ti.invoiceNumber)}</div>
+            <div class="invoice-row-date">${esc(ti.date || '')}</div>
+            <div class="invoice-row-amount">${fmtMoney(ti.totalAmount || 0)}</div>
+            ${linkedDebt
+              ? `<button class="btn-create-debt" onclick="openDebtDetail('${linkedDebt.id}')">פרטים ←</button>`
+              : `<button class="btn-create-debt" onclick="createDebtFromInvoice('${ti.id}')">צור חוב</button>`}
+          </div>
+          <div class="invoice-row-meta">${ti.deliveryNoteIds.length} תעודות משלוח${ti.notes ? ' · ' + esc(ti.notes) : ''}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // Section: debts
+  let debtSection = `<div class="section-title">חובות</div>`;
+  const activeDebts = debts.filter(d => d.status !== 'cancelled');
+  if (!activeDebts.length) {
+    debtSection += `<div style="text-align:center;padding:16px 0;font-size:13px;color:var(--textDim)">אין חובות</div>`;
+  } else {
+    debtSection += activeDebts.map(d => {
+      const rem = d.totalAmount - d.paidAmount;
+      const dueClass = getDebtDueClass(d);
+      return `
+        <div class="debt-card fade-up" onclick="openDebtDetail('${d.id}')">
+          <div class="debt-card-header">
+            <div class="debt-card-row1">
+              <div class="debt-card-inv">חשבונית ${esc(d.invoiceNumber)}</div>
+              <span class="status-pill ${d.status}">${statusLabel(d.status)}</span>
+            </div>
+            <div class="debt-card-date">${esc(d.invoiceNumber)} · ${esc(d.createdAt ? d.createdAt.split('T')[0] : '')}</div>
+            <div class="debt-card-amounts" style="margin-top:6px">
+              <span class="debt-card-total">${fmtMoney(d.totalAmount)}</span>
+              <span>שולם: ${fmtMoney(d.paidAmount)}</span>
+              <span style="color:var(--danger);font-weight:700">נותר: ${fmtMoney(rem)}</span>
+            </div>
+            ${d.dueDate ? `<div class="debt-card-due ${dueClass}" style="margin-top:6px">📅 ${esc(d.dueDate)}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  main.innerHTML = dnSection + invSection + debtSection +
+    `<div style="height:20px"></div>
+     <button onclick="openAddDirectDebt('${esc(name)}')" style="width:100%;border:1px dashed rgba(143,198,80,0.3);border-radius:12px;padding:12px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:rgba(143,198,80,0.04);color:var(--accent)">+ הוסף חוב ישיר לספק זה</button>`;
+}
+
+// ─── DEBT DETAIL ──────────────────────────────────────────────────────────────
+function openDebtDetail(debtId) {
+  currentDebtId = debtId;
+  debtFromSupplier = (currentView === 'supplier');
+  renderDebtDetail(debtId);
+  show('debt');
+}
+
+function backFromDebt() {
+  if (debtFromSupplier) {
+    renderSupplierCard(currentSupplierName);
+    show('supplier');
+  } else {
+    renderDashboard();
+    show('dashboard');
+  }
+}
+
+function renderDebtDetail(debtId) {
+  const debt = pv.debts.find(d => d.id === debtId);
+  if (!debt) { backFromDebt(); return; }
+
+  document.getElementById('debt-title').textContent = 'חוב #' + debt.invoiceNumber;
+  document.getElementById('debt-supplier-sub').textContent = debt.supplierName;
+
+  const rem = debt.totalAmount - debt.paidAmount;
+  const pct = debt.totalAmount > 0 ? Math.min(100, (debt.paidAmount / debt.totalAmount) * 100) : 0;
+  const dueClass = getDebtDueClass(debt);
+
+  // Info block
+  const infoBlock = `
+    <div class="info-block">
+      <div class="info-row">
+        <span class="info-label">ספק</span>
+        <span class="info-value">${esc(debt.supplierName)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">חשבונית</span>
+        <span class="info-value">${esc(debt.invoiceNumber)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">סכום</span>
+        <span class="info-value">${fmtMoney(debt.totalAmount)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">לתשלום עד</span>
+        <span class="info-value editable" onclick="editDueDate('${debt.id}')">
+          ${debt.dueDate ? `<span class="debt-card-due ${dueClass}">${esc(debt.dueDate)}</span>` : '<span style="color:var(--textMuted)">לא נקבע — לחץ לקביעה</span>'}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">אופן תשלום</span>
+        <span class="info-value editable" onclick="editPaymentMethod('${debt.id}')">
+          ${debt.paymentMethod ? methodLabel(debt.paymentMethod) : '<span style="color:var(--textMuted)">לא נקבע</span>'}
+        </span>
+      </div>
+      ${debt.paymentMethod === 'check' ? `
+      <div class="info-row">
+        <span class="info-label">מס' צ'ק</span>
+        <span class="info-value editable" onclick="editCheckNumber('${debt.id}')">${debt.checkNumber || '<span style=\'color:var(--textMuted)\'>לחץ להזנה</span>'}</span>
+      </div>` : ''}
+      ${debt.notes ? `
+      <div class="info-row">
+        <span class="info-label">הערות</span>
+        <span class="info-value">${esc(debt.notes)}</span>
+      </div>` : ''}
+      <div class="info-row">
+        <span class="info-label">סטטוס</span>
+        <span class="status-pill ${debt.status}">${statusLabel(debt.status)}</span>
+      </div>
+    </div>`;
+
+  // Progress bar
+  const progressBlock = `
+    <div class="progress-wrap">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:700">התקדמות תשלום</span>
+        <span class="status-pill ${debt.status}">${statusLabel(debt.status)}</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width:${pct.toFixed(1)}%"></div>
+      </div>
+      <div class="progress-labels">
+        <span class="progress-paid">שולם: ${fmtMoney(debt.paidAmount)}</span>
+        <span>נותר: <strong style="color:var(--danger)">${fmtMoney(rem)}</strong></span>
+        <span>סה"כ: ${fmtMoney(debt.totalAmount)}</span>
+      </div>
+    </div>`;
+
+  // Payments history
+  let paymentsBlock = `<div class="section-title">היסטוריית תשלומים</div>`;
+  if (!debt.payments || !debt.payments.length) {
+    paymentsBlock += `<div style="text-align:center;padding:12px 0;font-size:13px;color:var(--textDim)">אין תשלומים עדיין</div>`;
+  } else {
+    paymentsBlock += debt.payments.map(p => `
+      <div class="payment-row fade-up">
+        <div class="payment-row-info">
+          <div class="payment-row-date">${esc(p.date)}</div>
+          <div class="payment-row-method">${methodLabel(p.method)}${p.reference ? ' · ' + esc(p.reference) : ''}${p.notes ? ' · ' + esc(p.notes) : ''}</div>
+        </div>
+        <div class="payment-row-amount">${fmtMoney(p.amount)}</div>
+      </div>`).join('');
+  }
+
+  // Action buttons
+  const actions = `
+    <div style="margin-top:20px;display:flex;flex-direction:column;gap:8px">
+      ${debt.status !== 'paid' && debt.status !== 'cancelled' ? `<button class="btn-primary" onclick="openRecordPayment('${debt.id}')">רשום תשלום 💳</button>` : ''}
+      ${debt.status !== 'cancelled' ? `<button class="btn-danger" onclick="cancelDebt('${debt.id}')">בטל חוב ✕</button>` : ''}
+    </div>`;
+
+  document.getElementById('debt-main').innerHTML = infoBlock + progressBlock + paymentsBlock + actions;
+}
+
+// ─── Inline Edit Helpers ──────────────────────────────────────────────────────
+function editDueDate(debtId) {
+  const debt = pv.debts.find(d => d.id === debtId);
+  if (!debt) return;
+  const val = prompt('תאריך לתשלום (YYYY-MM-DD):', debt.dueDate || '');
+  if (val === null) return;
+  debt.dueDate = val.trim() || null;
+  savePv(true); pushPayables();
+  renderDebtDetail(debtId);
+}
+
+function editPaymentMethod(debtId) {
+  const debt = pv.debts.find(d => d.id === debtId);
+  if (!debt) return;
+  const opts = ["'' (לא נקבע)", "check (צ'ק)", "transfer (העברה)", "cash (מזומן)", "credit (אשראי)"];
+  const val = prompt('אופן תשלום:\n' + opts.join('\n') + '\n\nהזן: check / transfer / cash / credit / ריק', debt.paymentMethod || '');
+  if (val === null) return;
+  const m = val.trim().split(' ')[0];
+  debt.paymentMethod = ['check','transfer','cash','credit'].includes(m) ? m : '';
+  if (debt.paymentMethod !== 'check') debt.checkNumber = '';
+  savePv(true); pushPayables();
+  renderDebtDetail(debtId);
+}
+
+function editCheckNumber(debtId) {
+  const debt = pv.debts.find(d => d.id === debtId);
+  if (!debt) return;
+  const val = prompt("מספר צ'ק:", debt.checkNumber || '');
+  if (val === null) return;
+  debt.checkNumber = val.trim();
+  savePv(true); pushPayables();
+  renderDebtDetail(debtId);
+}
+
+// ─── Link DN to Invoice ───────────────────────────────────────────────────────
+function openLinkDN(supplierName) {
+  _linkDNSupplier = supplierName;
+  document.getElementById('link-dn-supplier-hint').textContent = 'ספק: ' + supplierName;
+  document.getElementById('link-dn-step1').hidden = false;
+  document.getElementById('link-dn-step2').hidden = true;
+
+  // Populate checklist
+  const openDNs = getOpenDNs(supplierName);
+  const checklist = document.getElementById('link-dn-checklist');
+  if (!openDNs.length) {
+    checklist.innerHTML = `<div style="text-align:center;padding:16px;color:var(--textDim);font-size:13px">אין תעודות פתוחות</div>`;
+  } else {
+    checklist.innerHTML = openDNs.map(dn => `
+      <label class="dn-check-row">
+        <input type="checkbox" class="dn-check" value="${esc(dn.id)}" data-amount="${dn.total_amount || 0}" onchange="updateLinkDNTotal()">
+        <div class="dn-check-row-info">
+          <div class="dn-check-row-num">תעודה ${esc(dn.document_number || '—')}</div>
+          <div class="dn-check-row-date">${esc(dn.date || '')}</div>
+        </div>
+        <div class="dn-check-row-amount">${fmtMoney(dn.total_amount || 0)}</div>
+      </label>`).join('');
+  }
+  updateLinkDNTotal();
+  document.getElementById('modal-link-dn').hidden = false;
+}
+
+function updateLinkDNTotal() {
+  let total = 0;
+  document.querySelectorAll('#link-dn-checklist input[type=checkbox]:checked').forEach(cb => {
+    total += parseFloat(cb.dataset.amount) || 0;
+  });
+  document.getElementById('link-dn-total').textContent = 'סה"כ נבחר: ' + fmtMoney(total);
+  return total;
+}
+
+function goLinkDNStep2() {
+  const checked = document.querySelectorAll('#link-dn-checklist input[type=checkbox]:checked');
+  if (!checked.length) { toast('בחר לפחות תעודה אחת', 'error'); return; }
+  const total = updateLinkDNTotal();
+
+  // Pre-fill invoice form
+  document.getElementById('link-inv-number').value = '';
+  document.getElementById('link-inv-date').value = today();
+  document.getElementById('link-inv-amount').value = total.toFixed(2);
+  document.getElementById('link-inv-due').value = '';
+  document.getElementById('link-inv-method').value = '';
+  document.getElementById('link-inv-check').value = '';
+  document.getElementById('link-inv-notes').value = '';
+  document.getElementById('link-check-field').hidden = true;
+
+  document.getElementById('link-inv-method').onchange = () => {
+    document.getElementById('link-check-field').hidden = document.getElementById('link-inv-method').value !== 'check';
+  };
+
+  document.getElementById('link-dn-step1').hidden = true;
+  document.getElementById('link-dn-step2').hidden = false;
+}
+
+function confirmLinkDN() {
+  const invNum = document.getElementById('link-inv-number').value.trim();
+  if (!invNum) { document.getElementById('link-inv-number').focus(); toast('הזן מספר חשבונית', 'error'); return; }
+
+  const checkedIds = Array.from(document.querySelectorAll('#link-dn-checklist input[type=checkbox]:checked')).map(cb => cb.value);
+  const amount = parseFloat(document.getElementById('link-inv-amount').value) || 0;
+  if (amount <= 0) { document.getElementById('link-inv-amount').focus(); toast('הזן סכום', 'error'); return; }
+
+  const method = document.getElementById('link-inv-method').value;
+
+  const taxInvoice = {
+    id: uid(),
+    supplierName: normName(_linkDNSupplier),
+    invoiceNumber: invNum,
+    date: document.getElementById('link-inv-date').value || today(),
+    totalAmount: amount,
+    deliveryNoteIds: checkedIds,
+    imageUrl: null,
+    notes: document.getElementById('link-inv-notes').value.trim(),
+    createdAt: new Date().toISOString()
+  };
+
+  const debt = {
+    id: uid(),
+    supplierName: normName(_linkDNSupplier),
+    invoiceId: taxInvoice.id,
+    invoiceNumber: invNum,
+    totalAmount: amount,
+    paidAmount: 0,
+    dueDate: document.getElementById('link-inv-due').value || null,
+    paymentMethod: method,
+    checkNumber: method === 'check' ? document.getElementById('link-inv-check').value.trim() : '',
+    status: 'open',
+    payments: [],
+    notes: document.getElementById('link-inv-notes').value.trim(),
+    createdAt: new Date().toISOString()
+  };
+
+  pv.taxInvoices.push(taxInvoice);
+  pv.debts.push(debt);
+  savePv(true);
+  pushPayables();
+  closeModal('modal-link-dn');
+  toast(`חשבונית נוצרה ✓ — חוב ${fmtMoney(amount)} נוסף`, 'success');
+  renderSupplierCard(_linkDNSupplier);
+}
+
+// ─── Add Direct Debt ──────────────────────────────────────────────────────────
+function openAddDirectDebt(prefillSupplier) {
+  // Populate datalist
+  const dl = document.getElementById('supplier-datalist');
+  dl.innerHTML = getAllSuppliers().map(n => `<option value="${esc(n)}">`).join('');
+
+  document.getElementById('direct-supplier').value = prefillSupplier || '';
+  document.getElementById('direct-inv-number').value = '';
+  document.getElementById('direct-inv-date').value = today();
+  document.getElementById('direct-amount').value = '';
+  document.getElementById('direct-due-date').value = '';
+  document.getElementById('direct-method').value = '';
+  document.getElementById('direct-check-number').value = '';
+  document.getElementById('direct-notes').value = '';
+  document.getElementById('direct-check-field').hidden = true;
+  document.getElementById('modal-add-direct').hidden = false;
+  setTimeout(() => {
+    const inp = document.getElementById(prefillSupplier ? 'direct-inv-number' : 'direct-supplier');
+    if (inp) inp.focus();
+  }, 120);
+}
+
+function confirmAddDirectDebt() {
+  const supplierName = document.getElementById('direct-supplier').value.trim();
+  if (!supplierName) { document.getElementById('direct-supplier').focus(); toast('הזן שם ספק', 'error'); return; }
+  const invNum = document.getElementById('direct-inv-number').value.trim();
+  if (!invNum) { document.getElementById('direct-inv-number').focus(); toast('הזן מספר חשבונית', 'error'); return; }
+  const amount = parseFloat(document.getElementById('direct-amount').value);
+  if (!amount || amount <= 0) { document.getElementById('direct-amount').focus(); toast('הזן סכום', 'error'); return; }
+
+  const method = document.getElementById('direct-method').value;
+
+  const debt = {
+    id: uid(),
+    supplierName: normName(supplierName),
+    invoiceId: null,
+    invoiceNumber: invNum,
+    totalAmount: amount,
+    paidAmount: 0,
+    dueDate: document.getElementById('direct-due-date').value || null,
+    paymentMethod: method,
+    checkNumber: method === 'check' ? document.getElementById('direct-check-number').value.trim() : '',
+    status: 'open',
+    payments: [],
+    notes: document.getElementById('direct-notes').value.trim(),
+    createdAt: new Date().toISOString()
+  };
+
+  pv.debts.push(debt);
+  savePv(true);
+  pushPayables();
+  closeModal('modal-add-direct');
+  toast('חוב נוסף ✓', 'success');
+  renderDashboard();
+}
+
+// ─── Record Payment ───────────────────────────────────────────────────────────
+function openRecordPayment(debtId) {
+  _paymentDebtId = debtId;
+  const debt = pv.debts.find(d => d.id === debtId);
+  if (!debt) return;
+  const rem = Math.max(0, debt.totalAmount - debt.paidAmount);
+
+  document.getElementById('payment-modal-hint').textContent =
+    `חשבונית ${debt.invoiceNumber} · נותר לתשלום: ${fmtMoney(rem)}`;
+  document.getElementById('payment-amount').value = rem.toFixed(2);
+  document.getElementById('payment-date').value = today();
+  document.getElementById('payment-method').value = debt.paymentMethod || '';
+  document.getElementById('payment-reference').value = debt.checkNumber || '';
+  document.getElementById('payment-notes').value = '';
+  document.getElementById('payment-check-field').hidden = debt.paymentMethod !== 'check';
+  document.getElementById('modal-record-payment').hidden = false;
+}
+
+function confirmRecordPayment() {
+  const amount = parseFloat(document.getElementById('payment-amount').value);
+  if (!amount || amount <= 0) { document.getElementById('payment-amount').focus(); toast('הזן סכום', 'error'); return; }
+
+  const debt = pv.debts.find(d => d.id === _paymentDebtId);
+  if (!debt) return;
+
+  const method = document.getElementById('payment-method').value;
+  const payment = {
+    id: uid(),
+    amount,
+    date: document.getElementById('payment-date').value || today(),
+    method,
+    reference: method === 'check' ? document.getElementById('payment-reference').value.trim() : document.getElementById('payment-reference').value.trim(),
+    notes: document.getElementById('payment-notes').value.trim()
+  };
+
+  if (!debt.payments) debt.payments = [];
+  debt.payments.push(payment);
+  debt.paidAmount = (debt.paidAmount || 0) + amount;
+  if (debt.paymentMethod !== method && method) debt.paymentMethod = method;
+
+  // Update status
+  if (debt.paidAmount >= debt.totalAmount) {
+    debt.status = 'paid';
+  } else {
+    debt.status = 'partial';
+  }
+
+  savePv(true);
+  pushPayables();
+  closeModal('modal-record-payment');
+  toast(`תשלום ${fmtMoney(amount)} נרשם ✓`, 'success');
+  renderDebtDetail(_paymentDebtId);
+}
+
+// ─── Cancel Delivery Note ─────────────────────────────────────────────────────
+function openCancelDN(expenseId) {
+  _cancelDNId = expenseId;
+  const exp = allExpenses.find(e => e.id === expenseId);
+  document.getElementById('cancel-dn-hint').textContent =
+    exp ? `תעודה ${exp.document_number || ''} — ${exp.supplier || ''} — ${fmtMoney(exp.total_amount || 0)}` : 'תעודת משלוח';
+  document.getElementById('cancel-dn-reason').value = '';
+  document.getElementById('modal-cancel-dn').hidden = false;
+}
+
+function confirmCancelDN() {
+  if (!_cancelDNId) return;
+  if (!pv.cancelledDNIds.includes(_cancelDNId)) {
+    pv.cancelledDNIds.push(_cancelDNId);
+  }
+  savePv(true);
+  pushPayables();
+  closeModal('modal-cancel-dn');
+  toast('תעודה סומנה כבוטלת ✓');
+  renderSupplierCard(currentSupplierName);
+  _cancelDNId = '';
+}
+
+// ─── Cancel Debt ──────────────────────────────────────────────────────────────
+function cancelDebt(debtId) {
+  const debt = pv.debts.find(d => d.id === debtId);
+  if (!debt) return;
+  if (!confirm(`לבטל את חוב חשבונית ${debt.invoiceNumber} של ${debt.supplierName}?`)) return;
+  debt.status = 'cancelled';
+  savePv(true);
+  pushPayables();
+  toast('חוב בוטל');
+  renderDebtDetail(debtId);
+}
+
+// ─── Create Debt from Existing Tax Invoice ────────────────────────────────────
+function createDebtFromInvoice(invoiceId) {
+  const ti = pv.taxInvoices.find(t => t.id === invoiceId);
+  if (!ti) return;
+  const debt = {
+    id: uid(),
+    supplierName: ti.supplierName,
+    invoiceId: invoiceId,
+    invoiceNumber: ti.invoiceNumber,
+    totalAmount: ti.totalAmount,
+    paidAmount: 0,
+    dueDate: null,
+    paymentMethod: '',
+    checkNumber: '',
+    status: 'open',
+    payments: [],
+    notes: ti.notes || '',
+    createdAt: new Date().toISOString()
+  };
+  pv.debts.push(debt);
+  savePv(true);
+  pushPayables();
+  toast('חוב נוצר ✓', 'success');
+  renderSupplierCard(ti.supplierName);
+}
+
+// ─── Toggle check number field visibility ─────────────────────────────────────
+function toggleCheckField(prefix) {
+  const method = document.getElementById(prefix + '-method').value;
+  document.getElementById(prefix + '-check-field').hidden = method !== 'check';
+}
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtMoney(n) {
+  const num = parseFloat(n) || 0;
+  return '₪' + num.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtDate(d) {
+  const days = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  return `יום ${days[d.getDay()]}, ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+
+function closeModal(id) { document.getElementById(id).hidden = true; }
+
+let toastTimer;
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.hidden = false;
+  el.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => { el.hidden = true; }, 400);
+  }, 2400);
+}
+
+// ─── Theme ────────────────────────────────────────────────────────────────────
+function initTheme() {
+  const t = localStorage.getItem('app-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
+}
+
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('app-theme', next);
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
+}
+
+// ─── Google Auth ──────────────────────────────────────────────────────────────
+function getStoredUser() {
+  try { return JSON.parse(localStorage.getItem('google-user') || 'null'); } catch(e) { return null; }
+}
+
+function isAllowed(email) {
+  const e = (email || '').trim().toLowerCase();
+  try {
+    const dynUsers = JSON.parse(localStorage.getItem('tari_users_v1') || 'null');
+    if (dynUsers && Array.isArray(dynUsers)) {
+      const u = dynUsers.find(x => x.email === e);
+      if (u) return u.role !== 'scanner';
+    }
+  } catch(ex) {}
+  return ALLOWED_EMAILS.some(a => a.trim().toLowerCase() === e);
+}
+
+function handleCredentialResponse(response) {
+  try {
+    const b64 = response.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const payload = JSON.parse(atob(b64));
+    if (!isAllowed(payload.email)) {
+      document.getElementById('login-err').textContent = '🚫 ' + payload.email + ' — אין הרשאה';
+      return;
+    }
+    localStorage.setItem('google-user', JSON.stringify({ email: payload.email, name: payload.name || payload.email, picture: payload.picture || '' }));
+    document.getElementById('login-screen').hidden = true;
+    initApp();
+  } catch(e) {
+    document.getElementById('login-err').textContent = 'שגיאה בהתחברות, נסה שנית';
+  }
+}
+
+function initGoogleSignIn() {
+  const loginScreen = document.getElementById('login-screen');
+  if (!loginScreen || loginScreen.hidden) return;
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredentialResponse, auto_select: true, cancel_on_tap_outside: false });
+  google.accounts.id.renderButton(document.getElementById('google-signin-btn'), { type:'standard', theme:'outline', size:'large', width:260 });
+  google.accounts.id.prompt();
+}
+
+function onGoogleScriptLoad() {
+  if (!document.getElementById('login-screen').hidden) initGoogleSignIn();
+}
+
+function logout() {
+  if (!confirm('להתנתק מהאפליקציה?')) return;
+  const user = getStoredUser();
+  localStorage.removeItem('google-user');
+  if (typeof google !== 'undefined' && user) google.accounts.id.revoke(user.email, () => {});
+  document.getElementById('app').hidden = true;
+  document.getElementById('login-screen').hidden = false;
+  document.getElementById('login-err').textContent = '';
+  setTimeout(initGoogleSignIn, 100);
+}
+
+// ─── App Init ─────────────────────────────────────────────────────────────────
+async function initApp() {
+  loadPv();
+  document.getElementById('app').hidden = false;
+  renderDashboard();
+
+  // Load expenses and sync in parallel, then re-render
+  loadExpenses().then(() => {
+    if (currentView === 'dashboard') renderDashboard();
+    else if (currentView === 'supplier') renderSupplierCard(currentSupplierName);
+  });
+
+  syncPayables();
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      loadExpenses().then(() => {
+        if (currentView === 'dashboard') renderDashboard();
+      });
+      syncPayables();
+    }
+  });
+}
+
+function checkAuth() {
+  const user = getStoredUser();
+  if (user && isAllowed(user.email)) {
+    initApp();
+  } else {
+    document.getElementById('login-screen').hidden = false;
+    if (typeof google !== 'undefined' && google.accounts) initGoogleSignIn();
+  }
+}
+
+// ─── Startup ──────────────────────────────────────────────────────────────────
+initTheme();
+checkAuth();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    reg.update();
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) { refreshing = true; window.location.reload(); }
+    });
+  }).catch(() => {});
+}
+</script>
+</body>
+</html>

@@ -67,6 +67,10 @@ function doPost(e) {
       case 'list_products':    result = listProducts(); break;
       case 'save_products':    result = saveProducts(data.payload); break;
 
+      // חובות ספקים
+      case 'list_payables':    result = listPayables(); break;
+      case 'save_payables':    result = savePayables(data.payload); break;
+
       // ממתין לאישור
       case 'list_pending':     result = listPending(); break;
       case 'save_pending':     result = savePending(data.payload); break;
@@ -385,6 +389,34 @@ function savePending(items) {
   ]);
   sheet.getRange(2, 1, rows.length, HEADERS.pending.length).setValues(rows);
   return { ok: true, rows: rows.length };
+}
+
+// ─── חובות ספקים ─────────────────────────────────────────────────────────────
+function listPayables() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('חובות');
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  const val = sheet.getRange(2, 1).getValue();
+  if (!val) return null;
+  try { return JSON.parse(val); } catch(e) { return null; }
+}
+
+function savePayables(payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('חובות');
+  if (!sheet) {
+    sheet = ss.insertSheet('חובות');
+    const hdr = sheet.getRange(1, 1);
+    hdr.setValue('payables_json');
+    hdr.setFontWeight('bold');
+    hdr.setBackground('#dc6262');
+    hdr.setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidth(1, 800);
+  }
+  if (sheet.getLastRow() < 2) sheet.appendRow(['']);
+  sheet.getRange(2, 1).setValue(JSON.stringify(payload));
+  return { ok: true };
 }
 
 // ─── פונקציית התקנה ראשונית - הרץ פעם אחת בלבד ───────────────────────────────
