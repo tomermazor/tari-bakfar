@@ -80,7 +80,15 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 
 /* Product rows (order screen) */
 .product-row { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:14px 16px; margin-bottom:10px; }
-.product-row-name { font-size:15px; font-weight:700; margin-bottom:12px; }
+.product-row-name { font-size:15px; font-weight:700; margin-bottom:12px; display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+.product-row-name-text { flex:1; min-width:0; }
+.transfer-btn { flex-shrink:0; border:1px solid var(--borderHi); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); transition:all 0.12s; white-space:nowrap; }
+.transfer-btn:active { background:var(--borderHi); color:var(--text); }
+.manual-item-row { background:var(--surface); border:1.5px dashed var(--borderHi); border-radius:16px; padding:12px 16px; margin-bottom:8px; }
+.manual-add-box { margin-top:16px; padding:14px 16px; background:var(--surface); border:1.5px dashed rgba(143,198,80,0.35); border-radius:14px; }
+.manual-section-header { font-size:10.5px; font-weight:700; color:var(--textDim); letter-spacing:.06em; text-transform:uppercase; margin:18px 0 10px; padding-top:16px; border-top:1px solid var(--border); }
+/* Transfer bottom sheet */
+.transfer-sheet-list { display:flex; flex-direction:column; gap:8px; margin-top:14px; max-height:50vh; overflow-y:auto; }
 .product-row-controls { display:flex; align-items:center; gap:10px; }
 .unit-toggle { flex-shrink:0; border:1px solid var(--border); border-radius:9px; padding:8px 12px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
 .unit-toggle.is-carton { background:rgba(212,165,116,0.12); color:var(--accent2); border-color:rgba(212,165,116,0.35); }
@@ -368,6 +376,18 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
   </div>
 </div>
 
+<!-- ═══ MODAL: Transfer Item ═══ -->
+<div id="modal-transfer" class="overlay" hidden onclick="closeModal('modal-transfer')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2 class="display" style="font-size:18px;margin:0 0 4px">⇄ העבר פריט לספק</h2>
+    <p class="hint" id="transfer-item-name" style="margin:0 0 4px;color:var(--accent);font-weight:700;font-size:14px"></p>
+    <p class="hint" style="margin:0 0 2px;font-size:12px">הכמות תתאפס אצל הספק הנוכחי</p>
+    <div class="transfer-sheet-list" id="transfer-supplier-list"></div>
+    <button class="btn-close-modal" onclick="closeModal('modal-transfer')" style="margin-top:10px">ביטול</button>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast" class="toast" hidden></div>
 
@@ -487,8 +507,10 @@ async function syncActiveOrders() {
 // ─── App State ─────────────────────────────────────────────────────────────
 let currentSupplierId = null;
 let manageFrom = 'home';       // 'home' | 'order'
-let orderState = {};           // { productId: { qty, unit } }
+let orderState = {};           // { productId: {qty,unit} | 'manual_xxx': {isManual,name,qty,unit} }
 let newProductUnit = 'קרטון'; // selected default unit in add-product form
+let _transferData = null;      // { pid, name } — item being transferred
+let manualAddState = { name: '', qty: 1, unit: 'קרטון' }; // free-text add form
 
 // ─── View Routing ──────────────────────────────────────────────────────────
 var currentView = 'home';
@@ -593,6 +615,7 @@ function hasDraftFor(supplierId) {
   return Object.keys(st).some(function(pid) {
     var v = st[pid];
     if (!v) return false;
+    if (v.isManual) return (parseInt(v.qty)||0) > 0;
     if (v.unit === 'both') return (parseInt(v.carton)||0) > 0 || (parseInt(v.units)||0) > 0;
     return (parseInt(v.qty)||0) > 0;
   });
@@ -614,6 +637,13 @@ function updateOrderCounter() {
       } else {
         totalUnits += parseInt(st.qty) || 0;
       }
+    });
+    // Count manual items too
+    Object.keys(orderState).filter(k => k.startsWith('manual_')).forEach(k => {
+      var st = orderState[k];
+      if (!st || !st.isManual) return;
+      if (st.unit === 'קרטון') totalCartons += parseInt(st.qty) || 0;
+      else totalUnits += parseInt(st.qty) || 0;
     });
   }
   var el = document.getElementById('order-counter');
@@ -692,12 +722,14 @@ function renderOrderProducts(sup, hasDraft) {
     </div>` : ''}
     ${activeProducts.map((p, i) => {
       const st = orderState[p.id] || (p.defaultUnit === 'both' ? { unit:'both', carton:'0', units:'0' } : { qty:'0', unit:p.defaultUnit });
+      const hasQty = st.unit==='both' ? ((parseInt(st.carton)||0)>0||(parseInt(st.units)||0)>0) : (parseInt(st.qty)||0)>0;
+      const transferBtn = `<button class="transfer-btn" onclick="openTransferSheet('${p.id}','${p.name.replace(/'/g,"\\'")}')" title="העבר לספק אחר">⇄</button>`;
       if (st.unit === 'both') {
         const qc = parseInt(st.carton) || 0;
         const qu = parseInt(st.units) || 0;
         return `
           <div class="product-row fade-up" id="pr-${p.id}" style="animation-delay:${i*.04}s">
-            <div class="product-row-name">${esc(p.name)}</div>
+            <div class="product-row-name"><span class="product-row-name-text">${esc(p.name)}</span>${transferBtn}</div>
             <div class="product-row-both">
               <div class="both-unit-row">
                 <span class="both-unit-label">📦 קרטון</span>
@@ -723,7 +755,7 @@ function renderOrderProducts(sup, hasDraft) {
       const qty = parseInt(st.qty) || 0;
       return `
         <div class="product-row fade-up" id="pr-${p.id}" style="animation-delay:${i*.04}s">
-          <div class="product-row-name">${esc(p.name)}</div>
+          <div class="product-row-name"><span class="product-row-name-text">${esc(p.name)}</span>${transferBtn}</div>
           <div class="product-row-controls">
             <button class="unit-toggle ${isCarton ? 'is-carton' : 'is-units'}"
                     id="ut-${p.id}" onclick="toggleUnit('${p.id}')">
@@ -738,6 +770,63 @@ function renderOrderProducts(sup, hasDraft) {
           <input class="product-row-note" id="note-${p.id}" type="text" placeholder="✏️ הערה למוצר..." value="${esc(st.notes||'')}" oninput="setProductNote('${p.id}',this.value)" autocomplete="off">
         </div>`;
     }).join('')}
+
+    ${(()=>{
+      // ── Manual items section ──────────────────────────────────────────────
+      const manualKeys = Object.keys(orderState).filter(k => k.startsWith('manual_'));
+      const manualHtml = manualKeys.length === 0 ? '' : `
+        <div class="manual-section-header">📝 פריטים ידניים (${manualKeys.length})</div>
+        ${manualKeys.map(mid => {
+          const st = orderState[mid];
+          if (!st || !st.isManual) return '';
+          const qty = parseInt(st.qty) || 0;
+          const isC = st.unit === 'קרטון';
+          return `
+            <div class="manual-item-row fade-up" id="pr-${mid}">
+              <div class="product-row-name">
+                <span class="product-row-name-text" style="font-size:14px">${esc(st.name)}</span>
+                <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+                  <button class="transfer-btn" onclick="openTransferSheet('${mid}','${st.name.replace(/'/g,"\\'")}')">⇄</button>
+                  <button onclick="removeManualItem('${mid}')" style="width:24px;height:24px;border:none;border-radius:6px;background:rgba(220,98,98,0.12);color:var(--danger);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+                </div>
+              </div>
+              <div class="product-row-controls">
+                <button class="unit-toggle ${isC?'is-carton':'is-units'}" id="ut-${mid}" onclick="toggleManualItemUnit('${mid}')">
+                  ${isC?'📦 קרטון':'🔢 יחידות'}
+                </button>
+                <div class="stepper">
+                  <button class="step-btn" onclick="stepManualItem('${mid}',-1)">−</button>
+                  <span class="step-val${qty===0?' zero':''}" id="qd-${mid}">${qty}</span>
+                  <button class="step-btn" onclick="stepManualItem('${mid}',1)">+</button>
+                </div>
+              </div>
+              ${st.notes?`<div style="font-size:11px;color:var(--textDim);margin-top:6px;padding:4px 0">${esc(st.notes)}</div>`:''}
+            </div>`;
+        }).join('')}`;
+
+      // ── Free-text add form ────────────────────────────────────────────────
+      const addForm = `
+        <div class="manual-add-box">
+          <div style="font-size:10.5px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">+ הוספת מוצר ידנית</div>
+          <input class="input" id="manual-name-inp" type="text" placeholder="שם המוצר..." value="${esc(manualAddState.name)}"
+            oninput="manualAddState.name=this.value"
+            onkeydown="if(event.key==='Enter')addManualProduct()"
+            autocomplete="off" style="margin-bottom:8px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="unit-toggle ${manualAddState.unit==='קרטון'?'is-carton':'is-units'}" id="manual-unit-btn"
+              onclick="manualAddState.unit=manualAddState.unit==='קרטון'?'יחידות':'קרטון';this.textContent=manualAddState.unit==='קרטון'?'📦 קרטון':'🔢 יחידות';this.className='unit-toggle '+(manualAddState.unit==='קרטון'?'is-carton':'is-units')"
+              style="flex-shrink:0">${manualAddState.unit==='קרטון'?'📦 קרטון':'🔢 יחידות'}</button>
+            <div class="stepper" style="flex-shrink:0">
+              <button class="step-btn" onclick="if(manualAddState.qty>1){manualAddState.qty--;var el=document.getElementById('manual-qty-val');if(el){el.textContent=manualAddState.qty;el.className='step-val'+(manualAddState.qty===0?' zero':'');}}">−</button>
+              <span class="step-val" id="manual-qty-val">${manualAddState.qty}</span>
+              <button class="step-btn" onclick="manualAddState.qty++;var el=document.getElementById('manual-qty-val');if(el){el.textContent=manualAddState.qty;el.className='step-val';}">+</button>
+            </div>
+            <button onclick="addManualProduct()" style="flex:1;border:none;border-radius:12px;padding:12px 8px;background:linear-gradient(135deg,var(--accent),#6fa83a);color:#0a1505;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">+ הוסף</button>
+          </div>
+        </div>`;
+
+      return manualHtml + addForm;
+    })()}
   `;
 }
 
@@ -790,6 +879,136 @@ function stepQtyBoth(pid, type, delta) {
   updateOrderCounter();
 }
 
+// ─── Helper: collect ALL ordered items (catalog + manual) ───────────────────
+function getOrderedItems() {
+  const sup = findSupplier(currentSupplierId);
+  if (!sup) return [];
+  const items = [];
+  // Catalog products
+  sup.products.forEach(p => {
+    const st = orderState[p.id];
+    if (!st) return;
+    if (st.unit === 'both') {
+      const qc = parseInt(st.carton) || 0;
+      const qu = parseInt(st.units) || 0;
+      if (qc > 0) items.push({ name: p.name, qty: String(qc), unit: 'קרטון', notes: st.notes || '' });
+      if (qu > 0) items.push({ name: p.name, qty: String(qu), unit: 'יחידות', notes: st.notes || '' });
+    } else {
+      const qty = parseInt(st.qty) || 0;
+      if (qty > 0) items.push({ name: p.name, qty: st.qty, unit: st.unit, notes: st.notes || '' });
+    }
+  });
+  // Manual items
+  Object.keys(orderState).filter(k => k.startsWith('manual_')).forEach(k => {
+    const st = orderState[k];
+    if (!st || !st.isManual) return;
+    const qty = parseInt(st.qty) || 0;
+    if (qty > 0) items.push({ name: st.name, qty: String(qty), unit: st.unit, notes: st.notes || '' });
+  });
+  return items;
+}
+
+// ─── Manual items CRUD ──────────────────────────────────────────────────────
+function addManualProduct() {
+  const name = manualAddState.name.trim();
+  if (!name) { toast('הזן שם מוצר', 'error'); return; }
+  const qty = parseInt(manualAddState.qty) || 0;
+  if (qty <= 0) { toast('הזן כמות', 'error'); return; }
+  const mid = 'manual_' + uid();
+  orderState[mid] = { isManual: true, name, unit: manualAddState.unit, qty: String(qty), notes: '' };
+  manualAddState.name = '';
+  manualAddState.qty = 1;
+  saveDraft();
+  updateOrderCounter();
+  renderOrderProducts(findSupplier(currentSupplierId), true);
+  toast('מוצר נוסף ✓', 'success');
+  setTimeout(() => { const inp = document.getElementById('manual-name-inp'); if (inp) inp.focus(); }, 80);
+}
+
+function removeManualItem(mid) {
+  delete orderState[mid];
+  saveDraft();
+  updateOrderCounter();
+  renderOrderProducts(findSupplier(currentSupplierId), hasDraftFor(currentSupplierId));
+}
+
+function stepManualItem(mid, delta) {
+  const st = orderState[mid];
+  if (!st) return;
+  const next = Math.max(0, (parseInt(st.qty) || 0) + delta);
+  st.qty = String(next);
+  const el = document.getElementById('qd-' + mid);
+  if (el) { el.textContent = next; el.className = 'step-val' + (next === 0 ? ' zero' : ''); }
+  saveDraft();
+  updateOrderCounter();
+}
+
+function toggleManualItemUnit(mid) {
+  const st = orderState[mid];
+  if (!st) return;
+  st.unit = st.unit === 'קרטון' ? 'יחידות' : 'קרטון';
+  const btn = document.getElementById('ut-' + mid);
+  if (btn) {
+    const isC = st.unit === 'קרטון';
+    btn.textContent = isC ? '📦 קרטון' : '🔢 יחידות';
+    btn.className = 'unit-toggle ' + (isC ? 'is-carton' : 'is-units');
+  }
+  saveDraft();
+}
+
+// ─── Transfer item to another supplier ─────────────────────────────────────
+function openTransferSheet(pid, name) {
+  _transferData = { pid, name };
+  document.getElementById('transfer-item-name').textContent = `"${name}"`;
+  const others = (db.suppliers || []).filter(s => s.id !== currentSupplierId);
+  document.getElementById('transfer-supplier-list').innerHTML = others.length
+    ? others.map(s => `
+        <button onclick="executeTransfer('${s.id}')"
+          style="display:flex;align-items:center;gap:12px;width:100%;padding:13px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-family:inherit;text-align:right;transition:background 0.12s"
+          onmouseenter="this.style.background='var(--surfaceHi)'" onmouseleave="this.style.background='var(--surface)'">
+          <span style="font-size:22px">${s.icon||'🏭'}</span>
+          <span style="font-size:14px;font-weight:700;color:var(--text)">${esc(s.name)}</span>
+        </button>`).join('')
+    : `<div style="text-align:center;padding:20px;color:var(--textDim);font-size:13px">אין ספקים אחרים במערכת</div>`;
+  document.getElementById('modal-transfer').hidden = false;
+}
+
+function executeTransfer(targetSupplierId) {
+  if (!_transferData) return;
+  const { pid, name } = _transferData;
+  const st = orderState[pid];
+  const drafts = getAllDrafts();
+  const targetState = (drafts[targetSupplierId] && drafts[targetSupplierId].state) || {};
+  const fromName = findSupplier(currentSupplierId)?.name || '';
+
+  // Create manual item(s) in target draft
+  if (st.unit === 'both') {
+    const qc = parseInt(st.carton) || 0;
+    const qu = parseInt(st.units) || 0;
+    if (qc > 0) targetState['manual_' + uid()] = { isManual:true, name, unit:'קרטון', qty:String(qc), notes:`מ-${fromName}` };
+    if (qu > 0) targetState['manual_' + uid()] = { isManual:true, name, unit:'יחידות', qty:String(qu), notes:`מ-${fromName}` };
+    st.carton = '0'; st.units = '0';
+  } else {
+    const qty = parseInt(st.qty) || 0;
+    if (qty > 0) targetState['manual_' + uid()] = { isManual:true, name, unit:st.unit, qty:String(qty), notes:`מ-${fromName}` };
+    st.qty = '0';
+  }
+
+  // If it was itself a manual item — remove it
+  if (pid.startsWith('manual_')) delete orderState[pid];
+
+  // Persist
+  drafts[targetSupplierId] = { state: targetState, ts: Date.now() };
+  localStorage.setItem(ALL_DRAFTS_KEY, JSON.stringify(drafts));
+  saveDraft();
+
+  closeModal('modal-transfer');
+  renderOrderProducts(findSupplier(currentSupplierId), hasDraftFor(currentSupplierId));
+  updateOrderCounter();
+  toast(`⇄ הועבר ל${findSupplier(targetSupplierId)?.name||''} ✓`, 'success');
+  _transferData = null;
+}
+
 function clearOrder() {
   const sup = findSupplier(currentSupplierId);
   if (!sup) return;
@@ -814,6 +1033,9 @@ function clearOrder() {
     const noteEl = document.getElementById('note-' + p.id);
     if (noteEl) noteEl.value = '';
   });
+  // Remove manual items
+  Object.keys(orderState).filter(k => k.startsWith('manual_')).forEach(k => delete orderState[k]);
+  manualAddState = { name: '', qty: 1, unit: 'קרטון' };
   clearDraft();
   updateOrderCounter();
   toast('ההזמנה נוקתה');
@@ -822,21 +1044,7 @@ function clearOrder() {
 function exportOrder() {
   const sup = findSupplier(currentSupplierId);
   if (!sup) return;
-  const orderedItems = [];
-  sup.products.forEach(p => {
-    const st = orderState[p.id];
-    if (!st) return;
-    if (st.unit === 'both') {
-      const qc = parseInt(st.carton) || 0;
-      const qu = parseInt(st.units) || 0;
-      if (qc > 0) orderedItems.push({ name: p.name, qty: String(qc), unit: 'קרטון', notes: st.notes || '' });
-      if (qu > 0) orderedItems.push({ name: p.name, qty: String(qu), unit: 'יחידות', notes: st.notes || '' });
-    } else {
-      const qty = parseInt(st.qty) || 0;
-      if (qty > 0) orderedItems.push({ name: p.name, qty: st.qty, unit: st.unit, notes: st.notes || '' });
-    }
-  });
-
+  const orderedItems = getOrderedItems();
   if (!orderedItems.length) { toast('אין פריטים בהזמנה', 'error'); return; }
 
   const dateStr = fmtDate(new Date());
@@ -851,20 +1059,7 @@ function exportOrder() {
 function confirmOrderSent() {
   const sup = findSupplier(currentSupplierId);
   if (!sup) return;
-  const orderedItems = [];
-  sup.products.forEach(p => {
-    const st = orderState[p.id];
-    if (!st) return;
-    if (st.unit === 'both') {
-      const qc = parseInt(st.carton) || 0;
-      const qu = parseInt(st.units) || 0;
-      if (qc > 0) orderedItems.push({ name: p.name, qty: String(qc), unit: 'קרטון', notes: st.notes || '' });
-      if (qu > 0) orderedItems.push({ name: p.name, qty: String(qu), unit: 'יחידות', notes: st.notes || '' });
-    } else {
-      const qty = parseInt(st.qty) || 0;
-      if (qty > 0) orderedItems.push({ name: p.name, qty: st.qty, unit: st.unit, notes: st.notes || '' });
-    }
-  });
+  const orderedItems = getOrderedItems();
   if (!orderedItems.length) { toast('אין פריטים בהזמנה', 'error'); return; }
 
   const dateStr = fmtDate(new Date());
