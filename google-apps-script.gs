@@ -14,7 +14,9 @@ const SHEETS = {
   expenses: 'הוצאות',
   fixed: 'הוצאות קבועות',
   installments: 'תשלומים',
-  suppliers: 'ספקים'
+  suppliers: 'ספקים',
+  products: 'מוצרים',
+  pending: 'ממתין לאישור'
 };
 
 // כותרות עמודות לכל גיליון
@@ -22,7 +24,9 @@ const HEADERS = {
   expenses: ['id','תאריך','ספק','סכום כולל','מע"מ','לפני מע"מ','קטגוריה','סוג מסמך','מספר מסמך','הערות','קישור לתמונה','נוצר ב'],
   fixed: ['id','שם','סכום','קטגוריה','תדירות','יום בחודש','ספק','הערות','פעיל','נוצר ב'],
   installments: ['id','שם','סכום כולל','מספר תשלומים','תשלומים ששולמו','תאריך התחלה','ספק','הערות','נוצר ב'],
-  suppliers: ['supplier_id','supplier_name','product_id','product_name','default_unit']
+  suppliers: ['supplier_id','supplier_name','product_id','product_name','default_unit'],
+  products: ['id','name','category','sell_price','sell_price_updated','active','aliases','supplier_prices_json','created_at'],
+  pending: ['id','name_on_invoice','supplier_name','qty','unit','price','date','suggested_match_id','skipped']
 };
 
 // ─── Entry point - הפונקציה הראשית שמקבלת בקשות ─────────────────────────────
@@ -58,6 +62,14 @@ function doPost(e) {
 
       // העלאת תמונה
       case 'upload_image':     result = uploadImage(data.base64, data.mime, data.filename); break;
+
+      // מוצרים
+      case 'list_products':    result = listProducts(); break;
+      case 'save_products':    result = saveProducts(data.payload); break;
+
+      // ממתין לאישור
+      case 'list_pending':     result = listPending(); break;
+      case 'save_pending':     result = savePending(data.payload); break;
 
       // בדיקת חיבור
       case 'ping':             result = { ok: true, time: new Date().toISOString() }; break;
@@ -293,6 +305,85 @@ function saveSuppliers(suppliers) {
     }
   });
   if (rows.length > 0) sheet.getRange(2, 1, rows.length, 5).setValues(rows);
+  return { ok: true, rows: rows.length };
+}
+
+// ─── מוצרים ──────────────────────────────────────────────────────────────────
+function listProducts() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('מוצרים');
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, HEADERS.products.length).getValues();
+  return data.map(row => {
+    const [id, name, category, sellPrice, sellPriceUpdated, active, aliases, supplierPricesJson, createdAt] = row;
+    if (!id) return null;
+    let supplierPrices = [];
+    try { supplierPrices = JSON.parse(supplierPricesJson || '[]'); } catch(e) {}
+    let aliasArr = [];
+    try { aliasArr = JSON.parse(aliases || '[]'); } catch(e) {}
+    return { id: String(id), name: String(name), category: String(category||''), sellPrice: sellPrice||null,
+             sellPriceUpdated: sellPriceUpdated||null, active: active===true||active==='TRUE'||active==='true',
+             aliases: aliasArr, supplierPrices, createdAt: createdAt||'' };
+  }).filter(Boolean);
+}
+
+function saveProducts(products) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('מוצרים');
+  if (!sheet) {
+    sheet = ss.insertSheet('מוצרים');
+    const hdr = sheet.getRange(1, 1, 1, HEADERS.products.length);
+    hdr.setValues([HEADERS.products]);
+    hdr.setFontWeight('bold');
+    hdr.setBackground('#8fc650');
+    hdr.setFontColor('#0a1505');
+    sheet.setFrozenRows(1);
+  }
+  if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
+  if (!products || products.length === 0) return { ok: true, rows: 0 };
+  const rows = products.map(p => [
+    p.id, p.name, p.category||'', p.sellPrice||'', p.sellPriceUpdated||'',
+    p.active !== false, JSON.stringify(p.aliases||[]),
+    JSON.stringify(p.supplierPrices||[]), p.createdAt||new Date().toISOString()
+  ]);
+  sheet.getRange(2, 1, rows.length, HEADERS.products.length).setValues(rows);
+  return { ok: true, rows: rows.length };
+}
+
+// ─── ממתין לאישור ──────────────────────────────────────────────────────────────
+function listPending() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('ממתין לאישור');
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, HEADERS.pending.length).getValues();
+  return data.map(row => {
+    const [id, nameOnInvoice, supplierName, qty, unit, price, date, suggestedMatchId, skipped] = row;
+    if (!id) return null;
+    return { id: String(id), nameOnInvoice: String(nameOnInvoice), supplierName: String(supplierName||''),
+             qty: qty||0, unit: String(unit||''), price: price||0, date: String(date||''),
+             suggestedMatchId: suggestedMatchId||null, skipped: skipped===true||skipped==='TRUE' };
+  }).filter(Boolean);
+}
+
+function savePending(items) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('ממתין לאישור');
+  if (!sheet) {
+    sheet = ss.insertSheet('ממתין לאישור');
+    const hdr = sheet.getRange(1, 1, 1, HEADERS.pending.length);
+    hdr.setValues([HEADERS.pending]);
+    hdr.setFontWeight('bold');
+    hdr.setBackground('#f4b942');
+    hdr.setFontColor('#0a1505');
+    sheet.setFrozenRows(1);
+  }
+  if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
+  if (!items || items.length === 0) return { ok: true, rows: 0 };
+  const rows = items.map(it => [
+    it.id, it.nameOnInvoice, it.supplierName||'', it.qty||0, it.unit||'',
+    it.price||0, it.date||'', it.suggestedMatchId||'', it.skipped||false
+  ]);
+  sheet.getRange(2, 1, rows.length, HEADERS.pending.length).setValues(rows);
   return { ok: true, rows: rows.length };
 }
 

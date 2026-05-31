@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="מוצרים">
+<link rel="manifest" href="manifest.json">
+<title>מוצרים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Frank+Ruhl+Libre:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer onload="onGoogleScriptLoad()"></script>
+<style>
+:root {
+  --bg:#0a0e0a; --surface:#11161a; --surfaceHi:#1a2025;
+  --border:#1f2a30; --borderHi:#2a3640;
+  --text:#e8efe5; --textDim:#7a8a82; --textMuted:#475259;
+  --accent:#8fc650; --accent2:#d4a574; --amber:#f4b942; --danger:#dc6262; --blue:#5b9cf6;
+}
+[data-theme="light"] {
+  --bg:#f0f5ee; --surface:#ffffff; --surfaceHi:#e6ede1;
+  --border:#c4d4bc; --borderHi:#a8c09a;
+  --text:#1a2a14; --textDim:#4a6040; --textMuted:#7a9470;
+  --accent:#4a8818; --accent2:#9a5e20; --amber:#a87008; --danger:#b83030; --blue:#1a5cb8;
+}
+[data-theme="light"] .app-switcher { background:rgba(240,246,238,0.97); padding-top:calc(6px + env(safe-area-inset-top,0px)); }
+[data-theme="light"] .header { background:rgba(240,246,238,0.95); }
+[data-theme="light"] .modal { background:var(--surface); }
+[data-theme="light"] .overlay { background:rgba(0,0,0,0.45); }
+[data-theme="light"] .toast { box-shadow:0 4px 20px rgba(0,0,0,0.15); }
+.theme-toggle-btn { background:transparent; border:none; padding:7px 10px; cursor:pointer; font-size:17px; flex-shrink:0; border-radius:10px; line-height:1; }
+.sw-icon-btn { background:transparent; border:none; padding:7px 8px; cursor:pointer; font-size:16px; flex-shrink:0; border-radius:10px; line-height:1; color:var(--textDim); }
+.sw-icon-btn:active { background:rgba(255,255,255,0.08); }
+[data-theme="light"] .sw-icon-btn:active { background:rgba(0,0,0,0.05); }
+.sw-icon-btn.spinning { animation:spin 0.8s linear infinite; display:inline-block; }
+* { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
+[hidden] { display:none !important; }
+html,body { margin:0; padding:0; min-height:100%; background:var(--bg); color:var(--text); font-family:'Heebo',-apple-system,sans-serif; overscroll-behavior:none; }
+::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+.display { font-family:'Frank Ruhl Libre',serif; font-weight:700; letter-spacing:-0.02em; }
+.app { max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; }
+input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+
+/* App switcher */
+.app-switcher { display:flex; gap:6px; padding:6px 10px; padding-top:calc(6px + env(safe-area-inset-top,0px)); background:rgba(10,14,10,0.97); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:20; }
+.sw-btn { flex:1; text-align:center; padding:9px 8px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; color:var(--textDim); border:1px solid transparent; display:block; }
+.sw-btn.active { background:rgba(143,198,80,0.1); color:var(--accent); border-color:rgba(143,198,80,0.3); }
+
+/* Header */
+.header { padding:14px 20px 12px; position:sticky; top:calc(44px + env(safe-area-inset-top,0px)); z-index:10; background:rgba(10,14,10,0.95); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; }
+.header-title { flex:1; min-width:0; }
+.header-title h1 { font-size:17px; margin:0; line-height:1.1; }
+.header-title .sub { font-size:11px; color:var(--textDim); margin-top:1px; }
+.icon-btn { width:36px; height:36px; border:1px solid var(--border); border-radius:10px; background:var(--surface); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; color:var(--textDim); }
+.icon-btn:active { background:var(--surfaceHi); }
+
+/* Main */
+.main { flex:1; overflow-y:auto; padding:16px; padding-bottom:100px; }
+
+/* Input / Field */
+.input { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; color:var(--text); font-size:15px; font-family:inherit; outline:none; }
+.input:focus { border-color:var(--borderHi); }
+.label { font-size:11px; color:var(--textDim); margin-bottom:6px; display:block; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; }
+.field { margin-bottom:14px; }
+.section-title { font-size:11px; color:var(--textDim); font-weight:600; letter-spacing:0.05em; text-transform:uppercase; margin:20px 0 10px; }
+
+/* Search bar */
+.search-bar-wrap { position:relative; margin-bottom:12px; }
+.search-bar-wrap input { width:100%; padding:10px 42px 10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:12px; color:var(--text); font-size:14px; font-family:inherit; outline:none; }
+.search-bar-wrap input:focus { border-color:var(--accent); }
+.search-bar-wrap input::placeholder { color:var(--textMuted); }
+.search-icon { position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--textMuted); font-size:14px; pointer-events:none; }
+
+/* Category filter chips */
+.chips-wrap { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; margin-bottom:12px; scrollbar-width:none; }
+.chips-wrap::-webkit-scrollbar { display:none; }
+.chip { flex-shrink:0; padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:var(--surface); color:var(--textDim); font-size:12px; font-weight:700; font-family:inherit; cursor:pointer; white-space:nowrap; }
+.chip.active { background:rgba(143,198,80,0.1); color:var(--accent); border-color:rgba(143,198,80,0.3); }
+.chip:active { opacity:0.75; }
+
+/* Sort row */
+.sort-row { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+.sort-label { font-size:11px; color:var(--textDim); font-weight:600; letter-spacing:.03em; }
+.sort-btn { border:1px solid var(--border); border-radius:8px; padding:5px 10px; font-size:11px; font-weight:700; font-family:inherit; cursor:pointer; background:var(--surface); color:var(--textDim); white-space:nowrap; }
+.sort-btn.active { background:rgba(143,198,80,0.08); color:var(--accent); border-color:rgba(143,198,80,0.3); }
+
+/* Product card (list) */
+.product-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:14px 16px; margin-bottom:10px; cursor:pointer; }
+.product-card:active { background:var(--surfaceHi); }
+.product-card.inactive { opacity:0.45; }
+.pc-top { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.pc-name { flex:1; font-size:15px; font-weight:700; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pc-cat { font-size:10px; font-weight:700; padding:3px 8px; border-radius:6px; background:rgba(91,156,246,0.1); color:var(--blue); border:1px solid rgba(91,156,246,0.2); flex-shrink:0; white-space:nowrap; max-width:100px; overflow:hidden; text-overflow:ellipsis; }
+.pc-prices { display:flex; align-items:center; gap:10px; }
+.pc-price-item { flex:1; }
+.pc-price-label { font-size:10px; color:var(--textMuted); margin-bottom:2px; }
+.pc-price-val { font-size:14px; font-weight:700; }
+.pc-price-val.dim { color:var(--textMuted); font-weight:400; font-size:13px; }
+.margin-pill { flex-shrink:0; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:800; }
+.margin-pill.green { background:rgba(143,198,80,0.15); color:var(--accent); }
+.margin-pill.yellow { background:rgba(244,185,66,0.15); color:var(--amber); }
+.margin-pill.red { background:rgba(220,98,98,0.15); color:var(--danger); }
+.margin-pill.gray { background:rgba(120,120,120,0.1); color:var(--textMuted); }
+
+/* Pending badge */
+.pending-badge-btn { flex-shrink:0; border:none; border-radius:10px; padding:6px 12px; font-size:12px; font-weight:700; font-family:inherit; cursor:pointer; background:rgba(244,185,66,0.15); color:var(--amber); border:1px solid rgba(244,185,66,0.3); white-space:nowrap; }
+.pending-badge-btn:active { background:rgba(244,185,66,0.25); }
+
+/* FAB */
+.fab { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); max-width:calc(480px - 32px); width:calc(100% - 32px); border:none; border-radius:14px; padding:15px 20px; font-size:15px; font-weight:700; font-family:inherit; cursor:pointer; background:linear-gradient(135deg,var(--accent) 0%,#6fa83a 100%); color:#0a1505; box-shadow:0 8px 24px -8px rgba(143,198,80,0.5); display:flex; align-items:center; justify-content:center; gap:8px; z-index:10; }
+.fab:active { transform:translateX(-50%) scale(0.98); }
+
+/* Detail view */
+.detail-section { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px 18px; margin-bottom:12px; }
+.detail-section-title { font-size:10px; font-weight:700; color:var(--textDim); letter-spacing:.06em; text-transform:uppercase; margin-bottom:12px; }
+.sell-price-display { font-size:36px; font-weight:800; font-family:'Frank Ruhl Libre',serif; color:var(--accent); line-height:1; margin-bottom:4px; }
+.sell-price-display.unset { font-size:18px; color:var(--textMuted); font-weight:400; font-family:'Heebo',sans-serif; }
+.margin-bar-wrap { margin:10px 0 0; }
+.margin-bar-track { height:6px; background:var(--surfaceHi); border-radius:3px; overflow:hidden; }
+.margin-bar-fill { height:100%; border-radius:3px; transition:width .3s ease; }
+.margin-bar-fill.green { background:var(--accent); }
+.margin-bar-fill.yellow { background:var(--amber); }
+.margin-bar-fill.red { background:var(--danger); }
+.margin-text { font-size:13px; font-weight:700; margin-top:6px; }
+
+.supplier-price-row { padding:12px 0; border-bottom:1px solid var(--border); }
+.supplier-price-row:last-child { border-bottom:none; }
+.spr-top { display:flex; align-items:center; gap:8px; }
+.spr-name { flex:1; font-size:14px; font-weight:700; min-width:0; }
+.spr-price { font-size:14px; font-weight:700; color:var(--accent2); flex-shrink:0; }
+.spr-price.unset { color:var(--textMuted); font-weight:400; }
+.spr-date { font-size:11px; color:var(--textMuted); margin-top:2px; }
+.spr-actions { display:flex; gap:6px; margin-top:8px; }
+.btn-small { border:1px solid var(--border); border-radius:8px; padding:5px 10px; font-size:11px; font-weight:700; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); white-space:nowrap; }
+.btn-small:active { background:var(--surfaceHi); }
+.spr-history { margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); display:none; }
+.spr-history.open { display:block; }
+.spr-history-row { display:flex; justify-content:space-between; font-size:11px; color:var(--textDim); padding:2px 0; }
+.spr-history-row .h-price { font-weight:700; color:var(--text); }
+.inline-edit-row { display:flex; gap:6px; margin-top:8px; }
+.inline-edit-row .input { padding:8px 12px; font-size:14px; }
+.btn-inline-save { border:none; border-radius:10px; padding:8px 14px; background:var(--accent); color:#0a1505; font-weight:700; font-size:14px; font-family:inherit; cursor:pointer; flex-shrink:0; }
+.btn-inline-save:active { transform:scale(0.97); }
+
+.active-toggle-row { display:flex; align-items:center; gap:10px; }
+.active-toggle-pill { border:none; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; }
+.active-toggle-pill.on { background:rgba(143,198,80,0.15); color:var(--accent); border:1px solid rgba(143,198,80,0.3); }
+.active-toggle-pill.off { background:rgba(120,120,120,0.1); color:var(--textMuted); border:1px solid var(--border); }
+
+/* Pending view */
+.pending-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px; margin-bottom:10px; }
+.pending-card.skipped { opacity:0.5; }
+.pc-invoice-name { font-size:16px; font-weight:800; margin-bottom:4px; }
+.pc-meta { font-size:12px; color:var(--textDim); margin-bottom:12px; line-height:1.6; }
+.skipped-badge { display:inline-block; background:rgba(120,120,120,0.1); border:1px solid var(--border); border-radius:6px; padding:2px 8px; font-size:10px; font-weight:700; color:var(--textMuted); margin-bottom:6px; }
+.pc-buttons { display:flex; gap:8px; }
+.btn-resolve { flex:1; border:none; border-radius:11px; padding:10px 8px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; background:linear-gradient(135deg,var(--accent),#6fa83a); color:#0a1505; }
+.btn-resolve:active { transform:scale(0.98); }
+.btn-skip { flex-shrink:0; border:1px solid var(--border); border-radius:11px; padding:10px 12px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); }
+.btn-skip:active { background:var(--surfaceHi); }
+
+/* Resolve bottom sheet — product list */
+.resolve-list { display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:50vh; overflow-y:auto; }
+.resolve-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:var(--surface); cursor:pointer; }
+.resolve-item:active { background:var(--surfaceHi); }
+.resolve-item-name { flex:1; font-size:14px; font-weight:700; }
+.resolve-item-cat { font-size:11px; color:var(--textDim); }
+.resolve-item.new-product { border-color:rgba(143,198,80,0.3); background:rgba(143,198,80,0.05); }
+.resolve-item.new-product .resolve-item-name { color:var(--accent); }
+
+/* Overlay / Modal */
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,0.72); z-index:50; display:flex; align-items:flex-end; justify-content:center; }
+.modal { background:var(--surface); border-radius:24px 24px 0 0; width:100%; max-width:480px; padding:20px 20px; padding-bottom:calc(28px + env(safe-area-inset-bottom,0px)); max-height:85vh; overflow-y:auto; border-top:1px solid var(--border); }
+.modal-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 20px; }
+.modal h2 { font-size:18px; margin:0 0 4px; }
+.modal .hint { font-size:13px; color:var(--textDim); margin:0 0 16px; }
+.btn-primary { width:100%; border:none; border-radius:14px; padding:14px 16px; font-size:15px; font-weight:700; font-family:inherit; cursor:pointer; background:linear-gradient(135deg,var(--accent) 0%,#6fa83a 100%); color:#0a1505; box-shadow:0 6px 20px -6px rgba(143,198,80,0.4); margin-bottom:8px; }
+.btn-primary:active { transform:scale(0.98); }
+.btn-close-modal { width:100%; border:1px solid var(--border); border-radius:14px; padding:13px; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); }
+.btn-danger { width:100%; border:1px solid rgba(220,98,98,0.3); border-radius:14px; padding:14px; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer; background:rgba(220,98,98,0.06); color:var(--danger); }
+.btn-danger:active { background:rgba(220,98,98,0.12); }
+.danger-zone { margin-top:32px; padding-top:20px; border-top:1px solid rgba(220,98,98,0.15); }
+
+/* Empty state */
+.empty { text-align:center; padding:60px 20px; }
+.empty-icon { font-size:52px; margin-bottom:16px; }
+.empty-title { font-size:18px; font-weight:700; margin-bottom:8px; }
+.empty-desc { font-size:14px; color:var(--textDim); line-height:1.6; }
+.btn-import { margin-top:16px; border:1px solid rgba(143,198,80,0.3); border-radius:12px; padding:12px 24px; font-size:14px; font-weight:700; font-family:inherit; cursor:pointer; background:rgba(143,198,80,0.08); color:var(--accent); }
+.btn-import:active { background:rgba(143,198,80,0.15); }
+
+/* Toast */
+.toast { position:fixed; top:80px; left:50%; transform:translateX(-50%); background:var(--surfaceHi); border:1px solid var(--border); border-radius:12px; padding:12px 18px; color:var(--text); font-weight:600; font-size:13px; z-index:200; box-shadow:0 8px 32px rgba(0,0,0,0.4); max-width:90vw; pointer-events:none; animation:fadeUp 0.3s ease; transition:opacity 0.4s ease; }
+.toast.success { border-color:rgba(143,198,80,0.4); color:var(--accent); }
+.toast.error { border-color:rgba(220,98,98,0.4); color:var(--danger); }
+
+/* Animations */
+.fade-up { animation:fadeUp 0.3s ease-out backwards; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Login screen */
+.login-screen { position:fixed; inset:0; z-index:999; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 24px; }
+.login-logo { width:76px; height:76px; border-radius:22px; background:#fff; display:flex; align-items:center; justify-content:center; font-size:42px; margin-bottom:20px; box-shadow:0 8px 32px rgba(143,198,80,0.3),0 0 0 1px rgba(143,198,80,0.15); }
+.login-title { font-size:28px; font-weight:800; font-family:'Frank Ruhl Libre',serif; margin-bottom:4px; text-align:center; }
+.login-sub { font-size:14px; color:var(--textDim); margin-bottom:28px; text-align:center; }
+.login-err { color:var(--danger); font-size:13px; text-align:center; margin-top:14px; min-height:20px; font-weight:600; }
+
+/* Datalist styling helper */
+.input[list]::-webkit-calendar-picker-indicator { display:none; }
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN SCREEN ═══ -->
+<div id="login-screen" class="login-screen" hidden>
+  <div class="login-logo">🏷️</div>
+  <div class="login-title">טרי בכפר</div>
+  <div class="login-sub">קטלוג מוצרים</div>
+  <div id="google-signin-btn"></div>
+  <div class="login-err" id="login-err"></div>
+</div>
+
+<div class="app" id="app" hidden>
+
+  <div class="app-switcher">
+    <span class="sw-btn active">🏷️ מוצרים</span>
+    <a href="orders.html" class="sw-btn">📦 הזמנות</a>
+    <a href="tari-bakfar.html" class="sw-btn">💰 הוצאות</a>
+    <button class="sw-icon-btn" id="sync-top-btn" onclick="triggerTopSync()" title="סנכרן עכשיו">🔄</button>
+    <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" title="עיצוב"></button>
+    <button class="sw-icon-btn" onclick="logout()" title="התנתק">🔒</button>
+  </div>
+
+  <!-- ═══ VIEW: PRODUCTS ═══ -->
+  <div id="view-products">
+    <header class="header">
+      <div class="header-title">
+        <h1 class="display">מוצרים 🏷️</h1>
+        <div class="sub" id="products-sub">0 מוצרים</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="sync-dot" title="מסנכרן..." style="width:8px;height:8px;border-radius:50%;background:#f4b942;flex-shrink:0"></div>
+        <button class="pending-badge-btn" id="pending-header-btn" onclick="showView('pending')" hidden>⏳ ממתין</button>
+      </div>
+    </header>
+    <div class="main" id="products-main"></div>
+    <button class="fab" onclick="openAddProduct()">
+      <span style="font-size:20px;line-height:1">+</span> הוסף מוצר
+    </button>
+  </div>
+
+  <!-- ═══ VIEW: DETAIL ═══ -->
+  <div id="view-detail" hidden>
+    <header class="header">
+      <button class="icon-btn" onclick="showView('products')">←</button>
+      <div class="header-title">
+        <h1 class="display" id="detail-title" style="font-size:17px"></h1>
+      </div>
+      <button class="icon-btn" onclick="editProductName(currentProductId)" title="עריכה">✏️</button>
+    </header>
+    <div class="main" id="detail-main"></div>
+  </div>
+
+  <!-- ═══ VIEW: PENDING ═══ -->
+  <div id="view-pending" hidden>
+    <header class="header">
+      <button class="icon-btn" onclick="showView('products')">←</button>
+      <div class="header-title">
+        <h1 class="display" style="font-size:17px">ממתין לאישור</h1>
+        <div class="sub" id="pending-sub"></div>
+      </div>
+    </header>
+    <div class="main" id="pending-main"></div>
+  </div>
+
+</div>
+
+<!-- ═══ MODAL: Add Product ═══ -->
+<div id="modal-add-product" class="overlay" hidden onclick="closeModal('modal-add-product')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2 class="display">מוצר חדש</h2>
+    <p class="hint">הזן פרטי המוצר — ספקים ומחירים תוכל לעדכן לאחר מכן</p>
+    <div class="field">
+      <label class="label">שם המוצר *</label>
+      <input class="input" id="new-product-name" type="text" placeholder="לדוגמה: עגבנייה שרי" autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="label">קטגוריה</label>
+      <input class="input" id="new-product-cat" type="text" list="cat-datalist" placeholder="לדוגמה: ירקות" autocomplete="off">
+      <datalist id="cat-datalist"></datalist>
+    </div>
+    <div class="field">
+      <label class="label">מחיר מכירה (₪)</label>
+      <input class="input" id="new-product-price" type="number" step="0.01" placeholder="0.00">
+    </div>
+    <button class="btn-primary" onclick="confirmAddProduct()">הוסף מוצר ←</button>
+    <button class="btn-close-modal" onclick="closeModal('modal-add-product')">ביטול</button>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Add Supplier Price ═══ -->
+<div id="modal-add-supplier-price" class="overlay" hidden onclick="closeModal('modal-add-supplier-price')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2 class="display">הוסף מחיר ספק</h2>
+    <p class="hint" id="asp-product-hint"></p>
+    <div class="field">
+      <label class="label">ספק</label>
+      <select class="input" id="asp-supplier-select" onchange="onAspSupplierChange()"></select>
+    </div>
+    <div id="asp-custom-name-wrap" class="field" hidden>
+      <label class="label">שם ספק חופשי</label>
+      <input class="input" id="asp-custom-name" type="text" placeholder="שם הספק..." autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="label">מחיר קניה (₪)</label>
+      <input class="input" id="asp-price" type="number" step="0.01" placeholder="0.00">
+    </div>
+    <button class="btn-primary" onclick="confirmAddSupplierPrice()">שמור</button>
+    <button class="btn-close-modal" onclick="closeModal('modal-add-supplier-price')">ביטול</button>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Resolve Pending ═══ -->
+<div id="modal-resolve-pending" class="overlay" hidden onclick="closeModal('modal-resolve-pending')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2 class="display" id="rp-title" style="font-size:16px;margin-bottom:4px"></h2>
+    <p class="hint" id="rp-hint"></p>
+    <div class="search-bar-wrap">
+      <input type="search" id="rp-search" placeholder="🔍 חפש מוצר..." oninput="filterResolveList(this.value)" autocomplete="off">
+      <span class="search-icon">🔍</span>
+    </div>
+    <div class="resolve-list" id="rp-list"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast" hidden></div>
+
+<script>
+// ─── Storage ───────────────────────────────────────────────────────────────
+const STORE_KEY = 'products-v1';
+let pdb = {
+  products: [],
+  pending: [],
+  orderHistory: [],
+  _lastSynced: 0,
+  _localModified: 0
+};
+
+function loadPdb() {
+  try { const s = localStorage.getItem(STORE_KEY); if (s) pdb = JSON.parse(s); } catch {}
+  if (!pdb.products) pdb.products = [];
+  if (!pdb.pending) pdb.pending = [];
+  if (!pdb.orderHistory) pdb.orderHistory = [];
+  if (!pdb._localModified) pdb._localModified = 0;
+  if (!pdb._lastSynced) pdb._lastSynced = pdb._localModified || Date.now();
+}
+function savePdb(dirty) {
+  if (dirty) pdb._localModified = Date.now();
+  localStorage.setItem(STORE_KEY, JSON.stringify(pdb));
+}
+
+// ─── Cloud Sync (Google Sheets) ────────────────────────────────────────────
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxdXp4ZXpt2EAXYXHSKdjrNZRNFuAIiOEdyXktShtnSlRSYHXLoNlSyOf-LJYJkS7ndjw/exec';
+
+async function cloudCallOrders(action, payload) {
+  const res = await fetch(WEB_APP_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, ...payload }),
+    headers: { 'Content-Type': 'text/plain' }
+  });
+  const json = JSON.parse(await res.text());
+  if (!json.ok) throw new Error(json.error || 'Cloud error');
+  return json.data;
+}
+
+async function pushProducts() {
+  try {
+    setSyncDot('syncing');
+    await cloudCallOrders('save_products', { payload: pdb.products });
+    pdb._lastSynced = Date.now();
+    savePdb();
+    setSyncDot('ok');
+  } catch(e) {
+    setSyncDot('err');
+    console.warn('Push products failed:', e.message);
+  }
+}
+
+async function pushPending() {
+  try {
+    await cloudCallOrders('save_pending', { payload: pdb.pending });
+  } catch(e) {
+    console.warn('Push pending failed:', e.message);
+  }
+}
+
+async function syncProducts() {
+  try {
+    setSyncDot('syncing');
+    const hasPending = pdb._localModified > pdb._lastSynced;
+    if (hasPending) {
+      await cloudCallOrders('save_products', { payload: pdb.products });
+      pdb._lastSynced = Date.now();
+      savePdb();
+    } else {
+      const cloud = await cloudCallOrders('list_products', {});
+      if (cloud && cloud.length > 0) {
+        const prevStr = JSON.stringify(pdb.products);
+        pdb.products = cloud;
+        pdb._lastSynced = Date.now();
+        pdb._localModified = pdb._lastSynced;
+        savePdb();
+        if (currentView === 'products' && JSON.stringify(pdb.products) !== prevStr) renderProducts(false);
+      } else if (pdb.products.length > 0) {
+        await cloudCallOrders('save_products', { payload: pdb.products });
+        pdb._lastSynced = Date.now();
+        pdb._localModified = pdb._lastSynced;
+        savePdb();
+      }
+    }
+    setSyncDot('ok');
+  } catch(e) {
+    setSyncDot('err');
+    console.log('Sync products failed:', e.message);
+  }
+}
+
+async function syncPending() {
+  try {
+    const cloud = await cloudCallOrders('list_pending', {});
+    if (cloud && cloud.length > 0) {
+      // Merge: keep local skipped flags
+      const localMap = {};
+      pdb.pending.forEach(p => { localMap[p.id] = p; });
+      pdb.pending = cloud.map(item => ({ ...item, skipped: (localMap[item.id] || {}).skipped || false }));
+      savePdb();
+      if (currentView === 'pending') renderPending();
+    } else if (pdb.pending.length > 0) {
+      await cloudCallOrders('save_pending', { payload: pdb.pending });
+    }
+  } catch(e) {
+    console.log('Sync pending failed:', e.message);
+  }
+}
+
+function setSyncDot(status) {
+  const dot = document.getElementById('sync-dot');
+  if (!dot) return;
+  dot.style.background = status === 'ok' ? '#8fc650' : status === 'syncing' ? '#f4b942' : '#dc6262';
+  dot.title = status === 'ok' ? 'מסונכרן' : status === 'syncing' ? 'מסנכרן...' : 'שגיאת סנכרון';
+}
+
+async function triggerTopSync() {
+  const btn = document.getElementById('sync-top-btn');
+  if (btn) btn.classList.add('spinning');
+  try {
+    setSyncDot('syncing');
+    await cloudCallOrders('save_products', { payload: pdb.products });
+    await cloudCallOrders('save_pending', { payload: pdb.pending });
+    pdb._lastSynced = Date.now();
+    pdb._localModified = pdb._lastSynced;
+    savePdb();
+    setSyncDot('ok');
+    if (btn) { btn.classList.remove('spinning'); btn.textContent = '✓'; setTimeout(() => { btn.textContent = '🔄'; }, 1500); }
+    toast('סנכרון הושלם ✓', 'success');
+  } catch(e) {
+    setSyncDot('err');
+    if (btn) btn.classList.remove('spinning');
+    toast('סנכרון נכשל', 'error');
+  }
+}
+
+// ─── Utils ─────────────────────────────────────────────────────────────────
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = typeof d === 'string' ? new Date(d) : d;
+  return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
+}
+function fmtPrice(p) {
+  if (p == null || p === '' || isNaN(parseFloat(p))) return null;
+  const n = parseFloat(p);
+  return n % 1 === 0 ? n.toString() : n.toFixed(2);
+}
+
+let toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.hidden = false;
+  el.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => { el.hidden = true; }, 400);
+  }, 2200);
+}
+function closeModal(id) { document.getElementById(id).hidden = true; }
+
+// ─── App State ──────────────────────────────────────────────────────────────
+var currentView = 'products';
+var currentProductId = null;
+var filterState = { query: '', category: 'הכל', sort: 'name' };
+var _pendingResolveId = null; // pending item being resolved
+
+// ─── View Routing ──────────────────────────────────────────────────────────
+function showView(view) {
+  currentView = view;
+  ['products','detail','pending'].forEach(v =>
+    document.getElementById('view-' + v).hidden = (v !== view)
+  );
+  if (view === 'products') renderProducts(false);
+  if (view === 'pending') renderPending();
+}
+
+// ─── Margin Helpers ────────────────────────────────────────────────────────
+function getBestBuyPrice(product) {
+  const prices = (product.supplierPrices || []).map(sp => sp.buyPrice).filter(p => p != null && p > 0);
+  return prices.length ? Math.min(...prices) : null;
+}
+function calcMargin(product) {
+  if (!product.sellPrice) return null;
+  const bestBuy = getBestBuyPrice(product);
+  if (!bestBuy) return null;
+  return Math.round((product.sellPrice - bestBuy) / product.sellPrice * 100);
+}
+function marginClass(m) {
+  if (m == null) return 'gray';
+  if (m >= 30) return 'green';
+  if (m >= 15) return 'yellow';
+  return 'red';
+}
+
+// ─── Import from orders ────────────────────────────────────────────────────
+function importFromOrders() {
+  try {
+    const raw = localStorage.getItem('orders-v1');
+    if (!raw) { toast('לא נמצאו ספקים ב-orders-v1', 'error'); return; }
+    const odb = JSON.parse(raw);
+    const suppliers = odb.suppliers || [];
+    if (!suppliers.length) { toast('אין ספקים לייבוא', 'error'); return; }
+
+    const seen = {}; // normalized name → product id
+    let added = 0;
+
+    suppliers.forEach(sup => {
+      (sup.products || []).forEach(op => {
+        const key = (op.name || '').trim().toLowerCase();
+        if (!key) return;
+        if (seen[key]) {
+          // Add supplier association to existing product
+          const existing = pdb.products.find(p => p.id === seen[key]);
+          if (existing && !existing.supplierPrices.find(sp => sp.supplierId === sup.id)) {
+            existing.supplierPrices.push({
+              supplierId: sup.id,
+              supplierName: sup.name,
+              buyPrice: null,
+              updatedAt: null,
+              history: []
+            });
+          }
+        } else {
+          const newProd = {
+            id: uid(),
+            name: op.name.trim(),
+            category: '',
+            sellPrice: null,
+            sellPriceUpdated: null,
+            active: true,
+            aliases: [],
+            supplierPrices: [{
+              supplierId: sup.id,
+              supplierName: sup.name,
+              buyPrice: null,
+              updatedAt: null,
+              history: []
+            }],
+            createdAt: new Date().toISOString()
+          };
+          pdb.products.push(newProd);
+          seen[key] = newProd.id;
+          added++;
+        }
+      });
+    });
+
+    savePdb(true);
+    pushProducts();
+    renderProducts();
+    toast('יובאו ' + added + ' מוצרים מהספקים ✓', 'success');
+  } catch(e) {
+    console.error('importFromOrders error:', e);
+    toast('שגיאה בייבוא', 'error');
+  }
+}
+
+// ─── Categories ────────────────────────────────────────────────────────────
+function getCategories() {
+  const cats = new Set();
+  pdb.products.forEach(p => { if (p.category && p.category.trim()) cats.add(p.category.trim()); });
+  return Array.from(cats).sort();
+}
+
+function filterProducts(query, category, sort) {
+  let list = [...pdb.products];
+  const q = (query || '').trim().toLowerCase();
+  if (q) {
+    list = list.filter(p => {
+      const inName = (p.name || '').toLowerCase().includes(q);
+      const inAliases = (p.aliases || []).some(a => a.toLowerCase().includes(q));
+      return inName || inAliases;
+    });
+  }
+  if (category === 'ללא קטגוריה') {
+    list = list.filter(p => !p.category || !p.category.trim());
+  } else if (category && category !== 'הכל') {
+    list = list.filter(p => p.category === category);
+  }
+  // Sort
+  if (sort === 'name') {
+    list.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'he'));
+  } else if (sort === 'margin') {
+    list.sort((a,b) => {
+      const ma = calcMargin(a), mb = calcMargin(b);
+      if (ma == null && mb == null) return 0;
+      if (ma == null) return 1;
+      if (mb == null) return -1;
+      return mb - ma;
+    });
+  } else if (sort === 'updated') {
+    list.sort((a,b) => {
+      const da = a.sellPriceUpdated || a.createdAt || '';
+      const db2 = b.sellPriceUpdated || b.createdAt || '';
+      return db2.localeCompare(da);
+    });
+  }
+  return list;
+}
+
+// ─── RENDER: Products List ─────────────────────────────────────────────────
+function renderProducts(animated) {
+  if (animated === undefined) animated = true;
+
+  const pendingCount = (pdb.pending || []).filter(p => !p.skipped).length;
+  const pbBtn = document.getElementById('pending-header-btn');
+  if (pbBtn) {
+    pbBtn.hidden = pendingCount === 0;
+    pbBtn.textContent = '⏳ ' + pendingCount + ' ממתינ' + (pendingCount === 1 ? 'ים' : 'ים');
+  }
+
+  document.getElementById('products-sub').textContent =
+    pdb.products.length ? pdb.products.length + ' מוצרים' : 'אין מוצרים עדיין';
+
+  const main = document.getElementById('products-main');
+  const savedScroll = main.scrollTop;
+
+  if (!pdb.products.length) {
+    main.innerHTML = `
+      <div class="empty${animated ? ' fade-up' : ''}">
+        <div class="empty-icon">📦</div>
+        <div class="empty-title">אין מוצרים עדיין</div>
+        <div class="empty-desc">ייבא מוצרים מהספקים<br>או הוסף מוצר ידנית</div>
+        <button class="btn-import" onclick="importFromOrders()">📥 ייבא מהספקים</button>
+      </div>`;
+    return;
+  }
+
+  const cats = getCategories();
+  const chips = ['הכל', ...cats, 'ללא קטגוריה'];
+
+  const chipsHtml = `
+    <div class="chips-wrap" id="chips-wrap">
+      ${chips.map(c => `<button class="chip${filterState.category === c ? ' active' : ''}" onclick="setCategory('${esc(c)}')">${esc(c)}</button>`).join('')}
+    </div>`;
+
+  const sortHtml = `
+    <div class="sort-row">
+      <span class="sort-label">מיון:</span>
+      <button class="sort-btn${filterState.sort === 'name' ? ' active' : ''}" onclick="setSort('name')">א-ב</button>
+      <button class="sort-btn${filterState.sort === 'margin' ? ' active' : ''}" onclick="setSort('margin')">מרג'ין</button>
+      <button class="sort-btn${filterState.sort === 'updated' ? ' active' : ''}" onclick="setSort('updated')">עדכני</button>
+    </div>`;
+
+  const filtered = filterProducts(filterState.query, filterState.category, filterState.sort);
+
+  let cardsHtml = '';
+  if (!filtered.length) {
+    cardsHtml = `<div class="empty fade-up" style="padding:40px 20px">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-title">לא נמצאו תוצאות</div>
+      <div class="empty-desc">נסה חיפוש אחר</div>
+    </div>`;
+  } else {
+    cardsHtml = filtered.map((p, i) => {
+      const bestBuy = getBestBuyPrice(p);
+      const margin = calcMargin(p);
+      const mc = marginClass(margin);
+      return `
+      <div class="product-card${p.active === false ? ' inactive' : ''}${animated ? ' fade-up' : ''}" id="pc-${p.id}"${animated ? ` style="animation-delay:${i*.04}s"` : ''} onclick="renderProductDetail('${p.id}')">
+        <div class="pc-top">
+          <div class="pc-name">${esc(p.name)}</div>
+          ${p.category ? `<div class="pc-cat">${esc(p.category)}</div>` : ''}
+        </div>
+        <div class="pc-prices">
+          <div class="pc-price-item">
+            <div class="pc-price-label">מחיר קניה</div>
+            <div class="pc-price-val${bestBuy == null ? ' dim' : ''}">${bestBuy != null ? '₪' + fmtPrice(bestBuy) : '—'}</div>
+          </div>
+          <div class="pc-price-item">
+            <div class="pc-price-label">מחיר מכירה</div>
+            <div class="pc-price-val${p.sellPrice == null ? ' dim' : ''}">${p.sellPrice != null ? '₪' + fmtPrice(p.sellPrice) : '—'}</div>
+          </div>
+          <div class="margin-pill ${mc}">${margin != null ? margin + '%' : '—'}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  main.innerHTML = `
+    <div class="search-bar-wrap">
+      <input type="search" id="product-search" placeholder="🔍 חפש מוצר..." value="${esc(filterState.query)}" oninput="onSearchInput(this.value)" autocomplete="off">
+      <span class="search-icon">🔍</span>
+    </div>
+    ${chipsHtml}
+    ${sortHtml}
+    ${cardsHtml}`;
+
+  main.scrollTop = savedScroll;
+}
+
+function onSearchInput(val) {
+  filterState.query = val;
+  const main = document.getElementById('products-main');
+  const savedScroll = main.scrollTop;
+  renderProductCards();
+  main.scrollTop = savedScroll;
+}
+
+function setCategory(cat) {
+  filterState.category = cat;
+  // Update chips active state
+  document.querySelectorAll('#chips-wrap .chip').forEach(c => {
+    c.classList.toggle('active', c.textContent === cat);
+  });
+  renderProductCards();
+}
+
+function setSort(s) {
+  filterState.sort = s;
+  // Update sort buttons
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  const map = { name:'א-ב', margin:"מרג'ין", updated:'עדכני' };
+  document.querySelectorAll('.sort-btn').forEach(b => {
+    if (b.textContent.trim() === (map[s]||'')) b.classList.add('active');
+  });
+  renderProductCards();
+}
+
+function renderProductCards() {
+  // Re-render only the cards area without touching search/chips/sort
+  const filtered = filterProducts(filterState.query, filterState.category, filterState.sort);
+  const animated = false;
+  let cardsHtml = '';
+  if (!filtered.length) {
+    cardsHtml = `<div class="empty" style="padding:40px 20px">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-title">לא נמצאו תוצאות</div>
+    </div>`;
+  } else {
+    cardsHtml = filtered.map(p => {
+      const bestBuy = getBestBuyPrice(p);
+      const margin = calcMargin(p);
+      const mc = marginClass(margin);
+      return `
+      <div class="product-card${p.active === false ? ' inactive' : ''}" onclick="renderProductDetail('${p.id}')">
+        <div class="pc-top">
+          <div class="pc-name">${esc(p.name)}</div>
+          ${p.category ? `<div class="pc-cat">${esc(p.category)}</div>` : ''}
+        </div>
+        <div class="pc-prices">
+          <div class="pc-price-item">
+            <div class="pc-price-label">מחיר קניה</div>
+            <div class="pc-price-val${bestBuy == null ? ' dim' : ''}">${bestBuy != null ? '₪' + fmtPrice(bestBuy) : '—'}</div>
+          </div>
+          <div class="pc-price-item">
+            <div class="pc-price-label">מחיר מכירה</div>
+            <div class="pc-price-val${p.sellPrice == null ? ' dim' : ''}">${p.sellPrice != null ? '₪' + fmtPrice(p.sellPrice) : '—'}</div>
+          </div>
+          <div class="margin-pill ${mc}">${margin != null ? margin + '%' : '—'}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  // Replace only card content (everything after sort-row)
+  const main = document.getElementById('products-main');
+  const sortRow = main.querySelector('.sort-row');
+  if (sortRow) {
+    // Remove all elements after sort-row
+    let next = sortRow.nextSibling;
+    while (next) {
+      const tmp = next.nextSibling;
+      main.removeChild(next);
+      next = tmp;
+    }
+    const div = document.createElement('div');
+    div.innerHTML = cardsHtml;
+    while (div.firstChild) main.appendChild(div.firstChild);
+  } else {
+    renderProducts(false);
+  }
+}
+
+// ─── RENDER: Product Detail ────────────────────────────────────────────────
+function renderProductDetail(id) {
+  const p = pdb.products.find(x => x.id === id);
+  if (!p) return;
+  currentProductId = id;
+  document.getElementById('detail-title').textContent = p.name;
+
+  const margin = calcMargin(p);
+  const bestBuy = getBestBuyPrice(p);
+  const mc = marginClass(margin);
+  const marginPct = margin != null ? margin : null;
+
+  let marginBarHtml = '';
+  if (margin != null) {
+    const w = Math.min(Math.max(margin, 0), 100);
+    marginBarHtml = `
+      <div class="margin-bar-wrap">
+        <div class="margin-text" style="color:var(--${mc === 'green' ? 'accent' : mc === 'yellow' ? 'amber' : mc === 'red' ? 'danger' : 'textMuted'})">
+          מרג'ין: ${margin}%
+          ${bestBuy != null ? `<span style="font-size:11px;color:var(--textDim);font-weight:400"> · קניה מינימום ₪${fmtPrice(bestBuy)}</span>` : ''}
+        </div>
+        <div class="margin-bar-track"><div class="margin-bar-fill ${mc}" style="width:${w}%"></div></div>
+      </div>`;
+  }
+
+  const supplierPricesHtml = (p.supplierPrices || []).map((sp, si) => {
+    const histRows = (sp.history || []).slice(-5).reverse().map(h =>
+      `<div class="spr-history-row"><span>${fmtDate(h.date)}</span><span class="h-price">₪${fmtPrice(h.price)}</span></div>`
+    ).join('');
+    const hasHistory = (sp.history||[]).length > 1;
+    return `
+      <div class="supplier-price-row" id="spr-${id}-${si}">
+        <div class="spr-top">
+          <div class="spr-name">${esc(sp.supplierName)}</div>
+          <div class="spr-price${sp.buyPrice == null ? ' unset' : ''}">${sp.buyPrice != null ? '₪' + fmtPrice(sp.buyPrice) : '—'}</div>
+        </div>
+        ${sp.updatedAt ? `<div class="spr-date">עודכן ${fmtDate(sp.updatedAt)}</div>` : ''}
+        <div class="spr-actions">
+          <button class="btn-small" onclick="openInlinePriceEdit('${id}', ${si})">עדכן מחיר</button>
+          ${hasHistory ? `<button class="btn-small" onclick="togglePriceHistory('${id}',${si})">היסטוריה</button>` : ''}
+        </div>
+        <div id="inline-edit-${id}-${si}" hidden>
+          <div class="inline-edit-row" style="margin-top:8px">
+            <input class="input" type="number" step="0.01" placeholder="מחיר חדש..." id="inline-price-input-${id}-${si}">
+            <button class="btn-inline-save" onclick="saveInlinePrice('${id}', ${si})">שמור</button>
+          </div>
+        </div>
+        ${hasHistory ? `
+        <div class="spr-history" id="hist-${id}-${si}">
+          <div style="font-size:10px;color:var(--textMuted);font-weight:700;letter-spacing:.04em;margin-bottom:4px">היסטוריית מחירים</div>
+          ${histRows}
+        </div>` : ''}
+      </div>`;
+  }).join('');
+
+  const main = document.getElementById('detail-main');
+  main.innerHTML = `
+    <div class="detail-section fade-up">
+      <div class="detail-section-title">מחירים</div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+        <div>
+          <div class="${p.sellPrice != null ? 'sell-price-display' : 'sell-price-display unset'}">${p.sellPrice != null ? '₪' + fmtPrice(p.sellPrice) : 'לא הוגדר מחיר מכירה'}</div>
+          ${p.sellPriceUpdated ? `<div style="font-size:11px;color:var(--textMuted);margin-top:2px">עודכן ${fmtDate(p.sellPriceUpdated)}</div>` : ''}
+        </div>
+        <button class="btn-small" onclick="openSellPriceEdit('${id}')">✏️ עדכן</button>
+      </div>
+      ${marginBarHtml}
+      <div id="sell-price-edit-${id}" hidden style="margin-top:12px">
+        <div class="inline-edit-row">
+          <input class="input" type="number" step="0.01" placeholder="מחיר מכירה..." id="sell-price-input-${id}" value="${p.sellPrice != null ? p.sellPrice : ''}">
+          <button class="btn-inline-save" onclick="saveSellPrice('${id}')">שמור</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-section fade-up" style="animation-delay:.05s">
+      <div class="detail-section-title">מחיר קניה לפי ספק</div>
+      ${supplierPricesHtml || '<p style="color:var(--textMuted);font-size:13px;margin:0 0 10px">אין ספקים עדיין</p>'}
+      <button class="btn-small" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;justify-content:center;display:flex" onclick="openAddSupplierPrice('${id}')">+ הוסף ספק</button>
+    </div>
+
+    <div class="detail-section fade-up" style="animation-delay:.1s">
+      <div class="detail-section-title">קטגוריה ושמות חלופיים</div>
+      <div class="field">
+        <label class="label">קטגוריה</label>
+        <div class="inline-edit-row" style="margin:0">
+          <input class="input" type="text" list="cat-datalist-detail" id="detail-cat-${id}" value="${esc(p.category||'')}" placeholder="לדוגמה: ירקות" style="padding:8px 12px;font-size:14px">
+          <button class="btn-inline-save" onclick="saveCategory('${id}')">שמור</button>
+        </div>
+        <datalist id="cat-datalist-detail">${getCategories().map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="label">שמות חלופיים (מופרדים בפסיק)</label>
+        <div class="inline-edit-row" style="margin:0">
+          <input class="input" type="text" id="detail-aliases-${id}" value="${esc((p.aliases||[]).join(', '))}" placeholder="שם א, שם ב..." style="padding:8px 12px;font-size:14px">
+          <button class="btn-inline-save" onclick="saveAliases('${id}')">שמור</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-section fade-up" style="animation-delay:.12s">
+      <div class="detail-section-title">סטטוס</div>
+      <div class="active-toggle-row">
+        <span style="font-size:13px;color:var(--textDim)">מוצר פעיל:</span>
+        <button class="active-toggle-pill ${p.active === false ? 'off' : 'on'}" id="active-pill-${id}" onclick="toggleProductActive('${id}')">
+          ${p.active === false ? '✗ לא פעיל' : '✓ פעיל'}
+        </button>
+      </div>
+    </div>
+
+    <div class="danger-zone fade-up" style="animation-delay:.14s">
+      <button class="btn-danger" onclick="deleteProduct('${id}')">🗑 מחק מוצר</button>
+    </div>`;
+
+  showView('detail');
+}
+
+// ─── Sell Price Editing ────────────────────────────────────────────────────
+function openSellPriceEdit(id) {
+  const wrap = document.getElementById('sell-price-edit-' + id);
+  if (wrap) { wrap.hidden = !wrap.hidden; if (!wrap.hidden) document.getElementById('sell-price-input-' + id).focus(); }
+}
+function saveSellPrice(id) {
+  const inp = document.getElementById('sell-price-input-' + id);
+  if (!inp) return;
+  const val = parseFloat(inp.value);
+  if (isNaN(val) || val < 0) { toast('מחיר לא תקין', 'error'); return; }
+  updateSellPrice(id, val);
+}
+function updateSellPrice(id, price) {
+  const p = pdb.products.find(x => x.id === id);
+  if (!p) return;
+  p.sellPrice = price;
+  p.sellPriceUpdated = new Date().toISOString();
+  savePdb(true);
+  pushProducts();
+  toast('מחיר מכירה עודכן ✓', 'success');
+  renderProductDetail(id);
+}
+
+// ─── Inline Supplier Price ─────────────────────────────────────────────────
+function openInlinePriceEdit(productId, spIdx) {
+  const wrap = document.getElementById('inline-edit-' + productId + '-' + spIdx);
+  if (wrap) { wrap.hidden = !wrap.hidden; if (!wrap.hidden) document.getElementById('inline-price-input-' + productId + '-' + spIdx).focus(); }
+}
+function saveInlinePrice(productId, spIdx) {
+  const inp = document.getElementById('inline-price-input-' + productId + '-' + spIdx);
+  if (!inp) return;
+  const val = parseFloat(inp.value);
+  if (isNaN(val) || val < 0) { toast('מחיר לא תקין', 'error'); return; }
+  const p = pdb.products.find(x => x.id === productId);
+  if (!p || !p.supplierPrices[spIdx]) return;
+  const sp = p.supplierPrices[spIdx];
+  if (!sp.history) sp.history = [];
+  if (sp.buyPrice != null) sp.history.push({ price: sp.buyPrice, date: sp.updatedAt || new Date().toISOString() });
+  if (sp.history.length > 20) sp.history = sp.history.slice(-20);
+  sp.buyPrice = val;
+  sp.updatedAt = new Date().toISOString();
+  savePdb(true);
+  pushProducts();
+  toast('מחיר עודכן ✓', 'success');
+  renderProductDetail(productId);
+}
+function togglePriceHistory(productId, spIdx) {
+  const el = document.getElementById('hist-' + productId + '-' + spIdx);
+  if (el) el.classList.toggle('open');
+}
+
+// ─── Category & Aliases ────────────────────────────────────────────────────
+function saveCategory(id) {
+  const inp = document.getElementById('detail-cat-' + id);
+  if (!inp) return;
+  const p = pdb.products.find(x => x.id === id);
+  if (!p) return;
+  p.category = inp.value.trim();
+  savePdb(true);
+  pushProducts();
+  toast('קטגוריה עודכנה ✓', 'success');
+}
+function saveAliases(id) {
+  const inp = document.getElementById('detail-aliases-' + id);
+  if (!inp) return;
+  const p = pdb.products.find(x => x.id === id);
+  if (!p) return;
+  p.aliases = inp.value.split(',').map(a => a.trim()).filter(Boolean);
+  savePdb(true);
+  pushProducts();
+  toast('שמות חלופיים עודכנו ✓', 'success');
+}
+
+// ─── Toggle Active ─────────────────────────────────────────────────────────
+function toggleProductActive(id) {
+  const p = pdb.products.find(x => x.id === id);
+  if (!p) return;
+  p.active = p.active === false ? true : false;
+  savePdb(true);
+  pushProducts();
+  const pill = document.getElementById('active-pill-' + id);
+  if (pill) {
+    pill.className = 'active-toggle-pill ' + (p.active === false ? 'off' : 'on');
+    pill.textContent = p.active === false ? '✗ לא פעיל' : '✓ פעיל';
+  }
+  toast(p.active === false ? 'מוצר הושבת' : 'מוצר הופעל ✓', p.active === false ? '' : 'success');
+}
+
+// ─── Edit Product Name ─────────────────────────────────────────────────────
+function editProductName(id) {
+  const p = pdb.products.find(x => x.id === id);
+  if (!p) return;
+  const newName = prompt('שם המוצר:', p.name);
+  if (newName && newName.trim() && newName.trim() !== p.name) {
+    p.name = newName.trim();
+    savePdb(true);
+    pushProducts();
+    document.getElementById('detail-title').textContent = p.name;
+    toast('שם עודכן ✓', 'success');
+  }
+}
+
+// ─── Delete Product ────────────────────────────────────────────────────────
+function deleteProduct(id) {
+  const p = pdb.products.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm('למחוק את "' + p.name + '"?')) return;
+  pdb.products = pdb.products.filter(x => x.id !== id);
+  savePdb(true);
+  pushProducts();
+  showView('products');
+  toast('מוצר נמחק');
+}
+
+// ─── Add Product Modal ─────────────────────────────────────────────────────
+function openAddProduct() {
+  // Populate categories datalist
+  const dl = document.getElementById('cat-datalist');
+  if (dl) dl.innerHTML = getCategories().map(c => `<option value="${esc(c)}">`).join('');
+  document.getElementById('new-product-name').value = '';
+  document.getElementById('new-product-cat').value = '';
+  document.getElementById('new-product-price').value = '';
+  document.getElementById('modal-add-product').hidden = false;
+  setTimeout(() => document.getElementById('new-product-name').focus(), 120);
+}
+function confirmAddProduct() {
+  const name = document.getElementById('new-product-name').value.trim();
+  if (!name) { document.getElementById('new-product-name').focus(); toast('הזן שם מוצר', 'error'); return; }
+  const cat = document.getElementById('new-product-cat').value.trim();
+  const priceRaw = document.getElementById('new-product-price').value;
+  const price = priceRaw ? parseFloat(priceRaw) : null;
+
+  const newProd = {
+    id: uid(),
+    name,
+    category: cat,
+    sellPrice: (price != null && !isNaN(price)) ? price : null,
+    sellPriceUpdated: (price != null && !isNaN(price)) ? new Date().toISOString() : null,
+    active: true,
+    aliases: [],
+    supplierPrices: [],
+    createdAt: new Date().toISOString()
+  };
+  pdb.products.push(newProd);
+  savePdb(true);
+  pushProducts();
+  closeModal('modal-add-product');
+  toast('מוצר נוסף ✓', 'success');
+  setTimeout(() => renderProductDetail(newProd.id), 200);
+}
+document.getElementById('new-product-name').addEventListener('keydown', e => { if (e.key === 'Enter') confirmAddProduct(); });
+
+// ─── Add Supplier Price Modal ──────────────────────────────────────────────
+var _aspProductId = null;
+
+function openAddSupplierPrice(productId) {
+  _aspProductId = productId;
+  const p = pdb.products.find(x => x.id === productId);
+  if (!p) return;
+  document.getElementById('asp-product-hint').textContent = p.name;
+  document.getElementById('asp-price').value = '';
+
+  // Build supplier dropdown from orders-v1
+  const select = document.getElementById('asp-supplier-select');
+  const existingIds = new Set((p.supplierPrices || []).map(sp => sp.supplierId));
+  let options = '<option value="">-- בחר ספק --</option>';
+  try {
+    const raw = localStorage.getItem('orders-v1');
+    if (raw) {
+      const odb = JSON.parse(raw);
+      (odb.suppliers || []).forEach(s => {
+        if (!existingIds.has(s.id)) {
+          options += `<option value="${esc(s.id)}" data-name="${esc(s.name)}">${esc(s.name)}</option>`;
+        }
+      });
+    }
+  } catch(e) {}
+  options += '<option value="__other__">ספק אחר...</option>';
+  select.innerHTML = options;
+  document.getElementById('asp-custom-name-wrap').hidden = true;
+  document.getElementById('modal-add-supplier-price').hidden = false;
+  setTimeout(() => select.focus(), 120);
+}
+function onAspSupplierChange() {
+  const sel = document.getElementById('asp-supplier-select');
+  document.getElementById('asp-custom-name-wrap').hidden = sel.value !== '__other__';
+}
+function confirmAddSupplierPrice() {
+  if (!_aspProductId) return;
+  const p = pdb.products.find(x => x.id === _aspProductId);
+  if (!p) return;
+  const sel = document.getElementById('asp-supplier-select');
+  const priceRaw = document.getElementById('asp-price').value;
+  const price = priceRaw ? parseFloat(priceRaw) : null;
+  if (!sel.value) { toast('בחר ספק', 'error'); return; }
+
+  let supplierId, supplierName;
+  if (sel.value === '__other__') {
+    supplierName = document.getElementById('asp-custom-name').value.trim();
+    if (!supplierName) { document.getElementById('asp-custom-name').focus(); toast('הזן שם ספק', 'error'); return; }
+    supplierId = uid();
+  } else {
+    supplierId = sel.value;
+    const opt = sel.options[sel.selectedIndex];
+    supplierName = opt.getAttribute('data-name') || opt.text;
+  }
+
+  addSupplierPrice(_aspProductId, supplierId, supplierName, price);
+  closeModal('modal-add-supplier-price');
+}
+function addSupplierPrice(productId, supplierId, supplierName, price) {
+  const p = pdb.products.find(x => x.id === productId);
+  if (!p) return;
+  if (!p.supplierPrices) p.supplierPrices = [];
+  const existing = p.supplierPrices.find(sp => sp.supplierId === supplierId);
+  if (existing) {
+    if (price != null && !isNaN(price)) {
+      if (existing.buyPrice != null) {
+        if (!existing.history) existing.history = [];
+        existing.history.push({ price: existing.buyPrice, date: existing.updatedAt || new Date().toISOString() });
+        if (existing.history.length > 20) existing.history = existing.history.slice(-20);
+      }
+      existing.buyPrice = price;
+      existing.updatedAt = new Date().toISOString();
+    }
+  } else {
+    const entry = {
+      supplierId,
+      supplierName,
+      buyPrice: (price != null && !isNaN(price)) ? price : null,
+      updatedAt: (price != null && !isNaN(price)) ? new Date().toISOString() : null,
+      history: []
+    };
+    p.supplierPrices.push(entry);
+  }
+  savePdb(true);
+  pushProducts();
+  toast('ספק נוסף ✓', 'success');
+  renderProductDetail(productId);
+}
+
+// ─── RENDER: Pending Queue ─────────────────────────────────────────────────
+function renderPending() {
+  const pending = pdb.pending || [];
+  const active = pending.filter(p => !p.skipped);
+  const skipped = pending.filter(p => p.skipped);
+  document.getElementById('pending-sub').textContent =
+    pending.length ? active.length + ' ממתינים' + (skipped.length ? ' · ' + skipped.length + ' דחויים' : '') : '';
+
+  const main = document.getElementById('pending-main');
+  if (!pending.length) {
+    main.innerHTML = `
+      <div class="empty fade-up">
+        <div class="empty-icon">✅</div>
+        <div class="empty-title">אין פריטים ממתינים</div>
+        <div class="empty-desc">כשפריטים ייכנסו מהחשבוניות<br>הם יופיעו כאן לשיוך</div>
+      </div>`;
+    return;
+  }
+
+  // Show active first, then skipped
+  const sorted = [...active, ...skipped];
+  main.innerHTML = sorted.map((item, i) => `
+    <div class="pending-card${item.skipped ? ' skipped' : ''} fade-up" id="pcard-${item.id}" style="animation-delay:${i*.04}s">
+      ${item.skipped ? '<div class="skipped-badge">דחוי</div>' : ''}
+      <div class="pc-invoice-name">${esc(item.nameOnInvoice)}</div>
+      <div class="pc-meta">
+        ${item.supplierName ? esc(item.supplierName) + ' · ' : ''}${fmtDate(item.date)}${item.qty ? ' · ' + item.qty + ' ' + esc(item.unit||'') : ''}${item.price ? ' · ₪' + fmtPrice(item.price) : ''}
+      </div>
+      <div class="pc-buttons">
+        <button class="btn-resolve" onclick="openResolvePending('${item.id}')">✓ שייך למוצר</button>
+        <button class="btn-skip" onclick="${item.skipped ? 'unskipPendingItem(\'' + item.id + '\')' : 'skipPendingItem(\'' + item.id + '\')'}">
+          ${item.skipped ? '↩ שחזר' : '⟳ לאחר כך'}
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function skipPendingItem(id) {
+  const item = (pdb.pending || []).find(p => p.id === id);
+  if (!item) return;
+  item.skipped = true;
+  savePdb(true);
+  pushPending();
+  renderPending();
+  toast('פריט נדחה');
+}
+function unskipPendingItem(id) {
+  const item = (pdb.pending || []).find(p => p.id === id);
+  if (!item) return;
+  item.skipped = false;
+  savePdb(true);
+  pushPending();
+  renderPending();
+  toast('פריט שוחזר ✓', 'success');
+}
+
+// ─── Resolve Pending ───────────────────────────────────────────────────────
+var _resolveProducts = []; // current filtered list for modal
+
+function openResolvePending(pendingId) {
+  _pendingResolveId = pendingId;
+  const item = (pdb.pending || []).find(p => p.id === pendingId);
+  if (!item) return;
+  document.getElementById('rp-title').textContent = item.nameOnInvoice;
+  document.getElementById('rp-hint').textContent = item.supplierName + (item.price ? ' · ₪' + fmtPrice(item.price) : '');
+  document.getElementById('rp-search').value = '';
+  buildResolveList('');
+  document.getElementById('modal-resolve-pending').hidden = false;
+  setTimeout(() => document.getElementById('rp-search').focus(), 120);
+}
+function buildResolveList(query) {
+  const q = (query || '').toLowerCase().trim();
+  _resolveProducts = pdb.products.filter(p =>
+    !q || (p.name||'').toLowerCase().includes(q) || (p.aliases||[]).some(a => a.toLowerCase().includes(q))
+  );
+  const item = (pdb.pending || []).find(p => p.id === _pendingResolveId);
+  const list = document.getElementById('rp-list');
+  if (!list) return;
+  const newProductHtml = `
+    <div class="resolve-item new-product" onclick="resolveToNewProduct()">
+      <div class="resolve-item-name">+ צור מוצר חדש</div>
+      <div class="resolve-item-cat">יוצר מוצר "${item ? esc(item.nameOnInvoice) : ''}"</div>
+    </div>`;
+  const itemsHtml = _resolveProducts.map(p => `
+    <div class="resolve-item" onclick="confirmResolvePending('${p.id}')">
+      <div class="resolve-item-name">${esc(p.name)}</div>
+      <div class="resolve-item-cat">${p.category ? esc(p.category) : ''}</div>
+    </div>`).join('');
+  list.innerHTML = newProductHtml + (itemsHtml || '<div style="text-align:center;padding:20px;color:var(--textMuted);font-size:13px">לא נמצאו מוצרים</div>');
+}
+function filterResolveList(query) {
+  buildResolveList(query);
+}
+function resolveToNewProduct() {
+  const item = (pdb.pending || []).find(p => p.id === _pendingResolveId);
+  if (!item) return;
+  // Create new product from the pending item
+  const newProd = {
+    id: uid(),
+    name: item.nameOnInvoice,
+    category: '',
+    sellPrice: null,
+    sellPriceUpdated: null,
+    active: true,
+    aliases: [],
+    supplierPrices: [],
+    createdAt: new Date().toISOString()
+  };
+  pdb.products.push(newProd);
+  savePdb(true);
+  closeModal('modal-resolve-pending');
+  resolvePendingItem(_pendingResolveId, newProd.id);
+}
+function confirmResolvePending(productId) {
+  closeModal('modal-resolve-pending');
+  resolvePendingItem(_pendingResolveId, productId);
+}
+function resolvePendingItem(pendingId, productId) {
+  const item = (pdb.pending || []).find(p => p.id === pendingId);
+  if (!item) return;
+  const p = pdb.products.find(x => x.id === productId);
+  if (!p) return;
+
+  // Update/add supplier price from this pending item
+  if (item.price != null) {
+    addSupplierPrice(productId, item.supplierName || 'ספק לא ידוע', item.supplierName || 'ספק לא ידוע', item.price);
+  }
+
+  // Save to orderHistory
+  if (!pdb.orderHistory) pdb.orderHistory = [];
+  pdb.orderHistory.push({
+    pendingId: item.id,
+    productId,
+    productName: p.name,
+    supplierName: item.supplierName,
+    qty: item.qty,
+    unit: item.unit,
+    price: item.price,
+    date: item.date,
+    resolvedAt: new Date().toISOString()
+  });
+
+  // Remove from pending
+  pdb.pending = pdb.pending.filter(x => x.id !== pendingId);
+  savePdb(true);
+  pushPending();
+  toast('פריט שויך ל"' + p.name + '" ✓', 'success');
+  renderPending();
+  // Update pending badge
+  const pendingCount = (pdb.pending || []).filter(p => !p.skipped).length;
+  const pbBtn = document.getElementById('pending-header-btn');
+  if (pbBtn) {
+    pbBtn.hidden = pendingCount === 0;
+    pbBtn.textContent = '⏳ ' + pendingCount + ' ממתינ' + (pendingCount === 1 ? 'ים' : 'ים');
+  }
+}
+
+// ─── Google Auth ─────────────────────────────────────────────────────────
+const GOOGLE_CLIENT_ID = '536002139707-9r2ruube0h3p5g8vau42e4ltnrj58vma.apps.googleusercontent.com';
+const ALLOWED_EMAILS = [
+  'tomermazor@gmail.com',
+  'limor1987@gmail.com',
+  'tari@taribakfar.co.il',
+];
+
+function getStoredUser() {
+  try { return JSON.parse(localStorage.getItem('google-user') || 'null'); } catch(e) { return null; }
+}
+function isAllowed(email) {
+  const e = (email||'').trim().toLowerCase();
+  try {
+    const dynUsers = JSON.parse(localStorage.getItem('tari_users_v1') || 'null');
+    if (dynUsers && Array.isArray(dynUsers)) {
+      const u = dynUsers.find(x => x.email === e);
+      if (u) return true;
+    }
+  } catch(ex) {}
+  return ALLOWED_EMAILS.some(a => a.trim().toLowerCase() === e);
+}
+function handleCredentialResponse(response) {
+  try {
+    const b64 = response.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const payload = JSON.parse(atob(b64));
+    if (!isAllowed(payload.email)) {
+      document.getElementById('login-err').textContent = '🚫 ' + payload.email + ' — אין הרשאה לאפליקציה זו';
+      return;
+    }
+    localStorage.setItem('google-user', JSON.stringify({ email: payload.email, name: payload.name || payload.email, picture: payload.picture || '' }));
+    document.getElementById('login-screen').hidden = true;
+    initApp();
+  } catch(e) {
+    document.getElementById('login-err').textContent = 'שגיאה בהתחברות, נסה שנית';
+  }
+}
+function initGoogleSignIn() {
+  var loginScreen = document.getElementById('login-screen');
+  if (!loginScreen || loginScreen.hidden) return;
+  if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes('YOUR_CLIENT_ID')) {
+    document.getElementById('login-err').textContent = '⚙️ יש להגדיר Client ID של Google';
+    return;
+  }
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredentialResponse, auto_select: true, cancel_on_tap_outside: false });
+  google.accounts.id.renderButton(document.getElementById('google-signin-btn'), { type:'standard', theme:'outline', size:'large', width:260 });
+  google.accounts.id.prompt();
+}
+function onGoogleScriptLoad() {
+  if (!document.getElementById('login-screen').hidden) initGoogleSignIn();
+}
+function checkAuth() {
+  const user = getStoredUser();
+  if (user && isAllowed(user.email)) {
+    initApp();
+  } else {
+    document.getElementById('login-screen').hidden = false;
+    if (typeof google !== 'undefined' && google.accounts) initGoogleSignIn();
+  }
+}
+function logout() {
+  if (!confirm('להתנתק מהאפליקציה?')) return;
+  const user = getStoredUser();
+  localStorage.removeItem('google-user');
+  if (typeof google !== 'undefined' && user) google.accounts.id.revoke(user.email, function(){});
+  document.getElementById('app').hidden = true;
+  document.getElementById('login-screen').hidden = false;
+  document.getElementById('login-err').textContent = '';
+  setTimeout(initGoogleSignIn, 100);
+}
+
+// ─── Theme ────────────────────────────────────────────────────────────────
+function initTheme() {
+  const t = localStorage.getItem('app-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('app-theme', next);
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+function initApp() {
+  loadPdb();
+  // First-run: auto-import from orders if no products
+  if (pdb.products.length === 0) {
+    importFromOrders();
+  }
+  document.getElementById('app').hidden = false;
+  showView('products');
+  syncProducts();
+  syncPending();
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) { syncProducts(); syncPending(); }
+  });
+}
+
+initTheme();
+checkAuth();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').then(function(reg) {
+    reg.update();
+    var refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      if (!refreshing) { refreshing = true; window.location.reload(); }
+    });
+  }).catch(function() {});
+}
+</script>
+</body>
+</html>
