@@ -184,6 +184,9 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .btn-danger:active { background:rgba(220,98,98,0.12); }
 .danger-zone { margin-top:32px; padding-top:20px; border-top:1px solid rgba(220,98,98,0.15); }
 
+/* Section divider */
+.section-divider { font-size:11px; font-weight:700; color:var(--textDim); letter-spacing:.06em; text-transform:uppercase; margin:20px 0 10px; padding:14px 4px 10px; border-top:1px solid var(--border); display:flex; align-items:center; gap:6px; }
+
 /* Empty state */
 .empty { text-align:center; padding:60px 20px; }
 .empty-icon { font-size:52px; margin-bottom:16px; }
@@ -694,39 +697,7 @@ function renderProducts(animated) {
     </div>`;
 
   const filtered = filterProducts(filterState.query, filterState.category, filterState.sort);
-
-  let cardsHtml = '';
-  if (!filtered.length) {
-    cardsHtml = `<div class="empty fade-up" style="padding:40px 20px">
-      <div class="empty-icon">🔍</div>
-      <div class="empty-title">לא נמצאו תוצאות</div>
-      <div class="empty-desc">נסה חיפוש אחר</div>
-    </div>`;
-  } else {
-    cardsHtml = filtered.map((p, i) => {
-      const bestBuy = getBestBuyPrice(p);
-      const margin = calcMargin(p);
-      const mc = marginClass(margin);
-      return `
-      <div class="product-card${p.active === false ? ' inactive' : ''}${animated ? ' fade-up' : ''}" id="pc-${p.id}"${animated ? ` style="animation-delay:${i*.04}s"` : ''} onclick="renderProductDetail('${p.id}')">
-        <div class="pc-top">
-          <div class="pc-name">${esc(p.name)}</div>
-          ${p.category ? `<div class="pc-cat">${esc(p.category)}</div>` : ''}
-        </div>
-        <div class="pc-prices">
-          <div class="pc-price-item">
-            <div class="pc-price-label">מחיר קניה</div>
-            <div class="pc-price-val${bestBuy == null ? ' dim' : ''}">${bestBuy != null ? '₪' + fmtPrice(bestBuy) : '—'}</div>
-          </div>
-          <div class="pc-price-item">
-            <div class="pc-price-label">מחיר מכירה</div>
-            <div class="pc-price-val${p.sellPrice == null ? ' dim' : ''}">${p.sellPrice != null ? '₪' + fmtPrice(p.sellPrice) : '—'}</div>
-          </div>
-          <div class="margin-pill ${mc}">${margin != null ? margin + '%' : '—'}</div>
-        </div>
-      </div>`;
-    }).join('');
-  }
+  const cardsHtml = buildCardsHtml(filtered, animated);
 
   main.innerHTML = `
     <div class="search-bar-wrap">
@@ -738,6 +709,53 @@ function renderProducts(animated) {
     ${cardsHtml}`;
 
   main.scrollTop = savedScroll;
+}
+
+// ─── Helper: build cards HTML with nuts section at bottom ──────────────────
+const NUTS_CAT = 'אגוזים ופיצוחים';
+
+function buildCardsHtml(filtered, animated) {
+  if (!filtered.length) {
+    return `<div class="empty${animated?' fade-up':''}" style="padding:40px 20px">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-title">לא נמצאו תוצאות</div>
+      <div class="empty-desc">נסה חיפוש אחר</div>
+    </div>`;
+  }
+  const separateNuts = filterState.category !== NUTS_CAT;
+  const mainItems = separateNuts ? filtered.filter(p => p.category !== NUTS_CAT) : filtered;
+  const nutsItems = separateNuts ? filtered.filter(p => p.category === NUTS_CAT) : [];
+
+  function cardHtml(p, i) {
+    const bestBuy = getBestBuyPrice(p);
+    const margin = calcMargin(p);
+    const mc = marginClass(margin);
+    return `
+    <div class="product-card${p.active === false ? ' inactive' : ''}${animated ? ' fade-up' : ''}" id="pc-${p.id}"${animated ? ` style="animation-delay:${i*.04}s"` : ''} onclick="renderProductDetail('${p.id}')">
+      <div class="pc-top">
+        <div class="pc-name">${esc(p.name)}</div>
+        ${p.category && p.category !== NUTS_CAT ? `<div class="pc-cat">${esc(p.category)}</div>` : ''}
+      </div>
+      <div class="pc-prices">
+        <div class="pc-price-item">
+          <div class="pc-price-label">מחיר קניה</div>
+          <div class="pc-price-val${bestBuy == null ? ' dim' : ''}">${bestBuy != null ? '₪' + fmtPrice(bestBuy) : '—'}</div>
+        </div>
+        <div class="pc-price-item">
+          <div class="pc-price-label">מחיר מכירה</div>
+          <div class="pc-price-val${p.sellPrice == null ? ' dim' : ''}">${p.sellPrice != null ? '₪' + fmtPrice(p.sellPrice) : '—'}</div>
+        </div>
+        <div class="margin-pill ${mc}">${margin != null ? margin + '%' : '—'}</div>
+      </div>
+    </div>`;
+  }
+
+  let html = mainItems.map((p, i) => cardHtml(p, i)).join('');
+  if (nutsItems.length > 0) {
+    html += `<div class="section-divider">🥜 אגוזים ופיצוחים (${nutsItems.length})</div>`;
+    html += nutsItems.map((p, i) => cardHtml(p, mainItems.length + i)).join('');
+  }
+  return html;
 }
 
 function onSearchInput(val) {
@@ -771,38 +789,7 @@ function setSort(s) {
 function renderProductCards() {
   // Re-render only the cards area without touching search/chips/sort
   const filtered = filterProducts(filterState.query, filterState.category, filterState.sort);
-  const animated = false;
-  let cardsHtml = '';
-  if (!filtered.length) {
-    cardsHtml = `<div class="empty" style="padding:40px 20px">
-      <div class="empty-icon">🔍</div>
-      <div class="empty-title">לא נמצאו תוצאות</div>
-    </div>`;
-  } else {
-    cardsHtml = filtered.map(p => {
-      const bestBuy = getBestBuyPrice(p);
-      const margin = calcMargin(p);
-      const mc = marginClass(margin);
-      return `
-      <div class="product-card${p.active === false ? ' inactive' : ''}" onclick="renderProductDetail('${p.id}')">
-        <div class="pc-top">
-          <div class="pc-name">${esc(p.name)}</div>
-          ${p.category ? `<div class="pc-cat">${esc(p.category)}</div>` : ''}
-        </div>
-        <div class="pc-prices">
-          <div class="pc-price-item">
-            <div class="pc-price-label">מחיר קניה</div>
-            <div class="pc-price-val${bestBuy == null ? ' dim' : ''}">${bestBuy != null ? '₪' + fmtPrice(bestBuy) : '—'}</div>
-          </div>
-          <div class="pc-price-item">
-            <div class="pc-price-label">מחיר מכירה</div>
-            <div class="pc-price-val${p.sellPrice == null ? ' dim' : ''}">${p.sellPrice != null ? '₪' + fmtPrice(p.sellPrice) : '—'}</div>
-          </div>
-          <div class="margin-pill ${mc}">${margin != null ? margin + '%' : '—'}</div>
-        </div>
-      </div>`;
-    }).join('');
-  }
+  const cardsHtml = buildCardsHtml(filtered, false);
   // Replace only card content (everything after sort-row)
   const main = document.getElementById('products-main');
   const sortRow = main.querySelector('.sort-row');
