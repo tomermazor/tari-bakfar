@@ -61,6 +61,7 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 
 /* Main */
 .main { flex:1; overflow-y:auto; padding:16px; padding-bottom:100px; }
+#order-main { padding-bottom:200px; }
 
 /* Supplier cards */
 .supplier-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px 18px; display:flex; align-items:center; gap:14px; margin-bottom:10px; }
@@ -623,31 +624,14 @@ function hasDraftFor(supplierId) {
 
 // ─── Order Counter ──────────────────────────────────────────────────────────
 function updateOrderCounter() {
-  var totalCartons = 0, totalUnits = 0;
-  var sup = findSupplier(currentSupplierId);
-  if (sup) {
-    sup.products.forEach(function(p) {
-      var st = orderState[p.id];
-      if (!st) return;
-      if (st.unit === 'both') {
-        totalCartons += parseInt(st.carton) || 0;
-        totalUnits += parseInt(st.units) || 0;
-      } else if (st.unit === 'קרטון') {
-        totalCartons += parseInt(st.qty) || 0;
-      } else {
-        totalUnits += parseInt(st.qty) || 0;
-      }
-    });
-    // Count manual items too
-    Object.keys(orderState).filter(k => k.startsWith('manual_')).forEach(k => {
-      var st = orderState[k];
-      if (!st || !st.isManual) return;
-      if (st.unit === 'קרטון') totalCartons += parseInt(st.qty) || 0;
-      else totalUnits += parseInt(st.qty) || 0;
-    });
-  }
   var el = document.getElementById('order-counter');
   if (!el) return;
+  var items = getOrderedItems();
+  var totalCartons = 0, totalUnits = 0;
+  items.forEach(function(it) {
+    if (it.unit === 'קרטון') totalCartons += parseInt(it.qty) || 0;
+    else totalUnits += parseInt(it.qty) || 0;
+  });
   var parts = [];
   if (totalCartons > 0) parts.push('📦 ' + totalCartons + ' קרטון');
   if (totalUnits > 0) parts.push('🔢 ' + totalUnits + ' יחידות');
@@ -811,6 +795,7 @@ function renderOrderProducts(sup, hasDraft) {
           <input class="input" id="manual-name-inp" type="text" placeholder="שם המוצר..." value="${esc(manualAddState.name)}"
             oninput="manualAddState.name=this.value"
             onkeydown="if(event.key==='Enter')addManualProduct()"
+            onfocus="this.closest('.manual-add-box').scrollIntoView({behavior:'smooth',block:'center'})"
             autocomplete="off" style="margin-bottom:8px">
           <div style="display:flex;gap:8px;align-items:center">
             <button class="unit-toggle ${manualAddState.unit==='קרטון'?'is-carton':'is-units'}" id="manual-unit-btn"
@@ -828,6 +813,8 @@ function renderOrderProducts(sup, hasDraft) {
       return manualHtml + addForm;
     })()}
   `;
+  // Always sync the footer counter after every render
+  updateOrderCounter();
 }
 
 function toggleUnit(pid) {
@@ -977,34 +964,56 @@ function executeTransfer(targetSupplierId) {
   if (!_transferData) return;
   const { pid, name } = _transferData;
   const st = orderState[pid];
+  if (!st) { closeModal('modal-transfer'); _transferData = null; return; }
+
+  // Guard: nothing to transfer if qty = 0
+  const totalQty = st.unit === 'both'
+    ? (parseInt(st.carton)||0) + (parseInt(st.units)||0)
+    : (parseInt(st.qty)||0);
+  if (totalQty === 0) {
+    closeModal('modal-transfer');
+    _transferData = null;
+    toast('אין כמות להעברה — הזן כמות קודם', 'error');
+    return;
+  }
+
   const drafts = getAllDrafts();
   const targetState = (drafts[targetSupplierId] && drafts[targetSupplierId].state) || {};
   const fromName = findSupplier(currentSupplierId)?.name || '';
 
-  // Create manual item(s) in target draft
+  // Create manual item(s) in target draft + zero source
   if (st.unit === 'both') {
     const qc = parseInt(st.carton) || 0;
     const qu = parseInt(st.units) || 0;
-    if (qc > 0) targetState['manual_' + uid()] = { isManual:true, name, unit:'קרטון', qty:String(qc), notes:`מ-${fromName}` };
-    if (qu > 0) targetState['manual_' + uid()] = { isManual:true, name, unit:'יחידות', qty:String(qu), notes:`מ-${fromName}` };
+    if (qc > 0) targetState['manual_' + uid()] = { isManual:true, name, unit:'קרטון', qty:String(qc), notes:'' };
+    if (qu > 0) targetState['manual_' + uid()] = { isManual:true, name, unit:'יחידות', qty:String(qu), notes:'' };
     st.carton = '0'; st.units = '0';
   } else {
-    const qty = parseInt(st.qty) || 0;
-    if (qty > 0) targetState['manual_' + uid()] = { isManual:true, name, unit:st.unit, qty:String(qty), notes:`מ-${fromName}` };
+    targetState['manual_' + uid()] = { isManual:true, name, unit:st.unit, qty:String(parseInt(st.qty)), notes:'' };
     st.qty = '0';
   }
 
-  // If it was itself a manual item — remove it
+  // If source was a manual item — remove it from orderState entirely
   if (pid.startsWith('manual_')) delete orderState[pid];
 
-  // Persist
+  // Persist both source and target drafts
   drafts[targetSupplierId] = { state: targetState, ts: Date.now() };
   localStorage.setItem(ALL_DRAFTS_KEY, JSON.stringify(drafts));
-  saveDraft();
+  saveDraft(); // saves current supplier with zeroed qty
 
   closeModal('modal-transfer');
+  // renderOrderProducts calls updateOrderCounter() internally now
   renderOrderProducts(findSupplier(currentSupplierId), hasDraftFor(currentSupplierId));
-  updateOrderCounter();
+
+  // Also update the badge on the target supplier's card on home screen (if visible)
+  const targetCard = document.getElementById('sc-' + targetSupplierId);
+  if (targetCard) {
+    const nameEl = targetCard.querySelector('.supplier-name');
+    if (nameEl && !nameEl.querySelector('.supplier-draft-badge')) {
+      nameEl.insertAdjacentHTML('beforeend', ' <span class="supplier-draft-badge">📋 טיוטא</span>');
+    }
+  }
+
   toast(`⇄ הועבר ל${findSupplier(targetSupplierId)?.name||''} ✓`, 'success');
   _transferData = null;
 }
