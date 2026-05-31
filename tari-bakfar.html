@@ -861,6 +861,11 @@ let state = {
   batchQueue: [], batchTotal: 0,
   checkBatchQueue: [], checkBatchTotal: 0,
   supplierEditId: null, supplierEditName: '',
+  payablesView: 'dashboard',
+  payablesSupplier: '',
+  payablesDebtId: '',
+  payablesModal: '',
+  payablesModalData: null,
 };
 function setState(patch) { Object.assign(state, patch); render(); }
 
@@ -911,6 +916,7 @@ const ICONS = {
   add: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
   checks: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 10h4m-4 4h12M14 10h4"/></svg>',
   settings: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  payables: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2"/></svg>',
 };
 
 const TABS = [
@@ -919,6 +925,7 @@ const TABS = [
   {id:'reports',label:'דוחות'},{id:'fixed',label:'קבועות'},
   {id:'installments',label:'תשלומים'},{id:'credits',label:'זיכויים'},
   {id:'workers',label:'עובדים'},{id:'checks',label:"צ'קים"},
+  {id:'payables',label:'חובות'},
 ];
 
 function renderNav() {
@@ -3538,6 +3545,7 @@ function render() {
     case 'credits': content = renderCredits(); break;
     case 'workers': content = renderWorkers(); break;
     case 'checks': content = renderChecks(); break;
+    case 'payables': content = renderPayables(); break;
     case 'add': content = renderAdd(); break;
     case 'settings': content = renderSettings(); break;
   }
@@ -3553,7 +3561,7 @@ function render() {
   main.innerHTML = content;
   main.scrollTop = savedScroll; // restore scroll after innerHTML replace
 
-  document.getElementById('modal-container').innerHTML = state.viewCreditImage ? renderImageLightbox() : (state.editId ? renderEditModal() : '');
+  document.getElementById('modal-container').innerHTML = state.viewCreditImage ? renderImageLightbox() : (state.editId ? renderEditModal() : (state.payablesModal ? renderPayablesModal() : ''));
   renderNav();
   updateHeader();
   // Auto-focus supplier edit input if in edit mode
@@ -3774,6 +3782,621 @@ function logout() {
   document.getElementById('login-screen').hidden = false;
   document.getElementById('login-err').textContent = '';
   setTimeout(initGoogleSignIn, 100);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAYABLES — חובות ספקים
+// ═══════════════════════════════════════════════════════════════════════════
+const PAYABLES_KEY = 'payables-v1';
+let pv = { taxInvoices: [], debts: [], cancelledDNIds: [], _lastSynced: 0, _localModified: 0 };
+
+function loadPv() {
+  try { const s = localStorage.getItem(PAYABLES_KEY); if (s) pv = JSON.parse(s); } catch(e) {}
+  if (!pv.taxInvoices) pv.taxInvoices = [];
+  if (!pv.debts) pv.debts = [];
+  if (!pv.cancelledDNIds) pv.cancelledDNIds = [];
+}
+function savePv(dirty) {
+  if (dirty) pv._localModified = Date.now();
+  localStorage.setItem(PAYABLES_KEY, JSON.stringify(pv));
+}
+loadPv();
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function pvTodayISO() { return todayISO(); }
+function pvDateInDays(isoDate, days) {
+  if (!isoDate) return false;
+  const d = new Date(isoDate); d.setHours(0,0,0,0);
+  const t = new Date(); t.setHours(0,0,0,0);
+  const diff = (d - t) / 86400000;
+  return diff >= 0 && diff <= days;
+}
+function pvIsOverdue(isoDate) {
+  if (!isoDate) return false;
+  const d = new Date(isoDate); d.setHours(0,0,0,0);
+  const t = new Date(); t.setHours(0,0,0,0);
+  return d < t;
+}
+function pvSupplierNorm(name) { return (name||'').trim().toLowerCase(); }
+
+function pvGetOpenDNsForSupplier(supplierName) {
+  const norm = pvSupplierNorm(supplierName);
+  const linkedIds = new Set(pv.taxInvoices.flatMap(ti => ti.deliveryNoteIds || []));
+  return (DB.expenses || []).filter(e =>
+    e.document_type === 'תעודת משלוח' &&
+    pvSupplierNorm(e.supplier) === norm &&
+    !pv.cancelledDNIds.includes(e.id) &&
+    !linkedIds.has(e.id)
+  );
+}
+
+function pvGetAllSuppliers() {
+  // Collect from expenses (delivery notes + tax invoices) and existing debts
+  const names = new Set();
+  (DB.expenses || []).forEach(e => {
+    if (e.document_type === 'תעודת משלוח' || e.document_type === 'חשבונית מס') {
+      if (e.supplier) names.add(e.supplier.trim());
+    }
+  });
+  pv.debts.forEach(d => { if (d.supplierName) names.add(d.supplierName.trim()); });
+  pv.taxInvoices.forEach(ti => { if (ti.supplierName) names.add(ti.supplierName.trim()); });
+  return Array.from(names).sort();
+}
+
+function pvSupplierStats(supplierName) {
+  const norm = pvSupplierNorm(supplierName);
+  const debts = pv.debts.filter(d => pvSupplierNorm(d.supplierName) === norm && !['paid','cancelled'].includes(d.status));
+  const total = debts.reduce((s,d) => s + (+d.amount||0), 0);
+  const paid = debts.reduce((s,d) => s + (+d.paidAmount||0), 0);
+  const outstanding = total - paid;
+  const openDNs = pvGetOpenDNsForSupplier(supplierName).length;
+  let status = 'none';
+  if (debts.length > 0) {
+    if (debts.some(d => pvIsOverdue(d.dueDate) && !['paid','cancelled'].includes(d.status))) status = 'overdue';
+    else if (debts.some(d => pvDateInDays(d.dueDate, 7) && !['paid','cancelled'].includes(d.status))) status = 'soon';
+    else status = 'ok';
+  }
+  return { outstanding, openDNs, status, debtCount: debts.length };
+}
+
+function pvStatusBadge(status) {
+  if (status === 'overdue') return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--dangerSoft);color:var(--danger)">מאחר</span>`;
+  if (status === 'soon') return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--amberSoft);color:var(--amber)">השבוע</span>`;
+  if (status === 'ok') return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--accentSoft);color:var(--accent)">בסדר</span>`;
+  return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--surfaceHi);color:var(--textDim)">אין חוב</span>`;
+}
+
+function pvDebtStatusBadge(debt) {
+  const s = debt.status || 'open';
+  if (s === 'paid') return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--accentSoft);color:var(--accent)">שולם</span>`;
+  if (s === 'partial') return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--amberSoft);color:var(--amber)">חלקי</span>`;
+  if (s === 'cancelled') return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--surfaceHi);color:var(--textDim)">בוטל</span>`;
+  if (pvIsOverdue(debt.dueDate)) return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--dangerSoft);color:var(--danger)">מאחר</span>`;
+  if (pvDateInDays(debt.dueDate, 7)) return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--amberSoft);color:var(--amber)">השבוע</span>`;
+  return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--infoSoft);color:var(--info)">פתוח</span>`;
+}
+
+function pvUpdateDebtStatus(debt) {
+  const paid = +debt.paidAmount || 0;
+  const total = +debt.amount || 0;
+  if (paid >= total && total > 0) debt.status = 'paid';
+  else if (paid > 0) debt.status = 'partial';
+  else if (!debt.status || debt.status === 'paid' || debt.status === 'partial') debt.status = 'open';
+}
+
+// ── Dashboard sub-view ───────────────────────────────────────────────────────
+function renderPayablesDashboard() {
+  // Summary stats
+  const today = pvTodayISO();
+  const activeDebts = pv.debts.filter(d => !['paid','cancelled'].includes(d.status));
+  let overdueAmt = 0, soonAmt = 0, futureAmt = 0, totalAmt = 0;
+  activeDebts.forEach(d => {
+    const rem = (+d.amount||0) - (+d.paidAmount||0);
+    totalAmt += rem;
+    if (pvIsOverdue(d.dueDate)) overdueAmt += rem;
+    else if (pvDateInDays(d.dueDate, 7)) soonAmt += rem;
+    else futureAmt += rem;
+  });
+
+  const card = (emoji, color, label, val) => `
+    <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);display:flex;flex-direction:column;gap:4px">
+      <div style="font-size:20px">${emoji}</div>
+      <div style="font-size:11px;color:var(--textDim);font-weight:600">${label}</div>
+      <div class="display" style="font-size:19px;color:${color};font-weight:700">${fmtCurr(val)}</div>
+    </div>`;
+
+  const summaryHtml = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      ${card('🔴','var(--danger)','מאחר',overdueAmt)}
+      ${card('🟡','var(--amber)','השבוע',soonAmt)}
+      ${card('🟢','var(--accent)','עתידי',futureAmt)}
+      ${card('📊','var(--text)','סה"כ חוב',totalAmt)}
+    </div>`;
+
+  const suppliers = pvGetAllSuppliers();
+  if (suppliers.length === 0 && pv.debts.length === 0) {
+    return `<div style="padding:16px 16px 100px" class="fade-up">
+      ${summaryHtml}
+      <div style="padding:40px 20px;text-align:center;color:var(--textDim);font-size:14px">
+        <div style="font-size:36px;margin-bottom:12px">📋</div>
+        <div style="font-weight:600;margin-bottom:4px">אין ספקים עדיין</div>
+        <div style="font-size:12px;color:var(--textMuted)">הוסף חוב ישיר כדי להתחיל</div>
+      </div>
+      <button onclick="setState({payablesModal:'add-direct',payablesModalData:{}})" style="position:fixed;bottom:calc(80px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:10;padding:14px 28px;border:none;border-radius:50px;background:var(--accent);color:#071302;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:var(--shadow-accent)">+ חוב ישיר</button>
+    </div>`;
+  }
+
+  // Sort by outstanding desc
+  const sorted = suppliers.map(s => ({ name: s, ...pvSupplierStats(s) }))
+    .sort((a,b) => b.outstanding - a.outstanding);
+
+  const listHtml = sorted.map(s => `
+    <div onclick="setState({payablesView:'supplier',payablesSupplier:'${esc(s.name)}'})" style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:13px;background:var(--surface);border:1px solid var(--border);cursor:pointer;margin-bottom:8px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px">${esc(s.name)}</div>
+        <div style="font-size:12px;color:var(--textDim)">${s.openDNs > 0 ? `${s.openDNs} ת"מ פתוחות · ` : ''}${s.debtCount} חובות</div>
+      </div>
+      <div style="text-align:left">
+        <div class="display" style="font-size:16px;font-weight:700;color:${s.outstanding>0?'var(--danger)':'var(--textDim)'}">${fmtCurr(s.outstanding)}</div>
+        <div style="margin-top:3px;text-align:left">${pvStatusBadge(s.status)}</div>
+      </div>
+      <div style="color:var(--textMuted);font-size:18px">›</div>
+    </div>`).join('');
+
+  return `<div style="padding:16px 16px 100px" class="fade-up">
+    ${summaryHtml}
+    <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">ספקים</div>
+    ${listHtml}
+    <button onclick="setState({payablesModal:'add-direct',payablesModalData:{}})" style="position:fixed;bottom:calc(80px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:10;padding:14px 28px;border:none;border-radius:50px;background:var(--accent);color:#071302;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:var(--shadow-accent)">+ חוב ישיר</button>
+  </div>`;
+}
+
+// ── Supplier sub-view ────────────────────────────────────────────────────────
+function renderPayablesSupplier() {
+  const sup = state.payablesSupplier;
+  const norm = pvSupplierNorm(sup);
+
+  // Open delivery notes
+  const openDNs = pvGetOpenDNsForSupplier(sup);
+  const dnHtml = openDNs.length === 0
+    ? `<div style="font-size:12px;color:var(--textMuted);padding:6px 0">אין תעודות משלוח פתוחות</div>`
+    : openDNs.map(e => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${fmtDate(e.date)} · ${esc(e.document_number||'ללא מספר')}</div>
+          <div style="font-size:11px;color:var(--textDim)">${esc(e.notes||'')}</div>
+        </div>
+        <div class="display" style="font-size:14px;font-weight:700;color:var(--text)">${fmtCurr(e.total_amount)}</div>
+        <button onclick="pvCancelDN('${e.id}')" title="בטל" style="width:28px;height:28px;border:none;border-radius:8px;background:var(--dangerSoft);color:var(--danger);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+      </div>`).join('');
+
+  const dnSection = `
+    <div style="padding:14px 16px;border-radius:13px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--textDim);letter-spacing:0.06em;text-transform:uppercase">תעודות משלוח פתוחות</div>
+        ${openDNs.length > 0 ? `<button onclick="setState({payablesModal:'link-dn',payablesModalData:{supplier:'${esc(sup)}'}})" style="font-size:12px;font-weight:700;padding:5px 12px;border:none;border-radius:8px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit">🔗 שייך לחשבונית</button>` : ''}
+      </div>
+      ${dnHtml}
+    </div>`;
+
+  // Tax invoices for supplier
+  const tis = pv.taxInvoices.filter(ti => pvSupplierNorm(ti.supplierName) === norm);
+  const tiHtml = tis.length === 0
+    ? `<div style="font-size:12px;color:var(--textMuted);padding:6px 0">אין חשבוניות מס</div>`
+    : tis.map(ti => {
+        const linkedDebt = pv.debts.find(d => d.taxInvoiceId === ti.id);
+        return `
+          <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(ti.invoiceNumber||'ללא מספר')} · ${fmtDate(ti.date)}</div>
+                <div style="font-size:11px;color:var(--textDim)">${(ti.deliveryNoteIds||[]).length} ת"מ מקושרות</div>
+              </div>
+              <div class="display" style="font-size:14px;font-weight:700;color:var(--text)">${fmtCurr(ti.amount)}</div>
+              ${linkedDebt
+                ? `<div style="cursor:pointer" onclick="setState({payablesView:'debt',payablesDebtId:'${linkedDebt.id}'})">${pvDebtStatusBadge(linkedDebt)}</div>`
+                : `<button onclick="pvCreateDebtFromTI('${ti.id}')" style="font-size:11px;padding:4px 10px;border:none;border-radius:7px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit;font-weight:700">צור חוב</button>`
+              }
+            </div>
+          </div>`;
+      }).join('');
+
+  const tiSection = `
+    <div style="padding:14px 16px;border-radius:13px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--textDim);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">חשבוניות מס</div>
+      ${tiHtml}
+    </div>`;
+
+  // Debts for supplier
+  const debts = pv.debts.filter(d => pvSupplierNorm(d.supplierName) === norm);
+  const debtsHtml = debts.length === 0
+    ? `<div style="font-size:12px;color:var(--textMuted);padding:6px 0">אין חובות</div>`
+    : debts.map(d => {
+        const remaining = (+d.amount||0) - (+d.paidAmount||0);
+        return `
+          <div onclick="setState({payablesView:'debt',payablesDebtId:'${d.id}'})" style="padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(d.invoiceNumber||'ללא מספר')} · לתשלום: ${d.dueDate ? fmtDate(d.dueDate) : '—'}</div>
+                <div style="font-size:11px;color:var(--textDim)">שולם: ${fmtCurr(d.paidAmount||0)} / ${fmtCurr(d.amount||0)}</div>
+              </div>
+              <div style="text-align:left">
+                <div class="display" style="font-size:14px;font-weight:700;color:${remaining>0?'var(--danger)':'var(--accent)'}">${fmtCurr(remaining)}</div>
+                <div style="margin-top:2px">${pvDebtStatusBadge(d)}</div>
+              </div>
+              <div style="color:var(--textMuted);font-size:18px">›</div>
+            </div>
+          </div>`;
+      }).join('');
+
+  const debtsSection = `
+    <div style="padding:14px 16px;border-radius:13px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--textDim);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">חובות</div>
+      ${debtsHtml}
+    </div>`;
+
+  return `<div style="padding:16px 16px 90px" class="fade-up">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <button onclick="setState({payablesView:'dashboard'})" style="width:38px;height:38px;border:none;border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center">‹</button>
+      <h2 class="display" style="font-size:18px;margin:0;flex:1">${esc(sup)}</h2>
+      <button onclick="setState({payablesModal:'add-direct',payablesModalData:{supplier:'${esc(sup)}'}})" style="padding:7px 14px;border:none;border-radius:9px;background:var(--accentSoft);color:var(--accent);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">+ חוב</button>
+    </div>
+    ${dnSection}
+    ${tiSection}
+    ${debtsSection}
+  </div>`;
+}
+
+// ── Debt sub-view ────────────────────────────────────────────────────────────
+function renderPayablesDebt() {
+  const debt = pv.debts.find(d => d.id === state.payablesDebtId);
+  if (!debt) return `<div style="padding:20px;color:var(--danger)">חוב לא נמצא</div>`;
+  const remaining = (+debt.amount||0) - (+debt.paidAmount||0);
+  const pct = debt.amount > 0 ? Math.min(100, Math.round((debt.paidAmount||0) / debt.amount * 100)) : 0;
+  const dueDateColor = pvIsOverdue(debt.dueDate) ? 'var(--danger)' : pvDateInDays(debt.dueDate, 7) ? 'var(--amber)' : 'var(--text)';
+
+  const paymentsHtml = (debt.payments||[]).length === 0
+    ? `<div style="font-size:12px;color:var(--textMuted);padding:6px 0">אין תשלומים עדיין</div>`
+    : (debt.payments||[]).map(p => `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${fmtDate(p.date)} · ${esc(p.method||'')}</div>
+          ${p.reference ? `<div style="font-size:11px;color:var(--textDim)">אסמכתא: ${esc(p.reference)}</div>` : ''}
+          ${p.notes ? `<div style="font-size:11px;color:var(--textDim)">${esc(p.notes)}</div>` : ''}
+        </div>
+        <div class="display" style="font-size:14px;font-weight:700;color:var(--accent)">${fmtCurr(p.amount)}</div>
+      </div>`).join('');
+
+  return `<div style="padding:16px 16px 90px" class="fade-up">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <button onclick="setState({payablesView:'supplier',payablesSupplier:'${esc(debt.supplierName)}'})" style="width:38px;height:38px;border:none;border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center">‹</button>
+      <div style="flex:1;min-width:0">
+        <h2 class="display" style="font-size:17px;margin:0">${esc(debt.supplierName)}</h2>
+        <div style="font-size:12px;color:var(--textDim)">חשבונית: ${esc(debt.invoiceNumber||'ללא מספר')}</div>
+      </div>
+      ${pvDebtStatusBadge(debt)}
+    </div>
+
+    <!-- Amounts card -->
+    <div style="padding:16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+        <div style="text-align:center">
+          <div style="font-size:11px;color:var(--textDim);margin-bottom:2px">סה"כ</div>
+          <div class="display" style="font-size:16px;font-weight:700">${fmtCurr(debt.amount)}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:11px;color:var(--textDim);margin-bottom:2px">שולם</div>
+          <div class="display" style="font-size:16px;font-weight:700;color:var(--accent)">${fmtCurr(debt.paidAmount||0)}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:11px;color:var(--textDim);margin-bottom:2px">נותר</div>
+          <div class="display" style="font-size:16px;font-weight:700;color:${remaining>0?'var(--danger)':'var(--accent)'}">${fmtCurr(remaining)}</div>
+        </div>
+      </div>
+      <!-- Progress bar -->
+      <div style="height:8px;border-radius:4px;background:var(--surfaceHi);overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:4px;transition:width 0.3s ease"></div>
+      </div>
+      <div style="font-size:11px;color:var(--textDim);text-align:center;margin-top:4px">${pct}% שולם</div>
+    </div>
+
+    <!-- Details card -->
+    <div style="padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px;color:var(--textDim)">תאריך פירעון</span>
+        <span style="font-size:13px;font-weight:600;color:${dueDateColor}">${debt.dueDate ? fmtDate(debt.dueDate) : '—'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px;color:var(--textDim)">אמצעי תשלום</span>
+        <span style="font-size:13px;font-weight:600">${esc(debt.paymentMethod||'—')}</span>
+      </div>
+      ${debt.checkNumber ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px;color:var(--textDim)">מספר צ'ק</span>
+        <span style="font-size:13px;font-weight:600">${esc(debt.checkNumber)}</span>
+      </div>` : ''}
+      ${debt.notes ? `<div style="padding:6px 0">
+        <span style="font-size:13px;color:var(--textDim)">הערות: </span>
+        <span style="font-size:13px">${esc(debt.notes)}</span>
+      </div>` : ''}
+    </div>
+
+    <!-- Payments history -->
+    <div style="padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--textDim);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">היסטוריית תשלומים</div>
+      ${paymentsHtml}
+    </div>
+
+    <!-- Actions -->
+    ${debt.status !== 'cancelled' ? `
+    <div style="display:flex;gap:10px">
+      <button onclick="setState({payablesModal:'record-payment',payablesModalData:{debtId:'${debt.id}'}})" style="flex:1;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#071302;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">💳 רשום תשלום</button>
+      <button onclick="pvCancelDebt('${debt.id}')" style="padding:13px 16px;border:none;border-radius:12px;background:var(--dangerSoft);color:var(--danger);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">🗑</button>
+    </div>` : ''}
+  </div>`;
+}
+
+// ── Main renderPayables entry ────────────────────────────────────────────────
+function renderPayables() {
+  if (state.payablesView === 'supplier') return renderPayablesSupplier();
+  if (state.payablesView === 'debt') return renderPayablesDebt();
+  return renderPayablesDashboard();
+}
+
+// ── Modals ───────────────────────────────────────────────────────────────────
+function renderPayablesModal() {
+  switch(state.payablesModal) {
+    case 'link-dn': return renderPvModalLinkDN();
+    case 'add-direct': return renderPvModalAddDirect();
+    case 'record-payment': return renderPvModalRecordPayment();
+    default: return '';
+  }
+}
+
+function pvModalWrap(title, bodyHtml, confirmLabel, confirmFn, closeExpr) {
+  return `
+    <div onclick="${closeExpr}" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
+      <div onclick="event.stopPropagation()" style="background:var(--surface);border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:20px;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));max-height:88vh;overflow-y:auto;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+          <button onclick="${closeExpr}" style="width:40px;height:40px;border:none;border-radius:12px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+          <h2 class="display" style="font-size:16px;margin:0;flex:1">${title}</h2>
+          <button onclick="${confirmFn}()" style="border:none;border-radius:10px;padding:8px 18px;background:var(--accent);color:#071302;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">${confirmLabel}</button>
+        </div>
+        ${bodyHtml}
+      </div>
+    </div>`;
+}
+
+// Modal: link delivery notes to tax invoice
+function renderPvModalLinkDN() {
+  const sup = (state.payablesModalData||{}).supplier || '';
+  const step = (state.payablesModalData||{}).step || 1;
+  const selected = (state.payablesModalData||{}).selectedDNIds || [];
+  const openDNs = pvGetOpenDNsForSupplier(sup);
+
+  if (step === 1) {
+    const total = openDNs.filter(e => selected.includes(e.id)).reduce((s,e)=>s+(+e.total_amount||0),0);
+    const body = `
+      <div style="font-size:12px;color:var(--textDim);margin-bottom:10px">בחר תעודות משלוח לשיוך לחשבונית מס</div>
+      ${openDNs.length === 0
+        ? `<div style="font-size:13px;color:var(--textMuted);padding:10px 0">אין תעודות משלוח פתוחות עבור ${esc(sup)}</div>`
+        : openDNs.map(e => {
+            const chk = selected.includes(e.id);
+            return `<div onclick="pvToggleDNSelect('${e.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:11px;background:${chk?'var(--accentSoft)':'var(--surfaceHi)'};border:1px solid ${chk?'var(--accent)':'var(--border)'};margin-bottom:6px;cursor:pointer">
+              <div style="width:20px;height:20px;border-radius:5px;border:2px solid ${chk?'var(--accent)':'var(--borderHi)'};background:${chk?'var(--accent)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;color:#071302">${chk?'✓':''}</div>
+              <div style="flex:1;font-size:13px;font-weight:600">${fmtDate(e.date)} · ${esc(e.document_number||'ללא מספר')}</div>
+              <div class="display" style="font-size:13px;font-weight:700">${fmtCurr(e.total_amount)}</div>
+            </div>`;
+          }).join('')
+      }
+      ${selected.length > 0 ? `<div style="padding:10px;border-radius:10px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.25);text-align:center;margin-top:6px">
+        <span style="font-size:12px;color:var(--textDim)">סה"כ נבחר: </span>
+        <span class="display" style="font-size:16px;font-weight:700;color:var(--accent)">${fmtCurr(total)}</span>
+      </div>` : ''}`;
+    return pvModalWrap('שיוך לחשבונית מס — בחר ת"מ', body, 'הבא ›', 'pvLinkDNStep2', `setState({payablesModal:'',payablesModalData:null})`);
+  }
+
+  // Step 2: invoice details
+  const data = state.payablesModalData || {};
+  const body2 = `
+    <div style="font-size:12px;color:var(--textDim);margin-bottom:10px">${selected.length} ת"מ נבחרו · סה"כ: ${fmtCurr(openDNs.filter(e=>selected.includes(e.id)).reduce((s,e)=>s+(+e.total_amount||0),0))}</div>
+    <div class="field"><label class="label">מספר חשבונית *</label><input class="input" placeholder="123456" value="${esc(data.invoiceNumber||'')}" oninput="state.payablesModalData.invoiceNumber=this.value" id="pv-ti-num"></div>
+    <div class="field"><label class="label">תאריך חשבונית</label><input class="input" type="date" value="${data.invoiceDate||todayISO()}" oninput="state.payablesModalData.invoiceDate=this.value"></div>
+    <div class="field"><label class="label">סכום חשבונית ₪</label><input class="input" type="number" inputmode="decimal" value="${data.invoiceAmount||''}" oninput="state.payablesModalData.invoiceAmount=this.value"></div>
+    <div class="field"><label class="label">תאריך פירעון</label><input class="input" type="date" value="${data.dueDate||''}" oninput="state.payablesModalData.dueDate=this.value"></div>
+    <div class="field"><label class="label">אמצעי תשלום</label><select class="input" onchange="state.payablesModalData.paymentMethod=this.value">
+      ${['צ\'ק','העברה','מזומן','אשראי'].map(m=>`<option value="${m}" ${data.paymentMethod===m?'selected':''}>${m}</option>`).join('')}
+    </select></div>
+    ${(data.paymentMethod||'') === "צ'ק" ? `<div class="field"><label class="label">מספר צ'ק</label><input class="input" value="${esc(data.checkNumber||'')}" oninput="state.payablesModalData.checkNumber=this.value"></div>` : ''}
+    <div class="field"><label class="label">הערות</label><input class="input" value="${esc(data.notes||'')}" oninput="state.payablesModalData.notes=this.value"></div>`;
+  return pvModalWrap('שיוך לחשבונית מס — פרטים', body2, 'שמור', 'pvLinkDNConfirm', `setState({payablesModal:'',payablesModalData:null})`);
+}
+
+function pvToggleDNSelect(dnId) {
+  const d = state.payablesModalData || {};
+  const sel = d.selectedDNIds ? [...d.selectedDNIds] : [];
+  const idx = sel.indexOf(dnId);
+  if (idx >= 0) sel.splice(idx, 1); else sel.push(dnId);
+  setState({payablesModalData: {...d, selectedDNIds: sel}});
+}
+
+function pvLinkDNStep2() {
+  const d = state.payablesModalData || {};
+  if (!d.selectedDNIds || d.selectedDNIds.length === 0) { toast('נא לבחור לפחות תעודת משלוח אחת', 'error'); return; }
+  const total = pvGetOpenDNsForSupplier(d.supplier||'').filter(e=>d.selectedDNIds.includes(e.id)).reduce((s,e)=>s+(+e.total_amount||0),0);
+  setState({payablesModalData: {...d, step: 2, invoiceAmount: total.toFixed(2)}});
+}
+
+function pvLinkDNConfirm() {
+  const d = state.payablesModalData || {};
+  if (!d.invoiceNumber) { toast('נא להזין מספר חשבונית', 'error'); return; }
+  const tiId = uid();
+  const ti = {
+    id: tiId,
+    supplierName: d.supplier || '',
+    invoiceNumber: d.invoiceNumber,
+    date: d.invoiceDate || todayISO(),
+    amount: +(d.invoiceAmount||0),
+    deliveryNoteIds: d.selectedDNIds || [],
+    notes: d.notes || '',
+    createdAt: Date.now(),
+  };
+  pv.taxInvoices.push(ti);
+  // Create debt
+  const debt = {
+    id: uid(),
+    supplierName: d.supplier || '',
+    taxInvoiceId: tiId,
+    invoiceNumber: d.invoiceNumber,
+    amount: +(d.invoiceAmount||0),
+    paidAmount: 0,
+    dueDate: d.dueDate || '',
+    paymentMethod: d.paymentMethod || "צ'ק",
+    checkNumber: d.checkNumber || '',
+    notes: d.notes || '',
+    status: 'open',
+    payments: [],
+    createdAt: Date.now(),
+  };
+  pv.debts.push(debt);
+  savePv(true);
+  setState({payablesModal:'', payablesModalData:null});
+  toast('חשבונית וחוב נוצרו ✓', 'success');
+}
+
+// Modal: add direct debt
+function renderPvModalAddDirect() {
+  const d = state.payablesModalData || {};
+  const suppliers = pvGetAllSuppliers();
+  const body = `
+    <datalist id="pv-sup-dl">${suppliers.map(s=>`<option value="${esc(s)}">`).join('')}</datalist>
+    <div class="field"><label class="label">ספק *</label><input class="input" list="pv-sup-dl" placeholder="שם הספק" value="${esc(d.supplier||'')}" oninput="state.payablesModalData.supplier=this.value"></div>
+    <div class="field"><label class="label">מספר חשבונית</label><input class="input" placeholder="123456" value="${esc(d.invoiceNumber||'')}" oninput="state.payablesModalData.invoiceNumber=this.value"></div>
+    <div class="row">
+      <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${d.date||todayISO()}" oninput="state.payablesModalData.date=this.value"></div>
+      <div class="field"><label class="label">תאריך פירעון</label><input class="input" type="date" value="${d.dueDate||''}" oninput="state.payablesModalData.dueDate=this.value"></div>
+    </div>
+    <div class="field"><label class="label">סכום ₪ *</label><input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${d.amount||''}" oninput="state.payablesModalData.amount=this.value"></div>
+    <div class="field"><label class="label">אמצעי תשלום</label><select class="input" onchange="state.payablesModalData.paymentMethod=this.value">
+      ${['צ\'ק','העברה','מזומן','אשראי'].map(m=>`<option value="${m}" ${(d.paymentMethod||'')===m?'selected':''}>${m}</option>`).join('')}
+    </select></div>
+    ${(d.paymentMethod||'') === "צ'ק" ? `<div class="field"><label class="label">מספר צ'ק</label><input class="input" value="${esc(d.checkNumber||'')}" oninput="state.payablesModalData.checkNumber=this.value"></div>` : ''}
+    <div class="field"><label class="label">הערות</label><input class="input" value="${esc(d.notes||'')}" oninput="state.payablesModalData.notes=this.value"></div>`;
+  return pvModalWrap('הוספת חוב ישיר', body, 'שמור', 'pvAddDirectConfirm', `setState({payablesModal:'',payablesModalData:null})`);
+}
+
+function pvAddDirectConfirm() {
+  const d = state.payablesModalData || {};
+  if (!d.supplier) { toast('נא להזין שם ספק', 'error'); return; }
+  if (!d.amount || +d.amount <= 0) { toast('נא להזין סכום', 'error'); return; }
+  const debt = {
+    id: uid(),
+    supplierName: d.supplier.trim(),
+    taxInvoiceId: null,
+    invoiceNumber: d.invoiceNumber || '',
+    date: d.date || todayISO(),
+    amount: +(d.amount||0),
+    paidAmount: 0,
+    dueDate: d.dueDate || '',
+    paymentMethod: d.paymentMethod || "צ'ק",
+    checkNumber: d.checkNumber || '',
+    notes: d.notes || '',
+    status: 'open',
+    payments: [],
+    createdAt: Date.now(),
+  };
+  pv.debts.push(debt);
+  savePv(true);
+  const supName = debt.supplierName;
+  setState({payablesModal:'', payablesModalData:null, payablesView:'supplier', payablesSupplier:supName});
+  toast('חוב נוסף ✓', 'success');
+}
+
+// Modal: record payment
+function renderPvModalRecordPayment() {
+  const d = state.payablesModalData || {};
+  const debt = pv.debts.find(x => x.id === d.debtId);
+  if (!debt) return '';
+  const remaining = (+debt.amount||0) - (+debt.paidAmount||0);
+  const body = `
+    <div style="padding:10px 12px;border-radius:10px;background:var(--surfaceHi);margin-bottom:14px;font-size:13px;color:var(--textDim)">
+      ספק: <b style="color:var(--text)">${esc(debt.supplierName)}</b> · נותר: <b style="color:var(--danger)">${fmtCurr(remaining)}</b>
+    </div>
+    <div class="field"><label class="label">סכום ₪ *</label><input class="input" type="number" inputmode="decimal" id="pv-pay-amt" value="${d.amount !== undefined ? d.amount : remaining.toFixed(2)}" oninput="state.payablesModalData.amount=this.value"></div>
+    <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${d.date||todayISO()}" oninput="state.payablesModalData.date=this.value"></div>
+    <div class="field"><label class="label">אמצעי תשלום</label><select class="input" onchange="state.payablesModalData.method=this.value">
+      ${['צ\'ק','העברה','מזומן','אשראי'].map(m=>`<option value="${m}" ${(d.method||'')===m?'selected':''}>${m}</option>`).join('')}
+    </select></div>
+    <div class="field"><label class="label">אסמכתא</label><input class="input" value="${esc(d.reference||'')}" oninput="state.payablesModalData.reference=this.value"></div>
+    <div class="field"><label class="label">הערות</label><input class="input" value="${esc(d.notes||'')}" oninput="state.payablesModalData.notes=this.value"></div>`;
+  return pvModalWrap('רישום תשלום', body, 'שמור', 'pvRecordPaymentConfirm', `setState({payablesModal:'',payablesModalData:null})`);
+}
+
+function pvRecordPaymentConfirm() {
+  const d = state.payablesModalData || {};
+  const debt = pv.debts.find(x => x.id === d.debtId);
+  if (!debt) return;
+  const amt = +(d.amount||0);
+  if (!amt || amt <= 0) { toast('נא להזין סכום', 'error'); return; }
+  const payment = {
+    id: uid(),
+    amount: amt,
+    date: d.date || todayISO(),
+    method: d.method || "צ'ק",
+    reference: d.reference || '',
+    notes: d.notes || '',
+    createdAt: Date.now(),
+  };
+  if (!debt.payments) debt.payments = [];
+  debt.payments.push(payment);
+  debt.paidAmount = (+debt.paidAmount||0) + amt;
+  pvUpdateDebtStatus(debt);
+  savePv(true);
+  setState({payablesModal:'', payablesModalData:null});
+  toast('תשלום נרשם ✓', 'success');
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function pvCancelDN(expenseId) {
+  if (!confirm('לבטל תעודת משלוח זו? היא לא תוצג יותר כפתוחה.')) return;
+  if (!pv.cancelledDNIds.includes(expenseId)) pv.cancelledDNIds.push(expenseId);
+  savePv(true);
+  render();
+  toast('תעודה בוטלה', 'success');
+}
+
+function pvCreateDebtFromTI(tiId) {
+  const ti = pv.taxInvoices.find(x => x.id === tiId);
+  if (!ti) return;
+  const debt = {
+    id: uid(),
+    supplierName: ti.supplierName,
+    taxInvoiceId: tiId,
+    invoiceNumber: ti.invoiceNumber,
+    date: ti.date,
+    amount: ti.amount,
+    paidAmount: 0,
+    dueDate: '',
+    paymentMethod: "צ'ק",
+    checkNumber: '',
+    notes: ti.notes || '',
+    status: 'open',
+    payments: [],
+    createdAt: Date.now(),
+  };
+  pv.debts.push(debt);
+  savePv(true);
+  setState({payablesView:'debt', payablesDebtId:debt.id});
+  toast('חוב נוצר ✓', 'success');
+}
+
+function pvCancelDebt(debtId) {
+  if (!confirm('לבטל חוב זה?')) return;
+  const debt = pv.debts.find(d => d.id === debtId);
+  if (!debt) return;
+  debt.status = 'cancelled';
+  savePv(true);
+  setState({payablesView:'supplier', payablesSupplier:debt.supplierName});
+  toast('חוב בוטל', 'success');
 }
 
 // ─── Initial render + sync ──────────────────────────────────────────────────
