@@ -256,7 +256,7 @@ input[type="date"] { min-width:0; max-width:100%; }
   <div class="app-switcher">
     <a href="orders.html" class="sw-btn" onclick="event.preventDefault();navigateTo('orders.html')">📦 הזמנות</a>
     <span class="sw-btn active">💰 הוצאות</span>
-    <a href="products.html" class="sw-btn">🏷️ מוצרים</a>
+
     <button class="sw-icon-btn" id="sync-top-btn" onclick="triggerTopSync()" title="סנכרן עכשיו">🔄</button>
     <button class="sw-icon-btn" id="settings-sw-btn" onclick="setState({tab:'settings'})" title="הגדרות">⚙️</button>
     <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" title="עיצוב"></button>
@@ -865,6 +865,17 @@ let state = {
   payablesDebtId: '',
   payablesModal: '',
   payablesModalData: null,
+  productsView: 'list',
+  productsDetailId: '',
+  productsSearch: '',
+  productsCategory: 'הכל',
+  productsSort: 'name',
+  productsModal: '',
+  productsModalData: null,
+  productsBulkMode: false,
+  productsBulkSelected: [],
+  selectionMode: false,
+  selectedIds: [],
 };
 function setState(patch) { Object.assign(state, patch); render(); }
 
@@ -916,6 +927,7 @@ const ICONS = {
   checks: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 10h4m-4 4h12M14 10h4"/></svg>',
   settings: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   payables: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2"/></svg>',
+  products: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
 };
 
 const TABS = [
@@ -925,6 +937,7 @@ const TABS = [
   {id:'installments',label:'תשלומים'},{id:'credits',label:'זיכויים'},
   {id:'workers',label:'עובדים'},{id:'checks',label:"צ'קים"},
   {id:'payables',label:'חובות'},
+  {id:'products',label:'מוצרים'},
 ];
 
 function renderNav() {
@@ -3545,6 +3558,7 @@ function render() {
     case 'workers': content = renderWorkers(); break;
     case 'checks': content = renderChecks(); break;
     case 'payables': content = renderPayables(); break;
+    case 'products': content = renderProductsTab(); break;
     case 'add': content = renderAdd(); break;
     case 'settings': content = renderSettings(); break;
   }
@@ -3560,7 +3574,7 @@ function render() {
   main.innerHTML = content;
   main.scrollTop = savedScroll; // restore scroll after innerHTML replace
 
-  document.getElementById('modal-container').innerHTML = state.viewCreditImage ? renderImageLightbox() : (state.editId ? renderEditModal() : (state.payablesModal ? renderPayablesModal() : ''));
+  document.getElementById('modal-container').innerHTML = state.viewCreditImage ? renderImageLightbox() : (state.editId ? renderEditModal() : (state.payablesModal ? renderPayablesModal() : (state.productsModal ? renderProductsModal() : '')));
   renderNav();
   updateHeader();
   // Auto-focus supplier edit input if in edit mode
@@ -3752,6 +3766,7 @@ function initApp() {
   mergeAccFlags(DB.expenses); // restore any flags saved before this session
   migrateCategoryNames();
   seedSuppliersFromExpenses();
+  if (pdb.products.length === 0) importProductsFromOrders();
   applyRoleUI();
   render();
   setSyncStatus(CFG.webAppUrl ? 'syncing' : 'local');
@@ -3800,6 +3815,451 @@ function savePv(dirty) {
   localStorage.setItem(PAYABLES_KEY, JSON.stringify(pv));
 }
 loadPv();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PRODUCTS — קטלוג מוצרים
+// ═══════════════════════════════════════════════════════════════════════════
+const PRODUCTS_KEY = 'products-v1';
+let pdb = { products: [], pending: [], orderHistory: [], _lastSynced: 0, _localModified: 0 };
+
+function loadPdb() {
+  try { const s = localStorage.getItem(PRODUCTS_KEY); if (s) pdb = JSON.parse(s); } catch(e) {}
+  if (!pdb.products) pdb.products = [];
+  if (!pdb.pending) pdb.pending = [];
+  if (!pdb.orderHistory) pdb.orderHistory = [];
+}
+function savePdb(dirty) {
+  if (dirty) pdb._localModified = Date.now();
+  localStorage.setItem(PRODUCTS_KEY, JSON.stringify(pdb));
+}
+loadPdb();
+
+function importProductsFromOrders() {
+  try {
+    const ordersData = JSON.parse(localStorage.getItem('orders-v1') || '{}');
+    const suppliers = ordersData.suppliers || [];
+    const seen = {};
+    let added = 0;
+    suppliers.forEach(sup => {
+      (sup.products || []).forEach(p => {
+        const key = (p.name || '').trim().toLowerCase();
+        if (!seen[key]) {
+          seen[key] = true;
+          pdb.products.push({
+            id: uid(), name: p.name, category: '', sellPrice: null,
+            sellPriceUpdated: null, active: true, aliases: [],
+            supplierPrices: [{ supplierId: sup.id, supplierName: sup.name, buyPrice: null, updatedAt: null, history: [] }],
+            createdAt: new Date().toISOString()
+          });
+          added++;
+        } else {
+          const existing = pdb.products.find(x => (x.name||'').trim().toLowerCase() === key);
+          if (existing && !existing.supplierPrices.find(sp => sp.supplierId === sup.id)) {
+            existing.supplierPrices.push({ supplierId: sup.id, supplierName: sup.name, buyPrice: null, updatedAt: null, history: [] });
+          }
+        }
+      });
+    });
+    if (added > 0) { savePdb(true); toast('יובאו ' + added + ' מוצרים מהספקים ✓', 2000); }
+  } catch(e) {}
+}
+
+// ── Products helpers ──────────────────────────────────────────────────────────
+function calcMargin(p) {
+  if (!p.sellPrice) return null;
+  const prices = (p.supplierPrices||[]).map(sp=>sp.buyPrice).filter(x=>x>0);
+  if (!prices.length) return null;
+  const bestBuy = Math.min(...prices);
+  return Math.round((p.sellPrice - bestBuy) / p.sellPrice * 100);
+}
+function marginClass(m) { return m==null?'gray':m>=30?'green':m>=15?'yellow':'red'; }
+function filterProductsList() {
+  let list = [...pdb.products];
+  const q = (state.productsSearch||'').trim().toLowerCase();
+  if (q) list = list.filter(p => (p.name||'').toLowerCase().includes(q) || (p.aliases||[]).some(a=>a.toLowerCase().includes(q)));
+  if (state.productsCategory==='ללא קטגוריה') list = list.filter(p=>!p.category||!p.category.trim());
+  else if (state.productsCategory && state.productsCategory!=='הכל') list = list.filter(p=>p.category===state.productsCategory);
+  if (state.productsSort==='name') list.sort((a,b)=>(a.name||'').localeCompare(b.name||'','he'));
+  else if (state.productsSort==='margin') list.sort((a,b)=>{const ma=calcMargin(a),mb=calcMargin(b);if(ma==null&&mb==null)return 0;if(ma==null)return 1;if(mb==null)return -1;return mb-ma;});
+  else if (state.productsSort==='recent') list.sort((a,b)=>{const ta=a.sellPriceUpdated||a.createdAt||'',tb=b.sellPriceUpdated||b.createdAt||'';return tb.localeCompare(ta);});
+  return list;
+}
+function getProductCategories() {
+  const cats = new Set();
+  pdb.products.forEach(p => { if (p.category && p.category.trim()) cats.add(p.category.trim()); });
+  return [...cats].sort((a,b)=>a.localeCompare(b,'he'));
+}
+
+// ── Bulk selection ────────────────────────────────────────────────────────────
+function toggleProductsSelectMode() { setState({productsBulkMode:!state.productsBulkMode, productsBulkSelected:[]}); }
+function toggleProductSelect(id) {
+  const sel = [...(state.productsBulkSelected||[])];
+  const idx = sel.indexOf(id);
+  if (idx>=0) sel.splice(idx,1); else sel.push(id);
+  setState({productsBulkSelected:sel});
+}
+function bulkSelectAllProducts() {
+  const filtered = filterProductsList();
+  const allIds = filtered.map(p=>p.id);
+  setState({productsBulkSelected:allIds});
+}
+function bulkProductsSetCategory(cat) {
+  (state.productsBulkSelected||[]).forEach(id=>{const p=pdb.products.find(x=>x.id===id);if(p)p.category=cat;});
+  savePdb(true); setState({productsBulkMode:false, productsBulkSelected:[], productsModal:''});
+}
+function bulkProductsSetActive(active) {
+  (state.productsBulkSelected||[]).forEach(id=>{const p=pdb.products.find(x=>x.id===id);if(p)p.active=active;});
+  savePdb(true); setState({productsBulkMode:false, productsBulkSelected:[]});
+}
+function bulkProductsDelete() {
+  if (!confirm('למחוק ' + (state.productsBulkSelected||[]).length + ' מוצרים?')) return;
+  pdb.products = pdb.products.filter(p=>!(state.productsBulkSelected||[]).includes(p.id));
+  savePdb(true); setState({productsBulkMode:false, productsBulkSelected:[]});
+}
+
+// ── renderProductsTab ─────────────────────────────────────────────────────────
+function renderProductsTab() {
+  if (state.productsView === 'detail' && state.productsDetailId) return renderProductDetail();
+  return renderProductsList();
+}
+
+function renderProductsList() {
+  const allFiltered = filterProductsList();
+  const NUTS_CAT = 'אגוזים ופיצוחים';
+  // Split nuts out to bottom if not filtered to nuts specifically
+  const isNutsFilter = state.productsCategory === NUTS_CAT;
+  let mainList = allFiltered, nutsList = [];
+  if (!isNutsFilter && state.productsCategory === 'הכל') {
+    mainList = allFiltered.filter(p => p.category !== NUTS_CAT);
+    nutsList = allFiltered.filter(p => p.category === NUTS_CAT);
+  }
+  const marginPill = (p) => {
+    const m = calcMargin(p);
+    const cls = marginClass(m);
+    const colors = {green:'background:#15803d18;color:#15803d', yellow:'background:#d9770618;color:#d97706', red:'background:#dc262618;color:#dc2626', gray:'background:var(--surfaceHi);color:var(--textDim)'};
+    return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;${colors[cls]}">${m!=null?m+'%':'—'}</span>`;
+  };
+  const productCard = (p) => {
+    const selected = (state.productsBulkSelected||[]).includes(p.id);
+    const prices = (p.supplierPrices||[]).filter(sp=>sp.buyPrice>0);
+    const bestBuy = prices.length ? Math.min(...prices.map(sp=>sp.buyPrice)) : null;
+    const inactive = !p.active;
+    const onClick = state.productsBulkMode
+      ? `toggleProductSelect('${p.id}')`
+      : `setState({productsView:'detail',productsDetailId:'${p.id}'})`;
+    return `<div onclick="${onClick}" style="background:var(--surface);border:1.5px solid ${selected?'var(--accent)':inactive?'var(--border)':'var(--border)'};border-radius:var(--r-md);padding:13px 14px;cursor:pointer;transition:border-color var(--t-fast),box-shadow var(--t-fast);display:flex;align-items:center;gap:12px;opacity:${inactive?0.55:1}">
+      ${state.productsBulkMode ? `<div style="width:22px;height:22px;border-radius:50%;border:2px solid ${selected?'var(--accent)':'var(--borderHi)'};background:${selected?'var(--accent)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px">${selected?'✓':''}</div>` : ''}
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name||'')}</span>
+          ${p.category?`<span style="font-size:10px;font-weight:600;padding:1px 7px;border-radius:100px;background:var(--accentSoft);color:var(--accent)">${esc(p.category)}</span>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:4px;flex-wrap:wrap">
+          ${bestBuy!=null?`<span style="font-size:11px;color:var(--textDim)">קניה: <b style="color:var(--text)">${fmtCurr(bestBuy)}</b></span>`:'<span style="font-size:11px;color:var(--textMuted)">אין מחיר קניה</span>'}
+          ${p.sellPrice!=null?`<span style="font-size:11px;color:var(--textDim)">מכירה: <b style="color:var(--text)">${fmtCurr(p.sellPrice)}</b></span>`:'<span style="font-size:11px;color:var(--textMuted)">אין מחיר מכירה</span>'}
+          ${marginPill(p)}
+        </div>
+      </div>
+      ${!state.productsBulkMode?`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--textDim)" stroke-width="2"><polyline points="9 18 3 12 9 6"/></svg>`:''}
+    </div>`;
+  };
+
+  const cats = getProductCategories();
+  const catChips = ['הכל', ...cats, 'ללא קטגוריה'].map(c => {
+    const active = (state.productsCategory||'הכל') === c;
+    return `<button onclick="setState({productsCategory:'${esc(c)}',productsBulkMode:false,productsBulkSelected:[]})" style="flex-shrink:0;padding:5px 13px;border-radius:100px;border:1.5px solid ${active?'rgba(110,198,58,0.4)':'var(--border)'};background:${active?'var(--accentSoft)':'transparent'};color:${active?'var(--accent)':'var(--textDim)'};font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;transition:all var(--t-fast)">${esc(c)}</button>`;
+  }).join('');
+
+  const sortBtn = (id, label) => {
+    const active = state.productsSort === id;
+    return `<button onclick="setState({productsSort:'${id}'})" style="padding:5px 12px;border-radius:8px;border:1.5px solid ${active?'rgba(110,198,58,0.4)':'var(--border)'};background:${active?'var(--accentSoft)':'transparent'};color:${active?'var(--accent)':'var(--textDim)'};font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;transition:all var(--t-fast)">${label}</button>`;
+  };
+
+  const bulkBar = state.productsBulkMode ? `
+    <div style="position:fixed;bottom:calc(60px + env(safe-area-inset-bottom,0px));left:0;right:0;max-width:480px;margin:0 auto;z-index:20;padding:10px 14px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0">${(state.productsBulkSelected||[]).length} נבחרו</span>
+      <button onclick="bulkSelectAllProducts()" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">בחר הכל</button>
+      <button onclick="setState({productsModal:'bulk-cat'})" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">🏷️ קטגוריה</button>
+      <button onclick="bulkProductsSetActive(true)" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--accent);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">✓ הפעל</button>
+      <button onclick="bulkProductsSetActive(false)" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">✗ השבת</button>
+      <button onclick="bulkProductsDelete()" style="padding:5px 10px;border:1px solid rgba(217,79,79,0.3);border-radius:8px;background:transparent;color:var(--danger);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">🗑 מחק</button>
+    </div>` : `<button onclick="setState({productsModal:'add'})" style="position:fixed;bottom:calc(70px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:20;padding:14px 28px;border:none;border-radius:50px;background:var(--accent);color:#071302;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:var(--shadow-accent);white-space:nowrap">+ הוסף מוצר</button>`;
+
+  return `<div style="padding:14px 14px 120px" class="fade-up">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <div style="position:relative;flex:1">
+        <input class="input" id="prod-search-inp" type="search" placeholder="חיפוש מוצר..." value="${esc(state.productsSearch||'')}"
+          oninput="state.productsSearch=this.value;render()" style="padding-right:36px">
+        <svg style="position:absolute;top:50%;right:12px;transform:translateY(-50%);pointer-events:none" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--textDim)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+      <button onclick="toggleProductsSelectMode()" style="padding:8px 12px;border:1.5px solid ${state.productsBulkMode?'var(--accent)':'var(--border)'};border-radius:var(--r-md);background:${state.productsBulkMode?'var(--accentSoft)':'transparent'};color:${state.productsBulkMode?'var(--accent)':'var(--textDim)'};font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;flex-shrink:0">✓ בחר</button>
+    </div>
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;margin-bottom:10px">${catChips}</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px">
+      <span style="font-size:10.5px;color:var(--textDim);font-weight:600;letter-spacing:0.04em">מיון:</span>
+      ${sortBtn('name','א-ב')}
+      ${sortBtn('margin','מרג\'ין')}
+      ${sortBtn('recent','עדכני')}
+      <span style="margin-right:auto;font-size:11px;color:var(--textMuted)">${allFiltered.length} מוצרים</span>
+    </div>
+    ${mainList.length===0&&nutsList.length===0 ? `<div style="text-align:center;padding:48px 20px;color:var(--textDim)"><div style="font-size:32px;margin-bottom:10px">🏷️</div><div style="font-size:14px;font-weight:600">אין מוצרים עדיין</div><div style="font-size:12px;margin-top:6px">לחץ "+ הוסף מוצר" להתחיל</div></div>` : ''}
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${mainList.map(productCard).join('')}
+    </div>
+    ${nutsList.length>0 ? `<div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin:20px 0 10px;padding:14px 4px 10px;border-top:1px solid var(--border)">🥜 אגוזים ופיצוחים (${nutsList.length})</div><div style="display:flex;flex-direction:column;gap:8px">${nutsList.map(productCard).join('')}</div>` : ''}
+    ${bulkBar}
+  </div>`;
+}
+
+function renderProductDetail() {
+  const p = pdb.products.find(x => x.id === state.productsDetailId);
+  if (!p) return `<div style="padding:20px;color:var(--danger)">מוצר לא נמצא</div>`;
+  const m = calcMargin(p);
+  const marginColor = m==null?'var(--textDim)':m>=30?'#15803d':m>=15?'#d97706':'#dc2626';
+  const cats = getProductCategories();
+  const catDl = 'prod-cat-dl-' + p.id;
+  const supRows = (p.supplierPrices||[]).map((sp, idx) => {
+    const histHtml = (sp.history||[]).slice(-5).reverse().map(h=>`<div style="font-size:10.5px;color:var(--textDim);display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)"><span>${fmtDate(h.date)}</span><span style="color:var(--text);font-weight:600">${fmtCurr(h.price)}</span></div>`).join('');
+    return `<div style="background:var(--surfaceHi);border-radius:var(--r-md);padding:12px 14px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${esc(sp.supplierName||'ספק')}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${sp.buyPrice!=null?`<span style="font-size:13px;font-weight:700;color:var(--accent)">${fmtCurr(sp.buyPrice)}</span>`:'<span style="font-size:12px;color:var(--textMuted)">אין מחיר</span>'}
+          <button onclick="document.getElementById('sp-input-${idx}').style.display='flex';this.style.display='none'" style="padding:4px 10px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--textDim);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">עדכן</button>
+        </div>
+      </div>
+      ${sp.updatedAt?`<div style="font-size:10px;color:var(--textMuted);margin-top:3px">עודכן: ${fmtDate(sp.updatedAt)}</div>`:''}
+      <div id="sp-input-${idx}" style="display:none;align-items:center;gap:8px;margin-top:8px">
+        <input class="input" type="number" inputmode="decimal" placeholder="מחיר חדש" id="sp-val-${idx}" style="flex:1">
+        <button onclick="updateSupplierPrice('${p.id}',${idx},document.getElementById('sp-val-${idx}').value)" style="padding:8px 14px;border:none;border-radius:9px;background:var(--accent);color:#071302;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer">שמור</button>
+      </div>
+      ${histHtml?`<details style="margin-top:6px"><summary style="font-size:10.5px;color:var(--textDim);cursor:pointer;list-style:none">◂ היסטוריית מחיר</summary><div style="margin-top:6px">${histHtml}</div></details>`:''}
+    </div>`;
+  }).join('');
+
+  return `<div style="padding:14px 14px 80px" class="fade-up">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+      <button onclick="setState({productsView:'list',productsDetailId:''})" style="width:38px;height:38px;border:none;border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center">‹</button>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:18px;font-weight:800;color:var(--text);cursor:pointer" onclick="editProductName('${p.id}')">${esc(p.name||'')}</div>
+        <div style="font-size:11px;color:var(--textMuted);margin-top:2px">לחץ לשינוי שם</div>
+      </div>
+      <button onclick="toggleProductActive('${p.id}')" style="padding:6px 12px;border:1.5px solid ${p.active?'rgba(110,198,58,0.4)':'var(--border)'};border-radius:8px;background:${p.active?'var(--accentSoft)':'var(--surfaceHi)'};color:${p.active?'var(--accent)':'var(--textDim)'};font-size:11px;font-weight:700;font-family:inherit;cursor:pointer">${p.active?'✓ פעיל':'✗ לא פעיל'}</button>
+    </div>
+
+    <!-- מחירי מכירה -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">מחירים</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;color:var(--textDim)">מחיר מכירה</div>
+          <div style="font-size:28px;font-weight:800;color:var(--text);line-height:1.1;cursor:pointer" onclick="editSellPrice('${p.id}')">${p.sellPrice!=null?fmtCurr(p.sellPrice):'—'}</div>
+          <div style="font-size:10px;color:var(--textMuted);margin-top:2px">לחץ לעריכה</div>
+        </div>
+        ${m!=null?`<div style="text-align:center"><div style="font-size:32px;font-weight:800;color:${marginColor}">${m}%</div><div style="font-size:10px;color:var(--textDim)">מרג'ין</div></div>`:''}
+      </div>
+      ${m!=null?`<div style="height:6px;border-radius:3px;background:var(--surfaceHi);overflow:hidden"><div style="height:100%;width:${Math.min(m,100)}%;background:${marginColor};border-radius:3px;transition:width 0.3s ease"></div></div>`:''}
+    </div>
+
+    <!-- מחיר קניה לפי ספק -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase">מחיר קניה לפי ספק</div>
+        <button onclick="setState({productsModal:'add-supplier-price',productsModalData:{productId:'${p.id}'}})" style="font-size:11px;font-weight:700;padding:4px 10px;border:none;border-radius:7px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit">+ ספק</button>
+      </div>
+      ${supRows || '<div style="font-size:12px;color:var(--textMuted);text-align:center;padding:10px 0">לא הוגדרו ספקים</div>'}
+    </div>
+
+    <!-- קטגוריה -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">קטגוריה</div>
+      <datalist id="${catDl}">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+      <input class="input" list="${catDl}" placeholder="קטגוריה (לא חובה)" value="${esc(p.category||'')}"
+        onchange="updateProductField('${p.id}','category',this.value)" style="font-size:14px">
+    </div>
+
+    <!-- שמות חלופיים -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">שמות חלופיים</div>
+      <input class="input" placeholder="שם1, שם2, שם3..." value="${esc((p.aliases||[]).join(', '))}"
+        onchange="updateProductField('${p.id}','aliases',this.value.split(',').map(x=>x.trim()).filter(Boolean))" style="font-size:14px">
+    </div>
+
+    <!-- Danger zone -->
+    <div style="background:var(--dangerSoft);border:1px solid rgba(217,79,79,0.25);border-radius:var(--r-lg);padding:14px">
+      <button onclick="deleteProduct('${p.id}')" style="width:100%;padding:11px;border:1.5px solid rgba(217,79,79,0.4);border-radius:var(--r-md);background:transparent;color:var(--danger);font-size:13px;font-weight:700;font-family:inherit;cursor:pointer">🗑 מחק מוצר</button>
+    </div>
+  </div>`;
+}
+
+function updateProductField(productId, field, val) {
+  const p = pdb.products.find(x => x.id === productId);
+  if (!p) return;
+  p[field] = val;
+  savePdb(true);
+  render();
+}
+
+function toggleProductActive(productId) {
+  const p = pdb.products.find(x => x.id === productId);
+  if (!p) return;
+  p.active = !p.active;
+  savePdb(true);
+  render();
+}
+
+function editProductName(productId) {
+  const p = pdb.products.find(x => x.id === productId);
+  if (!p) return;
+  const newName = prompt('שם מוצר:', p.name||'');
+  if (newName == null || !newName.trim()) return;
+  p.name = newName.trim();
+  savePdb(true);
+  render();
+}
+
+function editSellPrice(productId) {
+  const p = pdb.products.find(x => x.id === productId);
+  if (!p) return;
+  const cur = p.sellPrice != null ? p.sellPrice : '';
+  const val = prompt('מחיר מכירה (₪):', cur);
+  if (val == null) return;
+  const num = parseFloat(val);
+  p.sellPrice = isNaN(num) ? null : num;
+  p.sellPriceUpdated = new Date().toISOString();
+  savePdb(true);
+  render();
+}
+
+function updateSupplierPrice(productId, idx, val) {
+  const p = pdb.products.find(x => x.id === productId);
+  if (!p) return;
+  const sp = (p.supplierPrices||[])[idx];
+  if (!sp) return;
+  const num = parseFloat(val);
+  if (isNaN(num) || num <= 0) { toast('מחיר לא תקין', 'error'); return; }
+  if (!sp.history) sp.history = [];
+  if (sp.buyPrice != null) sp.history.push({price: sp.buyPrice, date: sp.updatedAt || new Date().toISOString()});
+  sp.buyPrice = num;
+  sp.updatedAt = new Date().toISOString();
+  savePdb(true);
+  render();
+  toast('מחיר עודכן ✓', 'success');
+}
+
+function deleteProduct(productId) {
+  if (!confirm('למחוק מוצר זה?')) return;
+  pdb.products = pdb.products.filter(x => x.id !== productId);
+  savePdb(true);
+  setState({productsView:'list', productsDetailId:''});
+  toast('מוצר נמחק', 'success');
+}
+
+// ── Products Modals ───────────────────────────────────────────────────────────
+function renderProductsModal() {
+  switch(state.productsModal) {
+    case 'add': return renderProductsModalAdd();
+    case 'add-supplier-price': return renderProductsModalAddSupplierPrice();
+    case 'bulk-cat': return renderProductsModalBulkCat();
+    default: return '';
+  }
+}
+
+function productsModalWrap(title, body, confirmLabel, confirmFn, cancelFn) {
+  return `<div style="position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.65);display:flex;align-items:flex-end;justify-content:center" onclick="if(event.target===this){${cancelFn}}">
+    <div style="width:100%;max-width:480px;background:var(--surface);border-radius:var(--r-xl) var(--r-xl) 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:16px;font-weight:800;color:var(--text)">${title}</div>
+        <button onclick="${cancelFn}" style="width:34px;height:34px;border:none;border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+      </div>
+      ${body}
+      <button class="btn-primary" onclick="${confirmFn}" style="margin-top:4px">${confirmLabel}</button>
+      <button class="btn-ghost" onclick="${cancelFn}">ביטול</button>
+    </div>
+  </div>`;
+}
+
+function renderProductsModalAdd() {
+  const cats = getProductCategories();
+  const dlId = 'add-prod-cat-dl';
+  const body = `
+    <datalist id="${dlId}">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+    <div class="field"><label class="label">שם מוצר *</label><input class="input" id="new-prod-name" placeholder="שם המוצר" oninput="state.productsModalData=state.productsModalData||{};state.productsModalData.name=this.value"></div>
+    <div class="field"><label class="label">קטגוריה</label><input class="input" list="${dlId}" placeholder="קטגוריה (לא חובה)" oninput="state.productsModalData=state.productsModalData||{};state.productsModalData.category=this.value"></div>
+    <div class="field"><label class="label">מחיר מכירה ₪</label><input class="input" type="number" inputmode="decimal" placeholder="0.00" oninput="state.productsModalData=state.productsModalData||{};state.productsModalData.sellPrice=this.value"></div>`;
+  return productsModalWrap('הוסף מוצר', body, 'הוסף', 'confirmAddProduct()', `setState({productsModal:'',productsModalData:null})`);
+}
+
+function confirmAddProduct() {
+  const d = state.productsModalData || {};
+  const name = (d.name||'').trim();
+  if (!name) { toast('יש להזין שם מוצר', 'error'); return; }
+  const sp = parseFloat(d.sellPrice);
+  pdb.products.push({
+    id: uid(), name, category: (d.category||'').trim(), sellPrice: isNaN(sp)?null:sp,
+    sellPriceUpdated: isNaN(sp)?null:new Date().toISOString(),
+    active: true, aliases: [], supplierPrices: [], createdAt: new Date().toISOString()
+  });
+  savePdb(true);
+  setState({productsModal:'', productsModalData:null});
+  toast('מוצר נוסף ✓', 'success');
+}
+
+function renderProductsModalAddSupplierPrice() {
+  const d = state.productsModalData || {};
+  let ordersSuppliers = [];
+  try { ordersSuppliers = (JSON.parse(localStorage.getItem('orders-v1')||'{}').suppliers||[]); } catch(e){}
+  const supOptions = ordersSuppliers.map(s=>`<option value="${esc(s.name)}">`).join('');
+  const dlId = 'add-sp-sup-dl';
+  const body = `
+    <datalist id="${dlId}">${supOptions}</datalist>
+    <div class="field"><label class="label">ספק *</label><input class="input" list="${dlId}" placeholder="שם הספק" oninput="state.productsModalData=state.productsModalData||{};state.productsModalData.supplierName=this.value"></div>
+    <div class="field"><label class="label">מחיר קניה ₪</label><input class="input" type="number" inputmode="decimal" placeholder="0.00" oninput="state.productsModalData=state.productsModalData||{};state.productsModalData.buyPrice=this.value"></div>`;
+  return productsModalWrap('הוסף מחיר ספק', body, 'הוסף', 'confirmAddSupplierPrice()', `setState({productsModal:'',productsModalData:null})`);
+}
+
+function confirmAddSupplierPrice() {
+  const d = state.productsModalData || {};
+  const supName = (d.supplierName||'').trim();
+  if (!supName) { toast('יש להזין שם ספק', 'error'); return; }
+  const p = pdb.products.find(x => x.id === d.productId);
+  if (!p) return;
+  const bp = parseFloat(d.buyPrice);
+  const existing = (p.supplierPrices||[]).find(sp => (sp.supplierName||'').toLowerCase() === supName.toLowerCase());
+  if (existing) {
+    if (existing.buyPrice != null) { if (!existing.history) existing.history=[]; existing.history.push({price:existing.buyPrice,date:existing.updatedAt||new Date().toISOString()}); }
+    existing.buyPrice = isNaN(bp)?null:bp;
+    existing.updatedAt = new Date().toISOString();
+  } else {
+    let ordersSuppliers = [];
+    try { ordersSuppliers = (JSON.parse(localStorage.getItem('orders-v1')||'{}').suppliers||[]); } catch(e){}
+    const osup = ordersSuppliers.find(s=>(s.name||'').toLowerCase()===supName.toLowerCase());
+    p.supplierPrices.push({ supplierId: osup?osup.id:uid(), supplierName: supName, buyPrice: isNaN(bp)?null:bp, updatedAt: new Date().toISOString(), history: [] });
+  }
+  savePdb(true);
+  setState({productsModal:'', productsModalData:null});
+  toast('ספק עודכן ✓', 'success');
+}
+
+function renderProductsModalBulkCat() {
+  const cnt = (state.productsBulkSelected||[]).length;
+  const cats = getProductCategories();
+  const catBtns = cats.map(c=>`<button onclick="bulkProductsSetCategory('${esc(c)}')" style="padding:7px 14px;border:1.5px solid var(--border);border-radius:8px;background:var(--surfaceHi);color:var(--text);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">${esc(c)}</button>`).join('');
+  const dlId = 'bulk-cat-dl';
+  const body = `
+    <div style="font-size:12px;color:var(--textDim);margin-bottom:12px">${cnt} מוצרים נבחרו</div>
+    ${cats.length>0?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">${catBtns}</div>`:''}
+    <datalist id="${dlId}">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+    <div class="field"><label class="label">או הזן קטגוריה חדשה</label><input class="input" list="${dlId}" id="bulk-cat-inp" placeholder="קטגוריה..."></div>`;
+  return productsModalWrap(`הגדרת קטגוריה ל-${cnt} מוצרים`, body, 'הגדר', 'confirmBulkCat()', `setState({productsModal:'',productsModalData:null})`);
+}
+
+function confirmBulkCat() {
+  const inp = document.getElementById('bulk-cat-inp');
+  const cat = (inp?inp.value:'').trim();
+  if (!cat) { toast('יש להזין קטגוריה', 'error'); return; }
+  bulkProductsSetCategory(cat);
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function pvTodayISO() { return todayISO(); }
