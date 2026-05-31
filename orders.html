@@ -791,7 +791,7 @@ function renderOrderProducts(sup, hasDraft) {
       // ── Free-text add form ────────────────────────────────────────────────
       const addForm = `
         <div class="manual-add-box">
-          <div style="font-size:10.5px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">+ הוספת מוצר ידנית</div>
+          <div style="font-size:10.5px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">+ הוספת מוצר לרשימה</div>
           <input class="input" id="manual-name-inp" type="text" placeholder="שם המוצר..." value="${esc(manualAddState.name)}"
             oninput="manualAddState.name=this.value"
             onkeydown="if(event.key==='Enter')addManualProduct()"
@@ -901,14 +901,25 @@ function addManualProduct() {
   if (!name) { toast('הזן שם מוצר', 'error'); return; }
   const qty = parseInt(manualAddState.qty) || 0;
   if (qty <= 0) { toast('הזן כמות', 'error'); return; }
-  const mid = 'manual_' + uid();
-  orderState[mid] = { isManual: true, name, unit: manualAddState.unit, qty: String(qty), notes: '' };
+
+  const sup = findSupplier(currentSupplierId);
+  if (!sup) return;
+
+  // Add permanently to supplier catalog
+  const newProduct = { id: uid(), name, defaultUnit: manualAddState.unit, active: true };
+  sup.products.push(newProduct);
+
+  // Set initial quantity in this order
+  orderState[newProduct.id] = { qty: String(qty), unit: manualAddState.unit, notes: '' };
+
   manualAddState.name = '';
   manualAddState.qty = 1;
+
+  saveDb(true);
+  pushSuppliers();
   saveDraft();
-  updateOrderCounter();
-  renderOrderProducts(findSupplier(currentSupplierId), true);
-  toast('מוצר נוסף ✓', 'success');
+  renderOrderProducts(sup, true);
+  toast('מוצר נוסף לרשימה ✓', 'success');
   setTimeout(() => { const inp = document.getElementById('manual-name-inp'); if (inp) inp.focus(); }, 80);
 }
 
