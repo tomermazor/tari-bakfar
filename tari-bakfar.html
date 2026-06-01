@@ -5966,64 +5966,12 @@ function pvQuickDelay(debtId) {
   toast('תשלום נדחה ב-7 ימים');
 }
 
-function pvGetClosedPaymentItems() {
-  const closedDebts = (pv.debts||[]).filter(d => !pvIsOpenStatus(d.paymentStatus));
-  const clearedChecks = (DB.checks||[]).filter(c => c.cleared);
-  return [
-    ...closedDebts.map(d => ({
-      date: d.paidDate || (d.payments||[]).slice(-1)[0]?.date || d.dueDate || '',
-      supplier: d.supplierName || '',
-      amount: +d.amount || 0,
-      method: d.paymentMethod || '',
-      checkNum: d.checkNumber || '',
-      status: d.paymentStatus || 'שולם',
-    })),
-    ...clearedChecks.map(c => ({
-      date: c.clearedDate || c.clearDate || '',
-      supplier: c.supplier || '',
-      amount: +c.amount || 0,
-      method: "צ'ק",
-      checkNum: c.checkNum || '',
-      status: 'נפרע',
-    })),
-  ].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-}
-
-function pvClosedPaymentRow(item) {
-  const statusColor = item.status==='נפרע'||item.status==='שולם'?'var(--accent)':item.status==='בוטל'?'var(--danger)':'var(--textMuted)';
-  return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
-    <div style="font-size:18px;flex-shrink:0">${pvGetMethodIcon(item.method)}</div>
-    <div style="flex:1;min-width:0">
-      <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.supplier)}</div>
-      <div style="font-size:11px;color:var(--textDim);margin-top:1px">${fmtDate(item.date)}${item.checkNum?' · מס\' '+esc(item.checkNum):''}</div>
-    </div>
-    <div style="text-align:left;flex-shrink:0">
-      <div class="display" style="font-size:13px;font-weight:700;color:var(--text)">${fmtCurr(item.amount)}</div>
-      <div style="font-size:10px;font-weight:700;color:${statusColor};text-align:left;margin-top:2px">✅ ${esc(item.status)}</div>
-    </div>
-  </div>`;
-}
-
-function renderPayablesHistorySection() {
-  const rows = pvGetClosedPaymentItems();
-  const recent = rows.slice(0, 25);
-  return `
-    <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;display:flex;justify-content:space-between;align-items:center">
-      <span>📜 היסטוריית תשלומים</span>
-      <span style="font-size:11px;color:var(--textMuted);font-weight:600;letter-spacing:0;text-transform:none">${rows.length} רשומות</span>
-    </div>
-    ${rows.length === 0
-      ? `<div style="text-align:center;padding:22px 16px;color:var(--textMuted);background:var(--surface);border:1px solid var(--border);border-radius:14px"><div style="font-size:26px;margin-bottom:6px">📂</div><div style="font-size:13px;font-weight:600">אין תשלומים סגורים עדיין</div></div>`
-      : `<div style="padding:0 14px;background:var(--surface);border:1px solid var(--border);border-radius:14px">${recent.map(pvClosedPaymentRow).join('')}</div>
-         ${rows.length > recent.length ? `<div style="font-size:11px;color:var(--textMuted);text-align:center;margin-top:8px">מוצגות ${recent.length} הרשומות האחרונות מתוך ${rows.length}</div>` : ''}`}
-  `;
-}
-
 function renderPayablesDashboard() {
   const today = pvTodayISO();
   if (!DB.checks) DB.checks = [];
   const activeDebts = pv.debts.filter(d => !['paid','cancelled'].includes(d.status) && pvIsOpenStatus(d.paymentStatus));
-  const openChecks  = DB.checks.filter(c => !c.cleared && !c.linkedDebtId);
+  const openChecks  = DB.checks.filter(c => !c.cleared);
+  const linkedOpenDebtIds = new Set(openChecks.map(c => c.linkedDebtId).filter(Boolean));
 
   // ── 1. Compute summary numbers ──────────────────────────────────────────
   function addDaysISO(n) {
@@ -6033,6 +5981,7 @@ function renderPayablesDashboard() {
 
   let tot30=0, tot60=0, tot90=0, totOverdue=0, totAll=0;
   activeDebts.forEach(d => {
+    if (linkedOpenDebtIds.has(d.id)) return;
     const rem = (+d.amount||0)-(+d.paidAmount||0);
     totAll += rem;
     if (pvIsOverdue(d.dueDate)) totOverdue += rem;
@@ -6071,7 +6020,7 @@ function renderPayablesDashboard() {
     </div>`;
 
   // ── 3. Overdue alert ────────────────────────────────────────────────────
-  const overdueItems = activeDebts.filter(d=>pvIsOverdue(d.dueDate));
+  const overdueItems = activeDebts.filter(d=>!linkedOpenDebtIds.has(d.id) && pvIsOverdue(d.dueDate));
   const overdueAmt = overdueItems.reduce((s,d)=>(s+(+d.amount||0)-(+d.paidAmount||0)),0);
   const overdueAlert = (overdueItems.length > 0 || overdueChecksCount > 0) ? `
     <div onclick="setState({payablesView:'reconcile'})" style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;background:rgba(220,98,98,0.08);border:1px solid rgba(220,98,98,0.35);margin-bottom:12px;cursor:pointer">
@@ -6099,6 +6048,7 @@ function renderPayablesDashboard() {
   const payments = [];
   activeDebts.forEach(d => {
     if (!pvIsOpenStatus(d.paymentStatus)) return;
+    if (linkedOpenDebtIds.has(d.id)) return;
     const dateToUse = d.dueDate || '';
     payments.push({
       date: dateToUse,
@@ -6128,7 +6078,7 @@ function renderPayablesDashboard() {
 
   // Apply filter
   let filteredPayments = payments;
-  if (pf === "צ'קים") filteredPayments = payments.filter(p => p.method.includes("צ'ק")||p.checkId);
+  if (pf === "צ'קים") filteredPayments = payments.filter(p => pvIsCheckMethod(p.method) || p.checkId || p.checkNumber || String(p.paymentStatus||'').includes('פירעון'));
   else if (pf === 'העברות') filteredPayments = payments.filter(p => p.method.includes('העברה'));
   else if (pf === 'מזומן') filteredPayments = payments.filter(p => p.method.includes('מזומן'));
   else if (pf === 'אשראי') filteredPayments = payments.filter(p => p.method.includes('אשראי'));
@@ -6301,7 +6251,6 @@ function renderPayablesDashboard() {
     ${overdueAlert}
     ${summaryHtml}
     ${timelineHtml}
-    ${renderPayablesHistorySection()}
     ${fabHtml}
   </div>`;
 }
@@ -7278,7 +7227,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=50').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=51').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
