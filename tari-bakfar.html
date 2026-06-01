@@ -861,6 +861,8 @@ let state = {
   checkBatchQueue: [], checkBatchTotal: 0,
   supplierEditId: null, supplierEditName: '',
   payablesView: 'dashboard',
+  payablesSearch: '',
+  payablesChecksExpanded: true,
   payablesSupplier: '',
   payablesDebtId: '',
   payablesModal: '',
@@ -4336,9 +4338,12 @@ function pvUpdateDebtStatus(debt) {
 
 // ── Dashboard sub-view ───────────────────────────────────────────────────────
 function renderPayablesDashboard() {
-  // Summary stats
   const today = pvTodayISO();
   const activeDebts = pv.debts.filter(d => !['paid','cancelled'].includes(d.status));
+  if (!DB.checks) DB.checks = [];
+  const openChecks = DB.checks.filter(c => !c.cleared).sort((a,b) => parseD(a.clearDate) - parseD(b.clearDate));
+
+  // Summary totals
   let overdueAmt = 0, soonAmt = 0, futureAmt = 0, totalAmt = 0;
   activeDebts.forEach(d => {
     const rem = (+d.amount||0) - (+d.paidAmount||0);
@@ -4347,40 +4352,136 @@ function renderPayablesDashboard() {
     else if (pvDateInDays(d.dueDate, 7)) soonAmt += rem;
     else futureAmt += rem;
   });
+  const totalChecks = openChecks.reduce((s,c) => s+(+c.amount||0), 0);
 
   const card = (emoji, color, label, val) => `
-    <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);display:flex;flex-direction:column;gap:4px">
-      <div style="font-size:20px">${emoji}</div>
-      <div style="font-size:11px;color:var(--textDim);font-weight:600">${label}</div>
-      <div class="display" style="font-size:19px;color:${color};font-weight:700">${fmtCurr(val)}</div>
+    <div style="padding:12px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);display:flex;flex-direction:column;gap:3px">
+      <div style="font-size:18px">${emoji}</div>
+      <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:.03em">${label}</div>
+      <div class="display" style="font-size:17px;color:${color};font-weight:700">${fmtCurr(val)}</div>
     </div>`;
 
   const summaryHtml = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
       ${card('🔴','var(--danger)','מאחר',overdueAmt)}
       ${card('🟡','var(--amber)','השבוע',soonAmt)}
-      ${card('🟢','var(--accent)','עתידי',futureAmt)}
       ${card('📊','var(--text)','סה"כ חוב',totalAmt)}
+      ${card('💳','var(--blue)','צ\'קים פתוחים',totalChecks)}
     </div>`;
 
-  const suppliers = pvGetAllSuppliers();
-  if (suppliers.length === 0 && pv.debts.length === 0) {
-    return `<div style="padding:16px 16px 100px" class="fade-up">
-      ${summaryHtml}
-      <div style="padding:40px 20px;text-align:center;color:var(--textDim);font-size:14px">
-        <div style="font-size:36px;margin-bottom:12px">📋</div>
-        <div style="font-weight:600;margin-bottom:4px">אין ספקים עדיין</div>
-        <div style="font-size:12px;color:var(--textMuted)">הוסף חוב ישיר כדי להתחיל</div>
+  // ── Checks section ──────────────────────────────────────────────────────────
+  const cf = state.checkForm;
+  const checkUrgencyColor = u => u==='overdue'?'var(--danger)':u==='soon'?'var(--amber)':'var(--textDim)';
+  const checksHtml = `
+    <div style="padding:14px 16px;border-radius:16px;background:var(--surface);border:1px solid rgba(91,156,246,0.3);margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-size:11px;color:var(--blue);font-weight:700;letter-spacing:.06em;text-transform:uppercase">💳 צ'קים (${openChecks.length} פתוחים · ${fmtCurr(totalChecks)})</div>
+        <button onclick="setState({payablesChecksExpanded:!state.payablesChecksExpanded})"
+          style="font-size:11px;font-weight:700;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);cursor:pointer;font-family:inherit">
+          ${state.payablesChecksExpanded ? '▲ צמצם' : '▼ הרחב'}
+        </button>
       </div>
-      <button onclick="setState({payablesModal:'add-direct',payablesModalData:{}})" style="position:fixed;bottom:calc(80px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:10;padding:14px 28px;border:none;border-radius:50px;background:var(--accent);color:#071302;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:var(--shadow-accent)">+ חוב ישיר</button>
+      ${state.payablesChecksExpanded ? `
+        <!-- Add check form -->
+        <div style="padding:12px;background:var(--surfaceHi);border-radius:12px;margin-bottom:12px">
+          <input type="file" id="check-scan-cam" accept="image/*" capture="environment" style="display:none" onchange="handleCheckScanFile(this.files[0]);this.value=''">
+          <div style="display:flex;gap:6px;margin-bottom:10px">
+            <input class="input" placeholder="ספק *" value="${esc(cf.supplier)}" oninput="state.checkForm.supplier=this.value" style="flex:1;padding:9px 12px;font-size:13px">
+            <input class="input" type="number" placeholder="₪" value="${cf.amount}" oninput="state.checkForm.amount=this.value" style="width:90px;padding:9px 12px;font-size:13px">
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:10px">
+            <input class="input" type="date" value="${cf.clearDate}" oninput="state.checkForm.clearDate=this.value" style="flex:1;padding:9px 12px;font-size:13px">
+            <button onclick="document.getElementById('check-scan-cam').click()" style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:transparent;color:var(--textDim);cursor:pointer;font-size:13px">📷</button>
+          </div>
+          <button onclick="addCheck()" style="width:100%;padding:10px;border:none;border-radius:10px;background:var(--accent);color:#071302;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer">+ הוסף צ'ק</button>
+        </div>
+        ${openChecks.length === 0
+          ? `<div style="text-align:center;padding:12px;color:var(--textMuted);font-size:13px">אין צ'קים פתוחים ✓</div>`
+          : openChecks.map(c => {
+              const u = checkUrgency(c.clearDate);
+              return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:700;color:var(--text)">${esc(c.supplier)}</div>
+                  <div style="font-size:11px;color:${checkUrgencyColor(u)};margin-top:1px">⏳ ${fmtDate(c.clearDate)}${u!=='normal'?' · '+(u==='overdue'?'<span style="color:var(--danger);font-weight:700">פג תוקף</span>':'<span style="color:var(--amber);font-weight:700">בקרוב</span>'):''}</div>
+                </div>
+                <div class="display" style="font-size:15px;font-weight:700;color:${u==='overdue'?'var(--danger)':'var(--text)'}">${fmtCurr(c.amount)}</div>
+                <button onclick="toggleCheckCleared('${c.id}')" style="padding:5px 10px;border:none;border-radius:8px;background:rgba(143,198,80,0.12);color:var(--accent);font-size:11px;font-weight:700;font-family:inherit;cursor:pointer">✅ מומש</button>
+              </div>`;
+            }).join('')}
+        ${DB.checks.filter(c=>c.cleared).length > 0 ? `<button onclick="setState({tab:'checks'})" style="width:100%;margin-top:10px;padding:9px;border:1px solid var(--border);border-radius:10px;background:transparent;color:var(--textDim);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">צ'קים שמומשו ←</button>` : ''}
+      ` : openChecks.slice(0,3).map(c => {
+          const u = checkUrgency(c.clearDate);
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(c.supplier)}</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:11px;color:${checkUrgencyColor(u)}">${fmtDate(c.clearDate)}</span>
+              <span class="display" style="font-size:14px;font-weight:700;color:${u==='overdue'?'var(--danger)':'var(--text)'}">${fmtCurr(c.amount)}</span>
+            </div>
+          </div>`;
+        }).join('') + (openChecks.length > 3 ? `<div style="font-size:12px;color:var(--textMuted);text-align:center;padding:6px 0">+${openChecks.length-3} נוספים</div>` : '')}
     </div>`;
+
+  // ── Payments forecast ───────────────────────────────────────────────────────
+  const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+  function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+  function toISO(d) { return d.toISOString().slice(0,10); }
+  const w1End = toISO(addDays(todayDate, 7));
+  const w2End = toISO(addDays(todayDate, 14));
+  const mEnd  = toISO(addDays(todayDate, 31));
+
+  // Collect all upcoming payments (debts + checks)
+  const upcoming = [];
+  activeDebts.forEach(d => {
+    if (d.dueDate) upcoming.push({ date: d.dueDate, label: esc(d.supplierName||''), amount: (+d.amount||0)-(+d.paidAmount||0), type: 'חוב' });
+  });
+  openChecks.forEach(c => {
+    if (c.clearDate) upcoming.push({ date: c.clearDate, label: esc(c.supplier||''), amount: +c.amount||0, type: "צ'ק" });
+  });
+  upcoming.sort((a,b) => a.date.localeCompare(b.date));
+
+  function forecastGroup(label, items, color) {
+    if (!items.length) return '';
+    const total = items.reduce((s,i) => s+i.amount, 0);
+    return `
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:12px;font-weight:700;color:${color}">${label}</div>
+          <div class="display" style="font-size:15px;font-weight:700;color:${color}">${fmtCurr(total)}</div>
+        </div>
+        ${items.map(i => `
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:10px;color:var(--textMuted);background:var(--surfaceHi);padding:2px 7px;border-radius:6px;flex-shrink:0">${i.type}</span>
+            <span style="flex:1;font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i.label}</span>
+            <span style="font-size:11px;color:var(--textDim);flex-shrink:0">${fmtDate(i.date)}</span>
+            <span class="display" style="font-size:13px;font-weight:700;color:var(--text);flex-shrink:0">${fmtCurr(i.amount)}</span>
+          </div>`).join('')}
+      </div>`;
   }
 
-  // Sort by outstanding desc
+  const overdue  = upcoming.filter(i => i.date < today);
+  const thisWeek = upcoming.filter(i => i.date >= today && i.date <= w1End);
+  const nextWeek = upcoming.filter(i => i.date > w1End && i.date <= w2End);
+  const thisMonth= upcoming.filter(i => i.date > w2End && i.date <= mEnd);
+  const later    = upcoming.filter(i => i.date > mEnd);
+
+  const forecastHtml = (overdue.length || thisWeek.length || nextWeek.length || thisMonth.length || later.length) ? `
+    <div style="padding:14px 16px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:16px">
+      <div style="font-size:11px;color:var(--textDim);font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px">📅 תשלומים צפויים</div>
+      ${forecastGroup('מאחר — יש לטפל מיד', overdue, 'var(--danger)')}
+      ${forecastGroup('השבוע', thisWeek, 'var(--amber)')}
+      ${forecastGroup('השבוע הבא', nextWeek, 'var(--text)')}
+      ${forecastGroup('החודש', thisMonth, 'var(--textDim)')}
+      ${forecastGroup('מאוחר יותר', later, 'var(--textMuted)')}
+    </div>` : '';
+
+  // ── Search + suppliers list ─────────────────────────────────────────────────
+  const q = (state.payablesSearch||'').trim().toLowerCase();
+  let suppliers = pvGetAllSuppliers();
+  if (q) suppliers = suppliers.filter(s => s.toLowerCase().includes(q));
   const sorted = suppliers.map(s => ({ name: s, ...pvSupplierStats(s) }))
     .sort((a,b) => b.outstanding - a.outstanding);
 
-  const listHtml = sorted.map(s => `
+  const listHtml = sorted.length ? sorted.map(s => `
     <div onclick="setState({payablesView:'supplier',payablesSupplier:'${esc(s.name)}'})" style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:13px;background:var(--surface);border:1px solid var(--border);cursor:pointer;margin-bottom:8px">
       <div style="flex:1;min-width:0">
         <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px">${esc(s.name)}</div>
@@ -4391,11 +4492,20 @@ function renderPayablesDashboard() {
         <div style="margin-top:3px;text-align:left">${pvStatusBadge(s.status)}</div>
       </div>
       <div style="color:var(--textMuted);font-size:18px">›</div>
-    </div>`).join('');
+    </div>`).join('')
+  : `<div style="text-align:center;padding:20px;color:var(--textMuted);font-size:13px">לא נמצאו ספקים</div>`;
 
   return `<div style="padding:16px 16px 100px" class="fade-up">
+    <!-- Search -->
+    <div style="position:relative;margin-bottom:14px">
+      <input type="search" placeholder="🔍 חיפוש ספק..." value="${esc(state.payablesSearch||'')}"
+        oninput="setState({payablesSearch:this.value})"
+        style="width:100%;padding:10px 40px 10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;font-family:inherit;outline:none;box-sizing:border-box">
+    </div>
     ${summaryHtml}
-    <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">ספקים</div>
+    ${checksHtml}
+    ${forecastHtml}
+    <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">ספקים</div>
     ${listHtml}
     <button onclick="setState({payablesModal:'add-direct',payablesModalData:{}})" style="position:fixed;bottom:calc(80px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:10;padding:14px 28px;border:none;border-radius:50px;background:var(--accent);color:#071302;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:var(--shadow-accent)">+ חוב ישיר</button>
   </div>`;
