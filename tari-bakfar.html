@@ -5870,6 +5870,10 @@ function pvOpenLabel(method) {
   if (m.includes('אשראי')) return '💳 חיוב אשראי עתידי';
   return '📄 ממתין לסגירה';
 }
+function pvOpenConfirm(id, type) {
+  setState({payablesModal:'confirm-paid', payablesModalData:{id, type}});
+}
+
 function pvActionLabel(method) {
   const m = method||'';
   return (m.includes("צ'ק")||m.includes('צק')) ? "✅ סמן כנפרע" : '✅ סמן כשולם';
@@ -6136,38 +6140,28 @@ function renderPayablesDashboard() {
       const canAdvance = debtObj && pvNextStatus(debtObj);
       const nextSt = debtObj ? pvNextStatus(debtObj) : null;
 
-      // Forward-looking action: "סמן כנפרע" / "סמן כשולם"
-      const termStatus = pvActionStatus(p.method);
-      const termLabel  = pvActionLabel(p.method);
-      const actionBtn = p.checkId
-        ? `<button onclick="event.stopPropagation();toggleCheckCleared('${p.checkId}')" style="padding:6px 12px;border:none;border-radius:8px;background:rgba(143,198,80,0.12);color:var(--accent);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">✅ סמן כנפרע</button>`
-        : p.debtId
-          ? `<button onclick="event.stopPropagation();pvSetPaymentStatus('${p.debtId}','${termStatus}')" style="padding:6px 12px;border:none;border-radius:8px;background:rgba(143,198,80,0.12);color:var(--accent);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">${termLabel}</button>`
-          : '';
-
       const onclick = p.debtId
         ? `setState({payablesView:'debt',payablesDebtId:'${p.debtId}'})`
         : `setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(p.supplier)}')})`;
 
-      // Open-commitment label (forward-looking, not "נפרע")
       const openLbl = pvOpenLabel(p.method);
+      const pendingId = p.debtId || p.checkId;
+      const pendingType = p.debtId ? 'debt' : 'check';
 
       timelineRows += `
-        <div onclick="${onclick}" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer">
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:22px;flex-shrink:0">${pvGetMethodIcon(p.method)}</div>
-            <div style="flex:1;min-width:0">
-              <div style="font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.supplier)}</div>
-              <div style="font-size:11px;color:var(--textDim);margin-top:2px">
-                ${openLbl}${p.checkNumber?` · מס' ${esc(p.checkNumber)}`:''}${p.invoiceNumber?` · #${esc(p.invoiceNumber)}`:''}
-              </div>
+        <div onclick="${onclick}" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer">
+          <div style="font-size:22px;flex-shrink:0">${pvGetMethodIcon(p.method)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.supplier)}</div>
+            <div style="font-size:11px;color:var(--textDim);margin-top:2px">${openLbl}${p.checkNumber?` · מס' ${esc(p.checkNumber)}`:''}${p.invoiceNumber?` · #${esc(p.invoiceNumber)}`:''}
             </div>
-            <div class="display" style="font-size:16px;font-weight:700;color:var(--text);flex-shrink:0">${fmtCurr(p.amount)}</div>
           </div>
-          <div style="display:flex;gap:6px;margin-top:8px">
-            ${actionBtn}
-            ${p.debtId?`<button onclick="event.stopPropagation();pvQuickDelay('${p.debtId}')" style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">⏩ +7</button>`:''}
-            <button onclick="event.stopPropagation();setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(p.supplier)}')})" style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">→ ספק</button>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+            <div class="display" style="font-size:15px;font-weight:700;color:var(--text)">${fmtCurr(p.amount)}</div>
+            <button onclick="event.stopPropagation();pvOpenConfirm('${pendingId}','${pendingType}')"
+              style="padding:4px 10px;border:none;border-radius:20px;background:rgba(244,185,66,0.15);color:var(--amber);font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">
+              ⏳ ממתין לתשלום
+            </button>
           </div>
         </div>`;
     });
@@ -6197,10 +6191,7 @@ function renderPayablesDashboard() {
   const timelineHtml = `
     <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
       <span>📅 התחייבויות פתוחות</span>
-      <div style="display:flex;gap:6px">
-        <button onclick="setState({payablesView:'archive'})" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">🗂 ארכיון</button>
-        <button onclick="setState({payablesView:'supplierBook'})" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">📒 ספרים</button>
-      </div>
+      <button onclick="setState({payablesView:'supplierBook'})" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">📒 ספר ספקים</button>
     </div>
     ${filterBar}
     ${noItems
@@ -6879,6 +6870,7 @@ function renderPayablesModal() {
     case 'add-direct': return renderPvModalAddDirect();
     case 'record-payment': return renderPvModalRecordPayment();
     case 'link-check-to-debt': return renderPvModalLinkCheckToDebt();
+    case 'confirm-paid': return renderPvModalConfirmPaid();
     default: return '';
   }
 }
@@ -6914,6 +6906,42 @@ function renderPvModalLinkCheckToDebt() {
       </div>
       ${body}
       <button onclick="setState({payablesModal:'',payablesModalData:null})" class="btn-ghost">סגור</button>
+    </div>
+  </div>`;
+}
+
+function renderPvModalConfirmPaid() {
+  const d = state.payablesModalData || {};
+  const debt = d.type === 'debt' ? pv.debts.find(x=>x.id===d.id) : null;
+  const check = d.type === 'check' ? (DB.checks||[]).find(x=>x.id===d.id) : null;
+  const item = debt || check;
+  if (!item) return '';
+  const supplier = debt ? debt.supplierName : check.supplier;
+  const amount = debt ? (+debt.amount||0)-(+debt.paidAmount||0) : +check.amount||0;
+  const method = debt ? debt.paymentMethod : "צ'ק";
+  const label = pvActionLabel(method);
+  const status = pvActionStatus(method);
+
+  return `<div class="overlay" onclick="setState({payablesModal:'',payablesModalData:null})">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:420px">
+      <div class="modal-handle"></div>
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:36px;margin-bottom:8px">${pvGetMethodIcon(method)}</div>
+        <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px">${esc(supplier)}</div>
+        <div class="display" style="font-size:28px;font-weight:700;color:var(--text);margin-bottom:8px">${fmtCurr(amount)}</div>
+        <div style="font-size:13px;color:var(--textDim)">${pvOpenLabel(method)}${debt&&debt.invoiceNumber?' · #'+esc(debt.invoiceNumber):''}${check&&check.note?' · מס\' '+esc(check.note):''}</div>
+      </div>
+      <button onclick="
+        if('${d.type}'==='debt'){pvSetPaymentStatus('${d.id}','${status}');}
+        else{toggleCheckCleared('${d.id}');}
+        setState({payablesModal:'',payablesModalData:null});"
+        style="width:100%;padding:15px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--accent),#52a428);color:#051201;font-size:16px;font-weight:800;font-family:inherit;cursor:pointer;margin-bottom:10px">
+        ${label}
+      </button>
+      <button onclick="setState({payablesModal:'',payablesModalData:null})"
+        style="width:100%;padding:13px;border:1px solid var(--border);border-radius:14px;background:transparent;color:var(--textDim);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">
+        ביטול
+      </button>
     </div>
   </div>`;
 }
