@@ -5953,6 +5953,17 @@ function pvSearchInput(val) {
 
 // ── Supplier sub-view ────────────────────────────────────────────────────────
 function renderPayablesSupplier() {
+  try {
+    return _renderPayablesSupplierInner();
+  } catch(err) {
+    console.error('renderPayablesSupplier error:', err);
+    return `<div style="padding:20px">
+      <button onclick="setState({payablesView:'dashboard'})" style="margin-bottom:16px;border:none;border-radius:10px;padding:8px 14px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-family:inherit">← חזור</button>
+      <div style="color:var(--danger);font-size:13px;background:var(--dangerSoft);padding:12px 16px;border-radius:12px">שגיאה בטעינת כרטיס ספק: ${esc(err.message||'')}</div>
+    </div>`;
+  }
+}
+function _renderPayablesSupplierInner() {
   const sup = state.payablesSupplier;
   const norm = pvSupplierNorm(sup);
 
@@ -6082,7 +6093,7 @@ function renderPayablesSupplier() {
     ${tiSection}
     ${debtsSection}
   </div>`;
-}
+} // end _renderPayablesSupplierInner
 
 // ── Debt sub-view ────────────────────────────────────────────────────────────
 function renderPayablesDebt() {
