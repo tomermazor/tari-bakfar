@@ -2223,7 +2223,7 @@ function renderWorkers() {
   const summaryHtml = active.length > 0 ? `
     <div style="display:grid;grid-template-columns:1fr 1fr${hasAdvances?' 1fr':''};gap:10px;margin-bottom:12px">
       <div style="padding:12px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);text-align:center">
-        <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:4px">עובדים פעילים</div>
+        <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:4px">פעיל</div>
         <div class="display" style="font-size:26px;color:var(--accent)">${active.length}</div>
       </div>
       <div style="padding:12px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);text-align:center">
@@ -2316,7 +2316,7 @@ function renderWorkers() {
           <!-- Action buttons -->
           <div style="display:flex;border-top:1px solid var(--border)">
             <button onclick="editWorker('${wid}')" style="flex:1;padding:10px 4px;border:none;background:transparent;color:var(--textDim);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">✏️ עריכה</button>
-            <button onclick="toggleWorkerActive('${wid}')" style="flex:1;padding:10px 4px;border:none;border-right:1px solid var(--border);border-left:1px solid var(--border);background:transparent;color:var(--textDim);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">${isActive?'⏸ השהה':'▶️ הפעל'}</button>
+            <button onclick="toggleWorkerActive('${wid}')" style="flex:1;padding:10px 4px;border:none;border-right:1px solid var(--border);border-left:1px solid var(--border);background:${isActive?'rgba(220,98,98,0.06)':'rgba(143,198,80,0.08)'};color:${isActive?'var(--danger)':'var(--accent)'};font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">${isActive?'⏸ השבת':'✅ הפעל'}</button>
             <button onclick="deleteWorker('${wid}','${esc(w.name)}')" style="flex:1;padding:10px 4px;border:none;background:transparent;color:var(--danger);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">🗑 מחק</button>
           </div>
         </div>`;
