@@ -2625,7 +2625,7 @@ function toggleCheckCleared(id) {
   }
   persistLocal();
   render();
-  toast(c.cleared ? '✓ צ\'ק סומן כנפרע ועבר לארכיון' : 'סימון בוטל', c.cleared ? 'success' : 'info');
+  toast(c.cleared ? '✓ צ\'ק סומן כנפרע ונשמר בהיסטוריה' : 'סימון בוטל', c.cleared ? 'success' : 'info');
   if (CFG.webAppUrl) {
     setSyncStatus('syncing');
     (async () => {
@@ -5966,6 +5966,59 @@ function pvQuickDelay(debtId) {
   toast('תשלום נדחה ב-7 ימים');
 }
 
+function pvGetClosedPaymentItems() {
+  const closedDebts = (pv.debts||[]).filter(d => !pvIsOpenStatus(d.paymentStatus));
+  const clearedChecks = (DB.checks||[]).filter(c => c.cleared);
+  return [
+    ...closedDebts.map(d => ({
+      date: d.paidDate || (d.payments||[]).slice(-1)[0]?.date || d.dueDate || '',
+      supplier: d.supplierName || '',
+      amount: +d.amount || 0,
+      method: d.paymentMethod || '',
+      checkNum: d.checkNumber || '',
+      status: d.paymentStatus || 'שולם',
+    })),
+    ...clearedChecks.map(c => ({
+      date: c.clearedDate || c.clearDate || '',
+      supplier: c.supplier || '',
+      amount: +c.amount || 0,
+      method: "צ'ק",
+      checkNum: c.checkNum || '',
+      status: 'נפרע',
+    })),
+  ].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+}
+
+function pvClosedPaymentRow(item) {
+  const statusColor = item.status==='נפרע'||item.status==='שולם'?'var(--accent)':item.status==='בוטל'?'var(--danger)':'var(--textMuted)';
+  return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+    <div style="font-size:18px;flex-shrink:0">${pvGetMethodIcon(item.method)}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.supplier)}</div>
+      <div style="font-size:11px;color:var(--textDim);margin-top:1px">${fmtDate(item.date)}${item.checkNum?' · מס\' '+esc(item.checkNum):''}</div>
+    </div>
+    <div style="text-align:left;flex-shrink:0">
+      <div class="display" style="font-size:13px;font-weight:700;color:var(--text)">${fmtCurr(item.amount)}</div>
+      <div style="font-size:10px;font-weight:700;color:${statusColor};text-align:left;margin-top:2px">✅ ${esc(item.status)}</div>
+    </div>
+  </div>`;
+}
+
+function renderPayablesHistorySection() {
+  const rows = pvGetClosedPaymentItems();
+  const recent = rows.slice(0, 25);
+  return `
+    <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;display:flex;justify-content:space-between;align-items:center">
+      <span>📜 היסטוריית תשלומים</span>
+      <span style="font-size:11px;color:var(--textMuted);font-weight:600;letter-spacing:0;text-transform:none">${rows.length} רשומות</span>
+    </div>
+    ${rows.length === 0
+      ? `<div style="text-align:center;padding:22px 16px;color:var(--textMuted);background:var(--surface);border:1px solid var(--border);border-radius:14px"><div style="font-size:26px;margin-bottom:6px">📂</div><div style="font-size:13px;font-weight:600">אין תשלומים סגורים עדיין</div></div>`
+      : `<div style="padding:0 14px;background:var(--surface);border:1px solid var(--border);border-radius:14px">${recent.map(pvClosedPaymentRow).join('')}</div>
+         ${rows.length > recent.length ? `<div style="font-size:11px;color:var(--textMuted);text-align:center;margin-top:8px">מוצגות ${recent.length} הרשומות האחרונות מתוך ${rows.length}</div>` : ''}`}
+  `;
+}
+
 function renderPayablesDashboard() {
   const today = pvTodayISO();
   if (!DB.checks) DB.checks = [];
@@ -6213,7 +6266,6 @@ function renderPayablesDashboard() {
     <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
       <span>📅 התחייבויות פתוחות</span>
       <div style="display:flex;gap:5px">
-        <button onclick="setState({payablesView:'archive'})" style="font-size:11px;padding:4px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">🗂</button>
         <button onclick="setState({payablesView:'supplierBook'})" style="font-size:11px;padding:4px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">📒</button>
       </div>
     </div>
@@ -6249,6 +6301,7 @@ function renderPayablesDashboard() {
     ${overdueAlert}
     ${summaryHtml}
     ${timelineHtml}
+    ${renderPayablesHistorySection()}
     ${fabHtml}
   </div>`;
 }
@@ -6839,65 +6892,11 @@ function renderPayablesReconcile() {
 }
 
 // ── Main renderPayables entry ────────────────────────────────────────────────
-function renderPayablesArchive() {
-  const closedDebts = pv.debts.filter(d => !pvIsOpenStatus(d.paymentStatus))
-    .sort((a,b)=>(b.closedAt||b.createdAt||0)-(a.closedAt||a.createdAt||0));
-  const clearedChecks = (DB.checks||[]).filter(c=>c.cleared)
-    .sort((a,b)=>parseD(b.clearDate)-parseD(a.clearDate));
-
-  function archiveRow(date, supplier, amount, method, checkNum, status) {
-    const statusColor = status==='נפרע'||status==='שולם'?'var(--accent)':status==='בוטל'?'var(--danger)':'var(--textMuted)';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
-      <div style="font-size:18px;flex-shrink:0">${pvGetMethodIcon(method)}</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(supplier)}</div>
-        <div style="font-size:11px;color:var(--textDim);margin-top:1px">${fmtDate(date)}${checkNum?' · מס\' '+esc(checkNum):''}</div>
-      </div>
-      <div style="text-align:left;flex-shrink:0">
-        <div class="display" style="font-size:13px;font-weight:700;color:var(--text)">${fmtCurr(amount)}</div>
-        <div style="font-size:10px;font-weight:700;color:${statusColor};text-align:left;margin-top:2px">✅ ${status}</div>
-      </div>
-    </div>`;
-  }
-
-  const archiveItems = [
-    ...closedDebts.map(d => ({
-      date: d.paidDate || (d.payments||[]).slice(-1)[0]?.date || d.dueDate || '',
-      supplier: d.supplierName || '',
-      amount: +d.amount || 0,
-      method: d.paymentMethod || '',
-      checkNum: d.checkNumber || '',
-      status: d.paymentStatus || 'שולם',
-    })),
-    ...clearedChecks.map(c => ({
-      date: c.clearedDate || c.clearDate || '',
-      supplier: c.supplier || '',
-      amount: +c.amount || 0,
-      method: "צ'ק",
-      checkNum: c.checkNum || '',
-      status: 'נפרע',
-    })),
-  ].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-  const rows = archiveItems.map(x => archiveRow(x.date, x.supplier, x.amount, x.method, x.checkNum, x.status));
-
-  return `<div style="padding:14px 14px 100px" class="fade-up">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-      <button onclick="setState({payablesView:'dashboard'})" style="width:36px;height:36px;border:none;border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">‹</button>
-      <h2 class="display" style="font-size:18px;margin:0;flex:1">🗂 ארכיון תשלומים</h2>
-      <span style="font-size:12px;color:var(--textDim)">${rows.length} רשומות</span>
-    </div>
-    ${rows.length === 0
-      ? `<div style="text-align:center;padding:40px;color:var(--textMuted)"><div style="font-size:32px;margin-bottom:8px">📂</div><div>אין תשלומים מוגמרים עדיין</div></div>`
-      : `<div style="padding:0 14px;background:var(--surface);border:1px solid var(--border);border-radius:14px">${rows.join('')}</div>`}
-  </div>`;
-}
-
 function renderPayables() {
   if (state.payablesView === 'supplier') return renderPayablesSupplier();
   if (state.payablesView === 'debt') return renderPayablesDebt();
   if (state.payablesView === 'reconcile') return renderPayablesReconcile();
   if (state.payablesView === 'supplierBook') return renderPayablesSupplierBook();
-  if (state.payablesView === 'archive') return renderPayablesArchive();
   return renderPayablesDashboard();
 }
 
@@ -7279,7 +7278,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=49').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=50').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
