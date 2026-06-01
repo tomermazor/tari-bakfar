@@ -4090,12 +4090,34 @@ function ordersGetOrderedItems() {
 function ordersUpdateOrderCounter() {
   const el = document.getElementById('orders-counter');
   if (!el) return;
-  const items = ordersGetOrderedItems();
   let totalCartons = 0, totalUnits = 0;
-  items.forEach(function(it) {
-    if (it.unit === 'קרטון') totalCartons += parseInt(it.qty) || 0;
-    else totalUnits += parseInt(it.qty) || 0;
+
+  // Count catalog products
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (sup) {
+    sup.products.forEach(function(p) {
+      const st = state.ordersState[p.id];
+      if (!st) return;
+      if (st.unit === 'both') {
+        totalCartons += parseInt(st.carton) || 0;
+        totalUnits += parseInt(st.units) || 0;
+      } else if (st.unit === 'קרטון') {
+        totalCartons += parseInt(st.qty) || 0;
+      } else {
+        totalUnits += parseInt(st.qty) || 0;
+      }
+    });
+  }
+
+  // Always count manual items directly from state
+  Object.keys(state.ordersState || {}).filter(function(k){ return k.startsWith('manual_'); }).forEach(function(k) {
+    const st = state.ordersState[k];
+    if (!st || !st.isManual) return;
+    const qty = parseInt(st.qty) || 0;
+    if (st.unit === 'קרטון') totalCartons += qty;
+    else totalUnits += qty;
   });
+
   const parts = [];
   if (totalCartons > 0) parts.push('📦 ' + totalCartons + ' קרטון');
   if (totalUnits > 0) parts.push('🔢 ' + totalUnits + ' יחידות');
