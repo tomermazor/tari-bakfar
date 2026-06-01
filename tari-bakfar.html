@@ -5981,20 +5981,23 @@ function renderPayablesSupplier() {
 
   // Tax invoices — from pv.taxInvoices (manually linked) + DB.expenses (scanned)
   const tis = pv.taxInvoices.filter(ti => pvSupplierNorm(ti.supplierName) === norm);
-  // Expense-based tax invoices not already in pv.taxInvoices
-  const tiExpenseIds = new Set(tis.map(ti => ti.expenseId).filter(Boolean));
-  const expTis = (DB.expenses || []).filter(e =>
-    ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type) &&
-    pvSupplierNorm(e.supplier) === norm &&
-    !tiExpenseIds.has(e.id)
-  );
+
+  // Expense-based tax invoices
+  let expTis = [];
+  try {
+    const tiLinkedExpIds = new Set(pv.debts.filter(d=>d.expenseId).map(d=>d.expenseId));
+    expTis = (DB.expenses || []).filter(e =>
+      ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type) &&
+      pvSupplierNorm(e.supplier) === norm &&
+      !tiLinkedExpIds.has(e.id)
+    );
+  } catch(e) { expTis = []; }
 
   const tiHtml = (tis.length === 0 && expTis.length === 0)
     ? `<div style="font-size:12px;color:var(--textMuted);padding:6px 0">אין חשבוניות מס</div>`
     : [
-        // pv.taxInvoices
         ...tis.map(ti => {
-          const linkedDebt = pv.debts.find(d => d.invoiceId === ti.id || d.taxInvoiceId === ti.id);
+          const linkedDebt = pv.debts.find(d => d.taxInvoiceId === ti.id);
           return `
             <div style="padding:10px 0;border-bottom:1px solid var(--border)">
               <div style="display:flex;align-items:center;gap:8px">
@@ -6010,20 +6013,24 @@ function renderPayablesSupplier() {
               </div>
             </div>`;
         }),
-        // DB.expenses tax invoices
         ...expTis.map(e => {
           const linkedDebt = pv.debts.find(d => d.expenseId === e.id);
+          const eNum = esc(String(e.document_number||'ללא מספר'));
+          const eDate = esc(String(e.date||''));
+          const eId = esc(String(e.id||''));
+          const eAmt = +e.total_amount || 0;
+          const eSup = esc(sup).replace(/'/g,'&apos;');
           return `
             <div style="padding:10px 0;border-bottom:1px solid var(--border)">
               <div style="display:flex;align-items:center;gap:8px">
                 <div style="flex:1;min-width:0">
-                  <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(e.document_number||'ללא מספר')} · ${fmtDate(e.date)}</div>
-                  <div style="font-size:11px;color:var(--textDim)">${esc(e.document_type)} · ${esc(e.notes||'')}</div>
+                  <div style="font-size:13px;font-weight:600;color:var(--text)">${eNum} · ${fmtDate(e.date)}</div>
+                  <div style="font-size:11px;color:var(--textDim)">${esc(e.document_type||'')} · ${esc(e.notes||'')}</div>
                 </div>
-                <div class="display" style="font-size:14px;font-weight:700;color:var(--text)">${fmtCurr(e.total_amount)}</div>
+                <div class="display" style="font-size:14px;font-weight:700;color:var(--text)">${fmtCurr(eAmt)}</div>
                 ${linkedDebt
                   ? `<div style="cursor:pointer" onclick="setState({payablesView:'debt',payablesDebtId:'${linkedDebt.id}'})">${pvDebtStatusBadge(linkedDebt)}</div>`
-                  : `<button onclick="setState({payablesModal:'add-direct',payablesModalData:{supplier:'${esc(sup)}',amount:'${e.total_amount}',invoiceNumber:'${esc(e.document_number||'')}',date:'${e.date}',expenseId:'${e.id}'}})" style="font-size:11px;padding:4px 10px;border:none;border-radius:7px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit;font-weight:700">צור חוב</button>`
+                  : `<button onclick="pvOpenDebtFromExpense('${eId}','${eSup}','${eAmt}','${eNum}','${eDate}')" style="font-size:11px;padding:4px 10px;border:none;border-radius:7px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit;font-weight:700">צור חוב</button>`
                 }
               </div>
             </div>`;
@@ -6173,6 +6180,13 @@ function renderPayablesDebt() {
       <button onclick="pvCancelDebt('${debt.id}')" style="padding:13px 16px;border:none;border-radius:12px;background:var(--dangerSoft);color:var(--danger);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">🗑</button>
     </div>` : ''}
   </div>`;
+}
+
+function pvOpenDebtFromExpense(expId, supplier, amount, invoiceNumber, date) {
+  setState({payablesModal:'add-direct', payablesModalData:{
+    supplier: supplier, amount: String(amount), invoiceNumber: invoiceNumber,
+    date: date, expenseId: expId
+  }});
 }
 
 function pvToggleAccounting(debtId) {
