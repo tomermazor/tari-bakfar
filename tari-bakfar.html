@@ -910,6 +910,7 @@ let state = {
   payablesView: 'dashboard',
   payablesSearch: '',
   payablesFilter: 'הכל',
+  pvPaymentFilter: 'הכל',
   pvFabOpen: false,
   payablesChecksExpanded: true,
   payablesSupplier: '',
@@ -5851,12 +5852,66 @@ function pvQuickAddDoc(type) {
   if (type==='ספק') { setState({payablesModal:'add-direct',payablesModalData:{}}); return; }
   setState({payablesModal:'add-direct', payablesModalData:{docType:type}});
 }
+// ── Payment status constants ─────────────────────────────────────────────────
+const PV_STATUS_ICONS = {
+  'ממתין':'🟡', 'נמסר':'📤', 'ממתין לפירעון':'⏳', 'נפרע':'✅', 'שולם':'✅', 'בוטל':'❌'
+};
+const PV_METHOD_ICONS = {
+  "צ'ק":'💳', 'העברה':'🏦', 'מזומן':'💵', 'אשראי':'💳', 'אחר':'📝'
+};
+function pvGetMethodIcon(m) { return PV_METHOD_ICONS[m] || '📄'; }
+function pvGetStatusIcon(s) { return PV_STATUS_ICONS[s] || '🟡'; }
+function pvIsOpenStatus(s) {
+  return !s || !['נפרע','שולם','בוטל'].includes(s);
+}
+function pvSetPaymentStatus(debtId, newStatus) {
+  const debt = pv.debts.find(d => d.id === debtId);
+  if (!debt) return;
+  debt.paymentStatus = newStatus;
+  if (newStatus === 'שולם' || newStatus === 'נפרע') {
+    debt.status = 'paid';
+    debt.paidAmount = debt.amount;
+    if (!debt.payments) debt.payments = [];
+    const totalPaid = debt.payments.reduce((s,p)=>s+(+p.amount||0),0);
+    if (totalPaid < (+debt.amount||0)) {
+      debt.payments.push({id:uid(), amount:(+debt.amount||0)-totalPaid, date:pvTodayISO(), method:debt.paymentMethod||'', reference:'', notes:newStatus});
+    }
+  } else if (newStatus === 'בוטל') {
+    debt.status = 'cancelled';
+  }
+  savePv(true);
+  setState({});
+  toast(newStatus==='נפרע'?'✅ סומן כנפרע':newStatus==='שולם'?'✅ סומן כשולם':'סטטוס עודכן', 'success');
+}
+function pvNextStatus(debt) {
+  const cur = debt.paymentStatus || 'ממתין';
+  const method = debt.paymentMethod || '';
+  if (method.includes("צ'ק") || method.includes('צק')) {
+    const checkFlow = ['ממתין','נמסר','ממתין לפירעון','נפרע'];
+    const idx = checkFlow.indexOf(cur);
+    return idx >= 0 && idx < checkFlow.length-1 ? checkFlow[idx+1] : null;
+  } else {
+    return cur === 'ממתין' ? 'שולם' : null;
+  }
+}
+function pvMigratePaymentStatuses() {
+  (pv.debts||[]).forEach(d => {
+    if (!d.paymentStatus) {
+      if (d.status === 'paid') d.paymentStatus = 'שולם';
+      else if (d.status === 'cancelled') d.paymentStatus = 'בוטל';
+      else if (d.paymentMethod && (d.paymentMethod.includes("צ'ק")||d.paymentMethod.includes('צק'))) d.paymentStatus = 'ממתין לפירעון';
+      else d.paymentStatus = 'ממתין';
+    }
+  });
+}
+
 function pvQuickMarkPaid(debtId) {
   const debt = pv.debts.find(d=>d.id===debtId);
-  if (!debt || !confirm('לסמן חוב זה כשולם?')) return;
-  debt.status='paid'; debt.paidAmount=debt.amount;
-  debt.payments.push({id:uid(),amount:debt.amount,date:pvTodayISO(),method:'',reference:'',notes:'שולם'});
-  savePv(true); setState({});
+  if (!debt) return;
+  const method = debt.paymentMethod || '';
+  const newStatus = (method.includes("צ'ק")||method.includes('צק')) ? 'נפרע' : 'שולם';
+  if (!confirm(`לסמן כ${newStatus}?`)) return;
+  pvSetPaymentStatus(debtId, newStatus);
 }
 function pvQuickDelay(debtId) {
   const debt = pv.debts.find(d=>d.id===debtId);
@@ -5942,152 +5997,191 @@ function renderPayablesDashboard() {
     </div>` : '';
 
   // ── 4. Payment timeline ─────────────────────────────────────────────────
-  const payments = [];
+  pvMigratePaymentStatuses();
+  const pf = state.pvPaymentFilter || 'הכל';
 
+  const payments = [];
   activeDebts.forEach(d => {
-    if (!d.dueDate) return;
+    if (!pvIsOpenStatus(d.paymentStatus)) return;
+    const dateToUse = d.dueDate || '';
     payments.push({
-      date: d.dueDate,
+      date: dateToUse,
       supplier: d.supplierName || '',
       amount: (+d.amount||0)-(+d.paidAmount||0),
       method: d.paymentMethod || '',
       checkNumber: d.checkNumber || '',
-      status: d.status,
+      paymentStatus: d.paymentStatus || 'ממתין',
       debtId: d.id,
       invoiceNumber: d.invoiceNumber || '',
-      isOverdue: pvIsOverdue(d.dueDate),
+      isOverdue: dateToUse ? pvIsOverdue(dateToUse) : false,
     });
   });
 
   openChecks.forEach(c => {
-    if (!c.clearDate) return;
     payments.push({
-      date: c.clearDate,
+      date: c.clearDate || '',
       supplier: c.supplier || '',
-      amount: +c.amount||0,
+      amount: +c.amount || 0,
       method: "צ'ק",
       checkNumber: c.note || '',
-      status: 'פתוח',
+      paymentStatus: 'ממתין לפירעון',
       checkId: c.id,
       isOverdue: checkUrgency(c.clearDate) === 'overdue',
     });
   });
 
-  const overduePay = payments.filter(p=>p.isOverdue).sort((a,b)=>b.date.localeCompare(a.date));
-  const futurePay  = payments.filter(p=>!p.isOverdue).sort((a,b)=>a.date.localeCompare(b.date));
-  const sortedPayments = [...overduePay, ...futurePay];
+  // Apply filter
+  let filteredPayments = payments;
+  if (pf === "צ'קים") filteredPayments = payments.filter(p => p.method.includes("צ'ק")||p.checkId);
+  else if (pf === 'העברות') filteredPayments = payments.filter(p => p.method.includes('העברה'));
+  else if (pf === 'מזומן') filteredPayments = payments.filter(p => p.method.includes('מזומן'));
+  else if (pf === 'באיחור') filteredPayments = payments.filter(p => p.isOverdue || (p.date && p.date < today));
+  else if (pf === 'השבוע') filteredPayments = payments.filter(p => p.date && p.date >= today && pvDateInDays(p.date,7));
+  else if (pf === 'החודש') filteredPayments = payments.filter(p => p.date && p.date >= today && pvDateInDays(p.date,30));
 
-  const undatedDebts = activeDebts.filter(d=>!d.dueDate);
+  // Sort: no-date items last, overdue first, then future asc
+  const noDate = filteredPayments.filter(p => !p.date);
+  const withDate = filteredPayments.filter(p => p.date);
+  const overdueP = withDate.filter(p=>p.date<today).sort((a,b)=>b.date.localeCompare(a.date));
+  const futureP  = withDate.filter(p=>p.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+  const sortedPayments = [...overdueP, ...futureP, ...noDate];
 
-  function methodIcon(m) {
-    if (!m) return '📄';
-    if (m.includes("צ'ק")||m.includes('צק')) return '💳';
-    if (m.includes('העברה')) return '🏦';
-    if (m.includes('מזומן')) return '💵';
-    if (m.includes('אשראי')) return '💳';
-    return '📄';
+  // ── Filter bar ──────────────────────────────────────────────────────────
+  const filterOptions = ['הכל',"צ'קים",'העברות','מזומן','באיחור','השבוע','החודש'];
+  const filterBar = `
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none">
+      ${filterOptions.map(f=>`
+        <button onclick="setState({pvPaymentFilter:'${f}'})"
+          style="flex-shrink:0;padding:5px 11px;border-radius:20px;border:none;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;
+            background:${pf===f?'var(--accent)':'var(--surface)'};
+            color:${pf===f?'#071302':'var(--textDim)'};
+            outline:1px solid ${pf===f?'transparent':'var(--border)'}">
+          ${f}
+        </button>`).join('')}
+    </div>`;
+
+  // ── Group by date + render ──────────────────────────────────────────────
+  function methodLabel(m) {
+    if (!m) return '📄 לא מוגדר';
+    const icon = pvGetMethodIcon(m);
+    return `${icon} ${m}`;
+  }
+  function statusBadge(s) {
+    const icon = pvGetStatusIcon(s||'ממתין');
+    const color = ['נפרע','שולם'].includes(s)?'var(--accent)':['בוטל'].includes(s)?'var(--danger)':s==='ממתין לפירעון'?'var(--info)':'var(--amber)';
+    return `<span style="font-size:10px;font-weight:700;color:${color};background:${color}18;padding:2px 7px;border-radius:20px;white-space:nowrap">${icon} ${s||'ממתין'}</span>`;
   }
 
   const byDate = new Map();
+  const undatedItems = [];
   sortedPayments.forEach(p => {
+    if (!p.date) { undatedItems.push(p); return; }
     if (!byDate.has(p.date)) byDate.set(p.date, []);
     byDate.get(p.date).push(p);
   });
 
   let timelineRows = '';
-  let prevWeek = -1;
+  let prevWeek = -999;
   let weekNum = 0;
   let weekTotal = 0;
-  const dates = [...byDate.keys()];
+  const baseDate = new Date(today);
 
-  dates.forEach((date, idx) => {
-    const items = byDate.get(date);
-    const dayTotal = items.reduce((s,p)=>s+p.amount,0);
-    const isOverdueGroup = items[0]?.isOverdue;
-    const bgColor = isOverdueGroup ? 'rgba(220,98,98,0.05)' : 'transparent';
-    const dateColor = isOverdueGroup ? 'var(--danger)' : 'var(--text)';
+  [...byDate.entries()].forEach(([date, items], idx) => {
+    const dayTotal = items.reduce((s,p)=>s+p.amount, 0);
+    const isOverdueGroup = date < today;
+    const borderColor = isOverdueGroup ? 'rgba(220,98,98,0.3)' : 'var(--border)';
+    const bgTint = isOverdueGroup ? 'rgba(220,98,98,0.04)' : 'transparent';
 
-    const d = new Date(date);
-    const wk = Math.floor((d - new Date(today)) / (7*86400000));
-    if (wk !== prevWeek && !isOverdueGroup && idx > 0) {
-      if (weekTotal > 0) {
-        timelineRows += `<div style="display:flex;align-items:center;gap:8px;margin:14px 0 10px;padding:0 2px">
-          <div style="flex:1;height:1px;background:var(--border)"></div>
-          <div style="font-size:11px;font-weight:700;color:var(--textDim);white-space:nowrap">שבוע ${weekNum+1} · סה"כ ${fmtCurr(weekTotal)}</div>
-          <div style="flex:1;height:1px;background:var(--border)"></div>
-        </div>`;
+    if (!isOverdueGroup) {
+      const d = new Date(date);
+      const wk = Math.floor((d - baseDate) / (7*86400000));
+      if (wk !== prevWeek) {
+        if (idx > 0 && weekTotal > 0) {
+          timelineRows += `<div style="display:flex;align-items:center;gap:8px;margin:12px 0 8px">
+            <div style="flex:1;height:1px;background:var(--border)"></div>
+            <span style="font-size:10px;font-weight:700;color:var(--textDim);white-space:nowrap">שבוע ${weekNum} · ${fmtCurr(weekTotal)}</span>
+            <div style="flex:1;height:1px;background:var(--border)"></div>
+          </div>`;
+        }
+        weekNum++; weekTotal = 0; prevWeek = wk;
       }
-      weekNum++; weekTotal = 0;
     }
-    prevWeek = wk;
     weekTotal += dayTotal;
 
-    timelineRows += `
-      <div style="background:${bgColor};border-radius:12px;margin-bottom:8px;overflow:hidden;border:1px solid ${isOverdueGroup?'rgba(220,98,98,0.2)':'var(--border)'};padding:0">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:var(--surfaceHi);border-bottom:1px solid var(--border)">
-          <div style="font-size:13px;font-weight:800;color:${dateColor}">${isOverdueGroup?'🔴 ':''} ${fmtDate(date)}</div>
-          <div class="display" style="font-size:15px;font-weight:700;color:${dateColor}">${fmtCurr(dayTotal)}</div>
-        </div>`;
+    timelineRows += `<div style="border-radius:13px;border:1px solid ${borderColor};background:${bgTint};margin-bottom:10px;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:var(--surfaceHi)">
+        <div style="font-size:13px;font-weight:800;color:${isOverdueGroup?'var(--danger)':'var(--text)'}">${isOverdueGroup?'🔴 ':''} ${fmtDate(date)}</div>
+        <div class="display" style="font-size:14px;font-weight:700;color:${isOverdueGroup?'var(--danger)':'var(--text)'}">${fmtCurr(dayTotal)}</div>
+      </div>`;
 
     items.forEach(p => {
-      const quickBtns = p.debtId
-        ? `<button onclick="event.stopPropagation();pvQuickMarkPaid('${p.debtId}')" style="padding:4px 8px;border:none;border-radius:7px;background:rgba(143,198,80,0.12);color:var(--accent);font-size:10px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">✅ שולם</button>
-           <button onclick="event.stopPropagation();pvQuickDelay('${p.debtId}')" style="padding:4px 8px;border:none;border-radius:7px;background:var(--surfaceHi);color:var(--textDim);font-size:10px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">⏩ +7</button>`
-        : `<button onclick="event.stopPropagation();toggleCheckCleared('${p.checkId}')" style="padding:4px 8px;border:none;border-radius:7px;background:rgba(143,198,80,0.12);color:var(--accent);font-size:10px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">✅ נפרע</button>`;
+      const debtObj = p.debtId ? pv.debts.find(d=>d.id===p.debtId) : null;
+      const canAdvance = debtObj && pvNextStatus(debtObj);
+      const nextSt = debtObj ? pvNextStatus(debtObj) : null;
 
-      const onclickNav = p.debtId
+      const actionBtn = p.checkId
+        ? `<button onclick="event.stopPropagation();toggleCheckCleared('${p.checkId}')" style="padding:5px 10px;border:none;border-radius:8px;background:rgba(143,198,80,0.12);color:var(--accent);font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">✅ הצ'ק נפרע</button>`
+        : nextSt
+          ? `<button onclick="event.stopPropagation();pvSetPaymentStatus('${p.debtId}','${nextSt}')" style="padding:5px 10px;border:none;border-radius:8px;background:rgba(143,198,80,0.12);color:var(--accent);font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">${pvGetStatusIcon(nextSt)} ${nextSt}</button>`
+          : '';
+
+      const onclick = p.debtId
         ? `setState({payablesView:'debt',payablesDebtId:'${p.debtId}'})`
         : `setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(p.supplier)}')})`;
 
       timelineRows += `
-        <div onclick="${onclickNav}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer">
-          <div style="font-size:18px;flex-shrink:0">${methodIcon(p.method)}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.supplier)}</div>
-            <div style="font-size:11px;color:var(--textDim);margin-top:1px">${esc(p.method||'לא מוגדר')}${p.invoiceNumber?' · '+esc(p.invoiceNumber):''}${p.checkNumber?' · '+esc(p.checkNumber):''}</div>
+        <div onclick="${onclick}" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="font-size:20px;flex-shrink:0;margin-top:1px">${pvGetMethodIcon(p.method)}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.supplier)}</div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                ${statusBadge(p.paymentStatus)}
+                ${p.checkNumber?`<span style="font-size:10px;color:var(--textDim)">מס' ${esc(p.checkNumber)}</span>`:''}
+                ${p.invoiceNumber?`<span style="font-size:10px;color:var(--textDim)">#${esc(p.invoiceNumber)}</span>`:''}
+              </div>
+            </div>
+            <div class="display" style="font-size:16px;font-weight:700;color:var(--text);flex-shrink:0">${fmtCurr(p.amount)}</div>
           </div>
-          <div style="flex-shrink:0;text-align:left">
-            <div class="display" style="font-size:15px;font-weight:700;color:var(--text)">${fmtCurr(p.amount)}</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:6px;padding:7px 14px;background:var(--surfaceHi)">
-          ${quickBtns}
-          <button onclick="event.stopPropagation();setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(p.supplier)}')});" style="padding:4px 8px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--textDim);font-size:10px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">→ ספק</button>
+          ${(actionBtn||p.debtId)?`
+          <div style="display:flex;gap:6px;margin-top:8px">
+            ${actionBtn}
+            ${p.debtId?`<button onclick="event.stopPropagation();pvQuickDelay('${p.debtId}')" style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">⏩ +7 ימים</button>`:''}
+            <button onclick="event.stopPropagation();setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(p.supplier)}')})" style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">→ ספק</button>
+          </div>`:''}
         </div>`;
     });
-    timelineRows += `</div>`;
+    timelineRows += '</div>';
   });
 
-  if (weekTotal > 0 && sortedPayments.length > 0) {
-    timelineRows += `<div style="display:flex;align-items:center;gap:8px;margin:14px 0 10px;padding:0 2px">
+  if (weekTotal > 0 && weekNum > 0 && byDate.size > 0) {
+    timelineRows += `<div style="display:flex;align-items:center;gap:8px;margin:12px 0 8px">
       <div style="flex:1;height:1px;background:var(--border)"></div>
-      <div style="font-size:11px;font-weight:700;color:var(--textDim);white-space:nowrap">שבוע ${weekNum+1} · סה"כ ${fmtCurr(weekTotal)}</div>
+      <span style="font-size:10px;font-weight:700;color:var(--textDim);white-space:nowrap">שבוע ${weekNum} · ${fmtCurr(weekTotal)}</span>
       <div style="flex:1;height:1px;background:var(--border)"></div>
     </div>`;
   }
 
-  const undatedHtml = undatedDebts.length > 0 ? `
-    <div style="padding:12px 14px;border-radius:12px;background:var(--surface);border:1px dashed var(--border);margin-bottom:12px">
-      <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px">📋 ללא תאריך תשלום (${undatedDebts.length})</div>
-      ${undatedDebts.map(d=>`
-        <div onclick="setState({payablesView:'debt',payablesDebtId:'${d.id}'})" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:700;color:var(--text)">${esc(d.supplierName||'')}</div>
-            <div style="font-size:11px;color:var(--textDim)">${esc(d.invoiceNumber||'ללא מספר')}</div>
-          </div>
-          <div class="display" style="font-size:14px;font-weight:700;color:var(--text)">${fmtCurr((+d.amount||0)-(+d.paidAmount||0))}</div>
-          <button onclick="event.stopPropagation();setState({payablesView:'debt',payablesDebtId:'${d.id}'})" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--textDim);font-family:inherit;cursor:pointer">הוסף תאריך</button>
+  const undatedHtml = undatedItems.length > 0 ? `
+    <div style="padding:12px 14px;border-radius:12px;background:var(--surface);border:1px dashed var(--border);margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--textDim);margin-bottom:8px">📋 ללא תאריך (${undatedItems.length})</div>
+      ${undatedItems.map(p=>`
+        <div onclick="${p.debtId?`setState({payablesView:'debt',payablesDebtId:'${p.debtId}'})`:''}" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer">
+          <span style="font-size:18px">${pvGetMethodIcon(p.method)}</span>
+          <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:var(--text)">${esc(p.supplier)}</div>${statusBadge(p.paymentStatus)}</div>
+          <div class="display" style="font-size:14px;font-weight:700">${fmtCurr(p.amount)}</div>
         </div>`).join('')}
     </div>` : '';
 
-  const noPayments = sortedPayments.length === 0 && undatedDebts.length === 0;
+  const noItems = sortedPayments.length === 0;
   const timelineHtml = `
-    <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-      <span>📅 התחייבויות קרובות</span>
+    <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+      <span>📅 התחייבויות</span>
       <button onclick="setState({payablesView:'supplierBook'})" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">📒 ספר ספקים</button>
     </div>
-    ${noPayments
-      ? `<div style="text-align:center;padding:32px 16px;color:var(--textMuted)"><div style="font-size:32px;margin-bottom:8px">✅</div><div style="font-size:14px;font-weight:600">אין התחייבויות פתוחות</div></div>`
+    ${filterBar}
+    ${noItems
+      ? `<div style="text-align:center;padding:28px 16px;color:var(--textMuted)"><div style="font-size:28px;margin-bottom:6px">✅</div><div style="font-size:13px;font-weight:600">אין התחייבויות פתוחות${pf!=='הכל'?' בפילטר הנוכחי':''}</div></div>`
       : timelineRows + undatedHtml}`;
 
   // ── 5. FAB ───────────────────────────────────────────────────────────────
@@ -6412,22 +6506,56 @@ function _renderPayablesSupplierInner() {
         }).join('')}
       </div>`;
 
-    const paymentsHtml = debts.length === 0 ? `<div style="font-size:12px;color:var(--textMuted);padding:6px 0">אין תשלומים</div>` :
-      debts.flatMap(d => (d.payments||[]).map(p => ({...p, invoiceNumber: d.invoiceNumber}))).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).map(p =>
-        `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+    pvMigratePaymentStatuses();
+    const openDebts = debts.filter(d => pvIsOpenStatus(d.paymentStatus));
+    const closedDebts = debts.filter(d => !pvIsOpenStatus(d.paymentStatus));
+
+    function debtStatusBadge(s) {
+      const icon = pvGetStatusIcon(s||'ממתין');
+      const color = ['נפרע','שולם'].includes(s)?'var(--accent)':['בוטל'].includes(s)?'var(--danger)':s==='ממתין לפירעון'?'var(--info)':'var(--amber)';
+      return `<span style="font-size:10px;font-weight:700;color:${color};background:${color}18;padding:2px 7px;border-radius:20px;white-space:nowrap">${icon} ${s||'ממתין'}</span>`;
+    }
+
+    const openDebtsHtml = openDebts.length === 0 ? `<div style="font-size:12px;color:var(--textMuted);padding:6px 0">אין חובות פתוחים</div>` :
+      openDebts.sort((a,b)=>String(a.dueDate||'').localeCompare(String(b.dueDate||''))).map(d => {
+        const rem = (+d.amount||0)-(+d.paidAmount||0);
+        const nextSt = pvNextStatus(d);
+        const advBtn = nextSt ? `<button onclick="event.stopPropagation();pvSetPaymentStatus('${d.id}','${nextSt}')" style="font-size:10px;padding:3px 8px;border:none;border-radius:6px;background:rgba(143,198,80,0.12);color:var(--accent);cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap">${pvGetStatusIcon(nextSt)} ${nextSt}</button>` : '';
+        return `<div onclick="setState({payablesView:'debt',payablesDebtId:'${d.id}'})" style="display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer">
+          <span style="font-size:18px;flex-shrink:0;margin-top:1px">${pvGetMethodIcon(d.paymentMethod||'')}</span>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;color:var(--text)">${fmtDate(p.date)} · ${esc(p.method||'')}</div>
-            <div style="font-size:11px;color:var(--textDim)">חשבונית: ${esc(p.invoiceNumber||'—')}${p.reference?' · '+esc(p.reference):''}</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
+              ${debtStatusBadge(d.paymentStatus)}
+              ${d.dueDate?`<span style="font-size:10px;color:${pvIsOverdue(d.dueDate)?'var(--danger)':'var(--textDim)'}">${fmtDate(d.dueDate)}</span>`:''}
+            </div>
+            <div style="font-size:11px;color:var(--textDim)">${esc(d.paymentMethod||'לא מוגדר')}${d.invoiceNumber?' · '+esc(d.invoiceNumber):''}</div>
+            ${advBtn?`<div style="margin-top:5px">${advBtn}</div>`:''}
           </div>
-          <div class="display" style="font-size:14px;font-weight:700;color:var(--accent)">${fmtCurr(p.amount)}</div>
-        </div>`
-      ).join('') || `<div style="font-size:12px;color:var(--textMuted);padding:6px 0">אין תשלומים</div>`;
+          <div class="display" style="font-size:14px;font-weight:700;color:var(--text);flex-shrink:0">${fmtCurr(rem)}</div>
+        </div>`;
+      }).join('');
+
+    const historyPayments = closedDebts.flatMap(d => (d.payments||[]).map(p => ({...p, invoiceNumber: d.invoiceNumber, paymentStatus: d.paymentStatus, debtId: d.id}))).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+    const historyHtml = historyPayments.length === 0 ? '' : `
+      <div style="margin-top:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">היסטוריית תשלומים</div>
+        ${historyPayments.map(p=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:16px">${pvGetMethodIcon(p.method||'')}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;color:var(--text)">${fmtDate(p.date)} · ${esc(p.method||'')}</div>
+              <div style="font-size:11px;color:var(--textDim)">חשבונית: ${esc(p.invoiceNumber||'—')}${p.reference?' · '+esc(p.reference):''}</div>
+            </div>
+            <div class="display" style="font-size:14px;font-weight:700;color:var(--accent)">${fmtCurr(p.amount)}</div>
+          </div>`).join('')}
+      </div>`;
 
     tabContent = `
       ${checksHtml}
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px">
-        <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">תשלומים</div>
-        ${paymentsHtml}
+        <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">חובות פתוחים</div>
+        ${openDebtsHtml}
+        ${historyHtml}
       </div>`;
   }
 
