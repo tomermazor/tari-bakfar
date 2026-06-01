@@ -1966,12 +1966,59 @@ function renderFixedAndWorkers() {
   if (state.fixedAdding || state.workerEditing) {
     return state.workerEditing ? renderWorkers() : renderFixed();
   }
-  const fixedContent = renderFixed();
   const workersContent = renderWorkers();
 
-  // Strip outer wrapper divs to merge cleanly — inject both with a divider between them
-  // renderFixed() returns a full div; renderWorkers() returns a full div.
-  // We combine them with a prominent section divider.
+  // Fixed expenses summary + list — always shown, no window.innerWidth dependency
+  const monthly = DB.fixed.filter(x=>x.active).reduce((s,x)=>{
+    const mult = x.frequency==='חודשי'?1:x.frequency==='דו-חודשי'?0.5:x.frequency==='רבעוני'?(1/3):x.frequency==='חצי שנתי'?(1/6):(1/12);
+    return s + (+x.amount||0)*mult;
+  }, 0);
+  const activeCount = DB.fixed.filter(x=>x.active).length;
+
+  const fixedCard = x => `
+    <div style="padding:16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);opacity:${x.active?1:0.55};margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;color:var(--text);font-size:15px;margin-bottom:6px">${esc(x.name)}</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span style="background:rgba(212,165,116,0.13);color:var(--accent2);border-radius:100px;padding:2px 10px;font-size:11px;font-weight:600">${esc(x.category)}</span>
+            <span style="background:var(--border);color:var(--textDim);border-radius:100px;padding:2px 10px;font-size:11px;font-weight:600">${esc(x.frequency)}</span>
+            ${x.day?`<span style="font-size:11px;color:var(--textDim)">ב-${esc(x.day)} לחודש</span>`:''}
+            ${!x.active?`<span style="background:rgba(220,98,98,0.1);color:var(--danger);border-radius:100px;padding:2px 8px;font-size:10px;font-weight:700">מושהה</span>`:''}
+          </div>
+        </div>
+        <div style="text-align:left;flex-shrink:0;margin-right:8px">
+          <div class="display" style="font-size:18px;font-weight:700;color:var(--text)">${fmtCurr(x.amount)}</div>
+          ${x.supplier?`<div style="font-size:11px;color:var(--textDim);margin-top:2px">${esc(x.supplier)}</div>`:''}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="toggleFixed('${x.id}')" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:9px;font-size:12px;font-weight:600;background:transparent;color:${x.active?'var(--amber)':'var(--accent)'};cursor:pointer;font-family:inherit">${x.active?'⏸ השהה':'▶️ הפעל'}</button>
+        <button onclick="editFixed('${x.id}')" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:9px;font-size:12px;font-weight:600;background:transparent;color:var(--text);cursor:pointer;font-family:inherit">✏️ ערוך</button>
+        <button onclick="delFixed('${x.id}','${esc(x.name).replace(/'/g,'')}')" style="flex:1;padding:8px;border:1px solid rgba(220,98,98,0.2);border-radius:9px;font-size:12px;font-weight:600;background:rgba(220,98,98,0.05);color:var(--danger);cursor:pointer;font-family:inherit">🗑️ מחק</button>
+      </div>
+    </div>`;
+
+  const fixedContent = `
+    <div style="padding:0 16px 24px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div style="padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">חודשי</div>
+          <div class="display" style="font-size:22px;color:var(--text);font-weight:700">${fmtCurr(monthly)}</div>
+          <div style="font-size:11px;color:var(--textDim);margin-top:2px">${activeCount} פעילות</div>
+        </div>
+        <div style="padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">שנתי</div>
+          <div class="display" style="font-size:22px;color:var(--text);font-weight:700">${fmtCurr(monthly*12)}</div>
+          <div style="font-size:11px;color:var(--textDim);margin-top:2px">לפי פעילות</div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="startFixed()" style="margin-bottom:14px">+ הוצאה קבועה חדשה</button>
+      ${DB.fixed.length===0
+        ? `<div style="text-align:center;padding:30px 20px;color:var(--textMuted)"><div style="font-size:40px;margin-bottom:8px;opacity:0.4">🏠</div><div style="font-size:14px">אין הוצאות קבועות עדיין</div></div>`
+        : DB.fixed.map(fixedCard).join('')}
+    </div>`;
+
   return `
     ${workersContent}
     <div style="margin:0 16px;border-top:2px solid var(--border);padding-top:4px">
