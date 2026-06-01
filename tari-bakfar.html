@@ -994,7 +994,6 @@ const TABS = [
   {id:'list',label:'הוצאות'},{id:'income',label:'הכנסות'},
   {id:'reports',label:'דוחות'},{id:'fixed',label:'קבועות'},
   {id:'installments',label:'תשלומים'},{id:'credits',label:'זיכויים'},
-  {id:'workers',label:'עובדים'},
   {id:'payables',label:'ספקים'},
   {id:'products',label:'מוצרים'},
 ];
@@ -1959,6 +1958,28 @@ function renderFixed() {
       ${DB.fixed.length===0?`<div style="text-align:center;padding:40px 20px;color:var(--textMuted)"><div style="font-size:48px;margin-bottom:10px;opacity:0.4">🏠</div><div style="font-size:14px">אין הוצאות קבועות עדיין</div></div>`:
       DB.fixed.map(fixedCard).join('')}
     </div>`;
+}
+
+function renderFixedAndWorkers() {
+  if (state.fixedAdding || state.workerEditing) {
+    return state.workerEditing ? renderWorkers() : renderFixed();
+  }
+  const fixedContent = renderFixed();
+  const workersContent = renderWorkers();
+
+  // Strip outer wrapper divs to merge cleanly — inject both with a divider between them
+  // renderFixed() returns a full div; renderWorkers() returns a full div.
+  // We combine them with a prominent section divider.
+  return `
+    ${fixedContent}
+    <div style="margin:0 16px;border-top:2px solid var(--border);padding-top:4px">
+      <div style="display:flex;align-items:center;gap:10px;padding:14px 0 4px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:12px;font-weight:700;color:var(--textDim);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;padding:0 8px">👷 עובדים</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+    </div>
+    ${workersContent}`;
 }
 
 function startFixed() { setState({fixedAdding:true, fixedForm:{name:"",amount:"",category:"שכירות",frequency:"חודשי",day:"1",supplier:"",notes:"",active:true}}); }
@@ -3600,7 +3621,7 @@ function render() {
     case 'dashboard': content = renderDashboard(); break;
     case 'scan': content = renderScan(); break;
     case 'list': content = renderList(); break;
-    case 'fixed': content = renderFixed(); break;
+    case 'fixed': case 'workers': content = renderFixedAndWorkers(); break;
     case 'installments': content = renderInstallments(); break;
     case 'reports': content = renderReports(); break;
     case 'income': content = renderIncome(); break;
