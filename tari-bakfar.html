@@ -3692,6 +3692,11 @@ function render() {
   main.innerHTML = content;
   main.scrollTop = savedScroll; // restore scroll after innerHTML replace
 
+  // Update orders counter synchronously after DOM is set
+  if (state.tab === 'orders' && state.ordersView === 'order') {
+    ordersUpdateOrderCounter();
+  }
+
   document.getElementById('modal-container').innerHTML = state.viewCreditImage ? renderImageLightbox() : (state.editId ? renderEditModal() : (state.payablesModal ? renderPayablesModal() : (state.productsModal ? renderProductsModal() : (state.ordersModal ? renderOrdersModals() : ''))));
   renderNav();
   updateHeader();
