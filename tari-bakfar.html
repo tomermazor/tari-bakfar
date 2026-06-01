@@ -232,6 +232,54 @@ input[type="date"] { min-width:0; max-width:100%; }
 [data-theme="light"] .logo { background:linear-gradient(145deg,#e0f2e4,#c8e6cc); border-color:rgba(43,122,70,0.3); box-shadow:0 2px 10px rgba(43,122,70,0.15); }
 [data-theme="light"] .sw-btn:not(.active):hover { background:rgba(0,0,0,0.04); }
 
+/* ── Orders tab components ───────────────────────────────────────── */
+.o-supplier-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px 18px; display:flex; align-items:center; gap:14px; margin-bottom:10px; }
+.o-supplier-card:active { background:var(--surfaceHi); }
+.o-supplier-card.dragging { background:var(--surfaceHi); border-color:rgba(110,198,58,0.45); box-shadow:0 10px 32px rgba(0,0,0,0.45); position:relative; z-index:20; }
+.o-supplier-drag { color:var(--textMuted); font-size:18px; cursor:grab; padding:4px 6px 4px 0; flex-shrink:0; touch-action:none; user-select:none; -webkit-user-select:none; }
+.o-supplier-drag:active { cursor:grabbing; color:var(--textDim); }
+.o-supplier-body { display:flex; align-items:center; gap:14px; flex:1; min-width:0; cursor:pointer; }
+.o-product-row { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:14px 16px; margin-bottom:10px; }
+.o-product-row-name-text { flex:1; min-width:0; }
+.o-transfer-btn { flex-shrink:0; border:1px solid var(--borderHi); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); transition:all 0.12s; white-space:nowrap; }
+.o-transfer-btn:active { background:var(--borderHi); color:var(--text); }
+.o-unit-toggle { flex-shrink:0; border:1px solid var(--border); border-radius:9px; padding:8px 12px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+.o-unit-toggle.is-carton { background:rgba(204,138,94,0.12); color:var(--accent2); border-color:rgba(204,138,94,0.35); }
+.o-unit-toggle.is-units { background:var(--infoSoft); color:var(--info); border-color:rgba(79,159,217,0.35); }
+.o-stepper { display:flex; align-items:center; margin-right:auto; background:var(--surfaceHi); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+.o-step-btn { width:44px; height:44px; border:none; background:transparent; cursor:pointer; font-size:22px; font-weight:300; color:var(--textDim); font-family:inherit; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.o-step-btn:active { background:var(--border); color:var(--text); }
+.o-step-val { width:42px; text-align:center; font-size:18px; font-weight:800; color:var(--text); border-left:1px solid var(--border); border-right:1px solid var(--border); line-height:44px; }
+.o-step-val.zero { color:var(--textMuted); font-weight:400; }
+.o-product-row-note { display:block; width:100%; border:none; border-top:1px solid var(--border); background:transparent; color:var(--text); font-size:12px; font-family:inherit; padding:9px 2px 2px; margin-top:10px; outline:none; box-sizing:border-box; }
+.o-product-row-note::placeholder { color:var(--textMuted); font-style:italic; }
+.o-product-row-note:not(:placeholder-shown) { color:var(--accent2); font-weight:600; }
+.o-order-counter { width:100%; text-align:center; font-size:12px; font-weight:700; color:var(--accent); padding-bottom:9px; letter-spacing:.02em; }
+.o-manage-row { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); padding:11px 14px; display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.o-manage-row.inactive { opacity:0.45; }
+.o-manage-row.dragging { background:var(--surfaceHi); border-color:rgba(110,198,58,0.45); box-shadow:0 10px 32px rgba(0,0,0,0.55); position:relative; z-index:20; }
+.o-manage-row-name { flex:1; font-size:14px; font-weight:600; cursor:pointer; }
+.o-manage-row-name:hover { color:var(--accent); }
+.o-unit-badge { font-size:11px; font-weight:700; padding:4px 9px; border-radius:7px; cursor:pointer; flex-shrink:0; }
+.o-unit-badge.carton { background:rgba(204,138,94,0.12); color:var(--accent2); border:1px solid rgba(204,138,94,0.3); }
+.o-unit-badge.units { background:var(--infoSoft); color:var(--info); border:1px solid rgba(79,159,217,0.3); }
+.o-unit-badge.both { background:var(--accentSoft); color:var(--accent); border:1px solid rgba(110,198,58,0.3); }
+.o-active-toggle { width:30px; height:30px; border:none; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex-shrink:0; }
+.o-active-toggle.on { background:var(--accentSoft); color:var(--accent); }
+.o-active-toggle.off { background:rgba(120,120,120,0.1); color:var(--textMuted); }
+.o-active-toggle:active { opacity:0.7; }
+.o-drag-handle { color:var(--textMuted); font-size:17px; letter-spacing:1px; cursor:grab; padding:4px 10px 4px 2px; flex-shrink:0; touch-action:none; user-select:none; -webkit-user-select:none; line-height:1; }
+.o-drag-handle:active { cursor:grabbing; color:var(--textDim); }
+.o-unit-pill { flex:1; border:1px solid var(--border); border-radius:10px; padding:10px; font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; background:transparent; color:var(--textDim); text-align:center; }
+.o-unit-pill.sel { background:var(--accentSoft); color:var(--accent); border-color:rgba(110,198,58,0.4); }
+.o-hist-chevron.open { transform:rotate(90deg); }
+.o-hist-body.open { display:block !important; }
+.o-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.72); z-index:50; display:flex; align-items:flex-end; justify-content:center; }
+.o-modal { background:var(--surface); border-radius:24px 24px 0 0; width:100%; max-width:480px; padding:20px 20px; padding-bottom:calc(28px + env(safe-area-inset-bottom,0px)); max-height:85vh; overflow-y:auto; border-top:1px solid var(--border); }
+.o-modal-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 20px; }
+[data-theme="light"] .o-modal { background:var(--surface); }
+[data-theme="light"] .o-overlay { background:rgba(0,0,0,0.45); }
+
 /* ── Login ───────────────────────────────────────────────────────── */
 .login-screen { position:fixed; inset:0; z-index:999; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 24px; }
 .login-logo { width:82px; height:82px; border-radius:26px; background:linear-gradient(145deg,#192a12,#0e1c0e); border:1px solid rgba(126,203,66,0.28); display:flex; align-items:center; justify-content:center; font-size:46px; margin-bottom:22px; box-shadow:0 14px 48px rgba(126,203,66,0.22),0 0 0 1px rgba(126,203,66,0.1); }
@@ -254,7 +302,6 @@ input[type="date"] { min-width:0; max-width:100%; }
 <div class="app" id="app" hidden>
 
   <div class="app-switcher">
-    <a href="orders.html" class="sw-btn" onclick="event.preventDefault();navigateTo('orders.html')">📦 הזמנות</a>
     <span class="sw-btn active">💰 הוצאות</span>
 
     <button class="sw-icon-btn" id="sync-top-btn" onclick="triggerTopSync()" title="סנכרן עכשיו">🔄</button>
@@ -878,6 +925,14 @@ let state = {
   productsBulkSelected: [],
   selectionMode: false,
   selectedIds: [],
+  ordersView: 'home',
+  ordersSupplierId: null,
+  ordersManageFrom: 'home',
+  ordersState: {},
+  ordersNewProductUnit: 'קרטון',
+  ordersManualAddState: { name: '', qty: 1, unit: 'קרטון' },
+  ordersTransferData: null,
+  ordersModal: '',
 };
 function setState(patch) { Object.assign(state, patch); render(); }
 
@@ -930,6 +985,7 @@ const ICONS = {
   settings: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   payables: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2"/></svg>',
   products: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
+  orders: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
 };
 
 const TABS = [
@@ -940,6 +996,7 @@ const TABS = [
   {id:'workers',label:'עובדים'},{id:'checks',label:"צ'קים"},
   {id:'payables',label:'ספקים'},
   {id:'products',label:'מוצרים'},
+  {id:'orders',label:'הזמנות'},
 ];
 
 function renderNav() {
@@ -978,10 +1035,10 @@ function renderNav() {
   // Sidebar footer: orders link + settings (desktop only)
   const footer = `
     <div class="sidebar-footer" style="display:none;flex-direction:column;gap:2px;margin-top:auto;padding:8px 8px 12px;border-top:1px solid var(--border)">
-      <a href="orders.html" onclick="event.preventDefault();navigateTo('orders.html')" style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;text-decoration:none;color:var(--textDim);font-size:13px;font-weight:600;transition:background var(--t-fast)" onmouseenter="this.style.background='var(--surfaceHi)'" onmouseleave="this.style.background='transparent'">
+      <button onclick="setState({tab:'orders'})" style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;border:none;background:transparent;color:var(--textDim);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;width:100%;text-align:right;transition:background var(--t-fast)" onmouseenter="this.style.background='var(--surfaceHi)'" onmouseleave="this.style.background='transparent'">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
         <span>הזמנות</span>
-      </a>
+      </button>
       <button onclick="setState({tab:'settings'})" style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;border:none;background:transparent;color:var(--textDim);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;width:100%;text-align:right;transition:background var(--t-fast)" onmouseenter="this.style.background='var(--surfaceHi)'" onmouseleave="this.style.background='transparent'">
         ${ICONS.settings}
         <span>הגדרות</span>
@@ -3552,6 +3609,7 @@ function render() {
     case 'checks': content = renderChecks(); break;
     case 'payables': content = renderPayables(); break;
     case 'products': content = renderProductsTab(); break;
+    case 'orders': content = renderOrdersTab(); break;
     case 'add': content = renderAdd(); break;
     case 'settings': content = renderSettings(); break;
   }
@@ -3567,7 +3625,7 @@ function render() {
   main.innerHTML = content;
   main.scrollTop = savedScroll; // restore scroll after innerHTML replace
 
-  document.getElementById('modal-container').innerHTML = state.viewCreditImage ? renderImageLightbox() : (state.editId ? renderEditModal() : (state.payablesModal ? renderPayablesModal() : (state.productsModal ? renderProductsModal() : '')));
+  document.getElementById('modal-container').innerHTML = state.viewCreditImage ? renderImageLightbox() : (state.editId ? renderEditModal() : (state.payablesModal ? renderPayablesModal() : (state.productsModal ? renderProductsModal() : (state.ordersModal ? renderOrdersModals() : ''))));
   renderNav();
   updateHeader();
   // Auto-focus supplier edit input if in edit mode
@@ -3760,12 +3818,14 @@ function initApp() {
   migrateCategoryNames();
   seedSuppliersFromExpenses();
   if (pdb.products.length === 0) importProductsFromOrders();
+  loadOdb();
   applyRoleUI();
   render();
   setSyncStatus(CFG.webAppUrl ? 'syncing' : 'local');
   if (CFG.webAppUrl && getUserRole() !== 'scanner') syncAll();
+  if (CFG.webAppUrl && getUserRole() !== 'scanner') { syncOrders(); syncActiveOrders(); }
   document.addEventListener('visibilitychange', function(){
-    if (!document.hidden && CFG.webAppUrl && getUserRole() !== 'scanner') syncAll();
+    if (!document.hidden && CFG.webAppUrl && getUserRole() !== 'scanner') { syncAll(); syncOrders(); syncActiveOrders(); }
   });
 }
 
@@ -3789,6 +3849,1251 @@ function logout() {
   document.getElementById('login-screen').hidden = false;
   document.getElementById('login-err').textContent = '';
   setTimeout(initGoogleSignIn, 100);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ORDERS — הזמנות (shared storage with orders.html via orders-v1)
+// ═══════════════════════════════════════════════════════════════════════════
+const ORDERS_KEY = 'orders-v1';
+const ORDERS_ALL_DRAFTS_KEY = 'orders-all-drafts';
+const ORDERS_ICONS = ['🍎','🥦','🍋','🧅','🥕','🍇','🥬','🍓','🌽','🧄','🧀','🥚','🐟','🥩','🫙'];
+let odb = { suppliers: [], history: [], activeOrders: [], _localModified: 0, _lastSynced: 0 };
+
+function loadOdb() {
+  try { const s = localStorage.getItem(ORDERS_KEY); if (s) odb = JSON.parse(s); } catch(e) {}
+  if (!odb.suppliers) odb.suppliers = [];
+  if (!odb.history) odb.history = [];
+  if (!odb.activeOrders) odb.activeOrders = [];
+  if (!odb._localModified) odb._localModified = 0;
+  if (!odb._lastSynced) odb._lastSynced = odb._localModified || Date.now();
+}
+function saveOdb(dirty) {
+  if (dirty) odb._localModified = Date.now();
+  localStorage.setItem(ORDERS_KEY, JSON.stringify(odb));
+}
+loadOdb();
+
+async function ordersCloudCall(action, payload) {
+  const url = CFG.webAppUrl;
+  if (!url) throw new Error('No cloud URL');
+  const res = await fetch(url, {
+    method: 'POST',
+    body: JSON.stringify({ action, ...payload }),
+    headers: { 'Content-Type': 'text/plain' }
+  });
+  const json = JSON.parse(await res.text());
+  if (!json.ok) throw new Error(json.error || 'Cloud error');
+  return json.data;
+}
+
+function ordersSetSyncDot(status) {
+  const el = document.getElementById('orders-sync-dot');
+  if (!el) return;
+  el.style.background = status === 'ok' ? 'var(--accent)' : status === 'syncing' ? 'var(--amber)' : 'var(--danger)';
+  el.title = status === 'ok' ? 'מסונכרן' : status === 'syncing' ? 'מסנכרן...' : 'שגיאת סנכרון';
+}
+
+async function syncOrders() {
+  try {
+    ordersSetSyncDot('syncing');
+    const hasPending = odb._localModified > odb._lastSynced;
+    if (hasPending) {
+      await ordersCloudCall('save_suppliers', { payload: odb.suppliers });
+      odb._lastSynced = Date.now();
+      saveOdb();
+    } else {
+      const cloud = await ordersCloudCall('list_suppliers', {});
+      if (cloud && cloud.length > 0) {
+        const prevStr = JSON.stringify(odb.suppliers);
+        odb.suppliers = cloud;
+        odb._lastSynced = Date.now();
+        odb._localModified = odb._lastSynced;
+        saveOdb();
+        if (state.tab === 'orders' && state.ordersView === 'home' && JSON.stringify(odb.suppliers) !== prevStr) render();
+      } else if (odb.suppliers.length > 0) {
+        await ordersCloudCall('save_suppliers', { payload: odb.suppliers });
+        odb._lastSynced = Date.now();
+        odb._localModified = odb._lastSynced;
+        saveOdb();
+      }
+    }
+    ordersSetSyncDot('ok');
+  } catch(e) {
+    ordersSetSyncDot('err');
+    console.log('syncOrders failed:', e.message);
+  }
+}
+
+async function pushOrders() {
+  try {
+    ordersSetSyncDot('syncing');
+    await ordersCloudCall('save_suppliers', { payload: odb.suppliers });
+    odb._lastSynced = Date.now();
+    saveOdb();
+    ordersSetSyncDot('ok');
+  } catch(e) {
+    ordersSetSyncDot('err');
+    console.warn('pushOrders failed:', e.message);
+  }
+}
+
+async function pushActiveOrders() {
+  try {
+    const payload = (odb.activeOrders || []).map(o => ({
+      id: o.id, supplierId: o.supplierId, supplierName: o.supplierName,
+      dateOrdered: o.dateOrdered, timestamp: o.timestamp, items: o.items
+    }));
+    await ordersCloudCall('save_active_orders', { payload });
+  } catch(e) { console.log('pushActiveOrders failed:', e.message); }
+}
+
+async function syncActiveOrders() {
+  try {
+    const cloud = await ordersCloudCall('list_active_orders', {});
+    if (!cloud) return;
+    const localImgMap = {};
+    (odb.activeOrders || []).forEach(o => { if (o.deliveryNoteImage) localImgMap[o.id] = o.deliveryNoteImage; });
+    odb.activeOrders = cloud.map(o => ({ ...o, deliveryNoteImage: localImgMap[o.id] || null }));
+    saveOdb();
+    if (state.tab === 'orders') render();
+  } catch(e) { console.log('syncActiveOrders failed:', e.message); }
+}
+
+// ── Draft helpers ──────────────────────────────────────────────────────────
+function ordersGetAllDrafts() {
+  try { return JSON.parse(localStorage.getItem(ORDERS_ALL_DRAFTS_KEY) || '{}'); } catch(e) { return {}; }
+}
+function ordersSaveDraft() {
+  const drafts = ordersGetAllDrafts();
+  drafts[state.ordersSupplierId] = { state: state.ordersState, ts: Date.now() };
+  localStorage.setItem(ORDERS_ALL_DRAFTS_KEY, JSON.stringify(drafts));
+}
+function ordersClearDraft() {
+  const drafts = ordersGetAllDrafts();
+  delete drafts[state.ordersSupplierId];
+  localStorage.setItem(ORDERS_ALL_DRAFTS_KEY, JSON.stringify(drafts));
+}
+function ordersLoadDraft(supplierId) {
+  const drafts = ordersGetAllDrafts();
+  return (drafts[supplierId] && drafts[supplierId].state) ? drafts[supplierId].state : null;
+}
+function ordersHasDraftFor(supplierId) {
+  const drafts = ordersGetAllDrafts();
+  if (!drafts[supplierId]) return false;
+  const st = drafts[supplierId].state || {};
+  return Object.keys(st).some(function(pid) {
+    const v = st[pid];
+    if (!v) return false;
+    if (v.isManual) return (parseInt(v.qty)||0) > 0;
+    if (v.unit === 'both') return (parseInt(v.carton)||0) > 0 || (parseInt(v.units)||0) > 0;
+    return (parseInt(v.qty)||0) > 0;
+  });
+}
+
+// ── findSupplierOdb ────────────────────────────────────────────────────────
+function findSupplierOdb(id) { return odb.suppliers.find(s => s.id === id); }
+
+// ── getOrderedItems ────────────────────────────────────────────────────────
+function ordersGetOrderedItems() {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return [];
+  const items = [];
+  sup.products.forEach(p => {
+    const st = state.ordersState[p.id];
+    if (!st) return;
+    if (st.unit === 'both') {
+      const qc = parseInt(st.carton) || 0;
+      const qu = parseInt(st.units) || 0;
+      if (qc > 0) items.push({ name: p.name, qty: String(qc), unit: 'קרטון', notes: st.notes || '' });
+      if (qu > 0) items.push({ name: p.name, qty: String(qu), unit: 'יחידות', notes: st.notes || '' });
+    } else {
+      const qty = parseInt(st.qty) || 0;
+      if (qty > 0) items.push({ name: p.name, qty: st.qty, unit: st.unit, notes: st.notes || '' });
+    }
+  });
+  Object.keys(state.ordersState).filter(k => k.startsWith('manual_')).forEach(k => {
+    const st = state.ordersState[k];
+    if (!st || !st.isManual) return;
+    const qty = parseInt(st.qty) || 0;
+    if (qty > 0) items.push({ name: st.name, qty: String(qty), unit: st.unit, notes: st.notes || '' });
+  });
+  return items;
+}
+
+function ordersUpdateOrderCounter() {
+  const el = document.getElementById('orders-counter');
+  if (!el) return;
+  const items = ordersGetOrderedItems();
+  let totalCartons = 0, totalUnits = 0;
+  items.forEach(function(it) {
+    if (it.unit === 'קרטון') totalCartons += parseInt(it.qty) || 0;
+    else totalUnits += parseInt(it.qty) || 0;
+  });
+  const parts = [];
+  if (totalCartons > 0) parts.push('📦 ' + totalCartons + ' קרטון');
+  if (totalUnits > 0) parts.push('🔢 ' + totalUnits + ' יחידות');
+  if (parts.length) {
+    el.textContent = parts.join('  ·  ');
+    el.hidden = false;
+  } else {
+    el.textContent = '';
+    el.hidden = true;
+  }
+}
+
+// ── Stepper actions (direct DOM update, no re-render) ─────────────────────
+function ordersStepQty(pid, delta) {
+  const st = state.ordersState[pid];
+  if (!st) return;
+  const next = Math.max(0, (parseInt(st.qty) || 0) + delta);
+  st.qty = String(next);
+  const el = document.getElementById('oqd-' + pid);
+  if (el) { el.textContent = next; el.className = 'o-step-val' + (next === 0 ? ' zero' : ''); }
+  ordersSaveDraft();
+  ordersUpdateOrderCounter();
+}
+
+function ordersStepQtyBoth(pid, type, delta) {
+  const st = state.ordersState[pid];
+  if (!st) return;
+  const next = Math.max(0, (parseInt(st[type]) || 0) + delta);
+  st[type] = String(next);
+  const elId = type === 'carton' ? 'oqc-' : 'oqu-';
+  const el = document.getElementById(elId + pid);
+  if (el) { el.textContent = next; el.className = 'o-step-val' + (next === 0 ? ' zero' : ''); }
+  ordersSaveDraft();
+  ordersUpdateOrderCounter();
+}
+
+function ordersToggleUnit(pid) {
+  const st = state.ordersState[pid];
+  if (!st) return;
+  st.unit = st.unit === 'קרטון' ? 'יחידות' : 'קרטון';
+  const btn = document.getElementById('out-' + pid);
+  if (btn) {
+    const isC = st.unit === 'קרטון';
+    btn.textContent = isC ? '📦 קרטון' : '🔢 יחידות';
+    btn.className = 'o-unit-toggle ' + (isC ? 'is-carton' : 'is-units');
+  }
+  ordersSaveDraft();
+  ordersUpdateOrderCounter();
+}
+
+function ordersToggleManualItemUnit(mid) {
+  const st = state.ordersState[mid];
+  if (!st) return;
+  st.unit = st.unit === 'קרטון' ? 'יחידות' : 'קרטון';
+  const btn = document.getElementById('out-' + mid);
+  if (btn) {
+    const isC = st.unit === 'קרטון';
+    btn.textContent = isC ? '📦 קרטון' : '🔢 יחידות';
+    btn.className = 'o-unit-toggle ' + (isC ? 'is-carton' : 'is-units');
+  }
+  ordersSaveDraft();
+}
+
+function ordersStepManualItem(mid, delta) {
+  const st = state.ordersState[mid];
+  if (!st) return;
+  const next = Math.max(0, (parseInt(st.qty) || 0) + delta);
+  st.qty = String(next);
+  const el = document.getElementById('oqd-' + mid);
+  if (el) { el.textContent = next; el.className = 'o-step-val' + (next === 0 ? ' zero' : ''); }
+  ordersSaveDraft();
+  ordersUpdateOrderCounter();
+}
+
+function ordersSetProductNote(pid, value) {
+  if (state.ordersState[pid]) { state.ordersState[pid].notes = value; ordersSaveDraft(); }
+}
+
+function ordersRemoveManualItem(mid) {
+  delete state.ordersState[mid];
+  ordersSaveDraft();
+  ordersUpdateOrderCounter();
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (sup) { render(); }
+}
+
+function ordersAddManualProduct() {
+  const s = state.ordersManualAddState;
+  const name = s.name.trim();
+  if (!name) { toast('הזן שם מוצר', 'error'); return; }
+  const qty = parseInt(s.qty) || 0;
+  if (qty <= 0) { toast('הזן כמות', 'error'); return; }
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  const newProduct = { id: uid(), name, defaultUnit: s.unit, active: true };
+  sup.products.push(newProduct);
+  state.ordersState[newProduct.id] = { qty: String(qty), unit: s.unit, notes: '' };
+  state.ordersManualAddState = { name: '', qty: 1, unit: 'קרטון' };
+  saveOdb(true);
+  pushOrders();
+  ordersSaveDraft();
+  render();
+  toast('מוצר נוסף לרשימה ✓', 'success');
+  setTimeout(() => { const inp = document.getElementById('o-manual-name-inp'); if (inp) inp.focus(); }, 80);
+}
+
+function ordersClearOrder() {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  sup.products.forEach(p => {
+    if (p.defaultUnit === 'both') {
+      state.ordersState[p.id] = { unit: 'both', carton: '0', units: '0', notes: '' };
+      ['oqc-','oqu-'].forEach(pre => {
+        const el = document.getElementById(pre + p.id);
+        if (el) { el.textContent = '0'; el.className = 'o-step-val zero'; }
+      });
+    } else {
+      state.ordersState[p.id] = { qty: '0', unit: p.defaultUnit, notes: '' };
+      const el = document.getElementById('oqd-' + p.id);
+      if (el) { el.textContent = '0'; el.className = 'o-step-val zero'; }
+      const btn = document.getElementById('out-' + p.id);
+      if (btn) {
+        const isC = p.defaultUnit === 'קרטון';
+        btn.textContent = isC ? '📦 קרטון' : '🔢 יחידות';
+        btn.className = 'o-unit-toggle ' + (isC ? 'is-carton' : 'is-units');
+      }
+    }
+    const noteEl = document.getElementById('onote-' + p.id);
+    if (noteEl) noteEl.value = '';
+  });
+  Object.keys(state.ordersState).filter(k => k.startsWith('manual_')).forEach(k => delete state.ordersState[k]);
+  state.ordersManualAddState = { name: '', qty: 1, unit: 'קרטון' };
+  ordersClearDraft();
+  ordersUpdateOrderCounter();
+  toast('ההזמנה נוקתה');
+}
+
+function ordersSaveDraftAndGo() {
+  ordersSaveDraft();
+  setState({ ordersView: 'home' });
+  toast('טיוטא נשמרה ✓', 'success');
+}
+
+function ordersExportOrder() {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  const orderedItems = ordersGetOrderedItems();
+  if (!orderedItems.length) { toast('אין פריטים בהזמנה', 'error'); return; }
+  const dateStr = fmtOrdersDate(new Date());
+  const lines = orderedItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
+  const text = `📋 הזמנה - ${sup.name}\n📅 ${dateStr}\n\n${lines.join('\n')}\n\nתודה!`;
+  setState({ ordersModal: 'export', ordersExportText: text });
+}
+
+function ordersConfirmOrderSent() {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  const orderedItems = ordersGetOrderedItems();
+  if (!orderedItems.length) { toast('אין פריטים בהזמנה', 'error'); return; }
+  const dateStr = fmtOrdersDate(new Date());
+  const lines = orderedItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
+  const text = `📋 הזמנה - ${sup.name}\n📅 ${dateStr}\n\n${lines.join('\n')}\n\nתודה!`;
+  if (!odb.history) odb.history = [];
+  odb.history.unshift({ id: uid(), supplierId: sup.id, supplierName: sup.name,
+    dateStr, timestamp: Date.now(), items: orderedItems, text });
+  if (odb.history.length > 200) odb.history = odb.history.slice(0, 200);
+  if (!odb.activeOrders) odb.activeOrders = [];
+  odb.activeOrders.unshift({ id: uid(), supplierId: sup.id, supplierName: sup.name,
+    dateOrdered: dateStr, timestamp: Date.now(), items: orderedItems, deliveryNoteImage: null });
+  saveOdb();
+  pushActiveOrders();
+  ordersClearDraft();
+  setState({ ordersModal: '', ordersView: 'home' });
+  toast('הזמנה נשלחה ✓', 'success');
+}
+
+function ordersCopyExport() {
+  const text = state.ordersExportText || '';
+  navigator.clipboard.writeText(text).then(() => {
+    toast('הועתק ✓', 'success');
+    setState({ ordersModal: '' });
+  }).catch(() => {
+    toast('לא הצליח להעתיק — סמן ידנית');
+  });
+}
+
+function ordersOpenOrder(supplierId) {
+  const sup = findSupplierOdb(supplierId);
+  if (!sup) return;
+  const draft = ordersLoadDraft(supplierId);
+  let ordersState = {};
+  if (draft) {
+    ordersState = draft;
+    sup.products.filter(p => p.active !== false).forEach(p => {
+      if (!ordersState[p.id]) {
+        ordersState[p.id] = p.defaultUnit === 'both'
+          ? { unit: 'both', carton: '0', units: '0' }
+          : { qty: '0', unit: p.defaultUnit };
+      }
+    });
+  } else {
+    sup.products.filter(p => p.active !== false).forEach(p => {
+      ordersState[p.id] = p.defaultUnit === 'both'
+        ? { unit: 'both', carton: '0', units: '0' }
+        : { qty: '0', unit: p.defaultUnit };
+    });
+  }
+  setState({ ordersView: 'order', ordersSupplierId: supplierId, ordersState, ordersManualAddState: { name: '', qty: 1, unit: 'קרטון' } });
+}
+
+function ordersOpenManage(supplierId, from) {
+  setState({ ordersView: 'manage', ordersSupplierId: supplierId, ordersManageFrom: from || 'home' });
+}
+
+function ordersBackFromManage() {
+  if (state.ordersManageFrom === 'home') setState({ ordersView: 'home' });
+  else ordersOpenOrder(state.ordersSupplierId);
+}
+
+function ordersOpenTransferSheet(pid, name) {
+  setState({ ordersModal: 'transfer', ordersTransferData: { pid, name } });
+}
+
+function ordersExecuteTransfer(targetSupplierId) {
+  if (!state.ordersTransferData) return;
+  const { pid, name } = state.ordersTransferData;
+  const st = state.ordersState[pid];
+  if (!st) { setState({ ordersModal: '', ordersTransferData: null }); return; }
+  const totalQty = st.unit === 'both'
+    ? (parseInt(st.carton)||0) + (parseInt(st.units)||0)
+    : (parseInt(st.qty)||0);
+  if (totalQty === 0) {
+    setState({ ordersModal: '', ordersTransferData: null });
+    toast('אין כמות להעברה — הזן כמות קודם', 'error');
+    return;
+  }
+  const drafts = ordersGetAllDrafts();
+  const targetState = (drafts[targetSupplierId] && drafts[targetSupplierId].state) || {};
+  if (st.unit === 'both') {
+    const qc = parseInt(st.carton) || 0;
+    const qu = parseInt(st.units) || 0;
+    if (qc > 0) targetState['manual_' + uid()] = { isManual:true, name, unit:'קרטון', qty:String(qc), notes:'' };
+    if (qu > 0) targetState['manual_' + uid()] = { isManual:true, name, unit:'יחידות', qty:String(qu), notes:'' };
+    st.carton = '0'; st.units = '0';
+  } else {
+    targetState['manual_' + uid()] = { isManual:true, name, unit:st.unit, qty:String(parseInt(st.qty)), notes:'' };
+    st.qty = '0';
+  }
+  if (pid.startsWith('manual_')) delete state.ordersState[pid];
+  drafts[targetSupplierId] = { state: targetState, ts: Date.now() };
+  localStorage.setItem(ORDERS_ALL_DRAFTS_KEY, JSON.stringify(drafts));
+  ordersSaveDraft();
+  const targetSup = findSupplierOdb(targetSupplierId);
+  setState({ ordersModal: '', ordersTransferData: null });
+  toast(`⇄ הועבר ל${targetSup?.name||''} ✓`, 'success');
+}
+
+function ordersConfirmAddSupplier() {
+  const inp = document.getElementById('o-new-supplier-name');
+  const name = (inp?.value || '').trim();
+  if (!name) { inp?.focus(); return; }
+  const sup = { id: uid(), name, products: [] };
+  odb.suppliers.push(sup);
+  saveOdb(true); pushOrders();
+  setState({ ordersModal: '' });
+  toast('ספק נוסף ✓', 'success');
+  setTimeout(() => ordersOpenManage(sup.id, 'home'), 200);
+}
+
+function ordersAddProduct() {
+  const inp = document.getElementById('o-new-p-name');
+  const name = (inp?.value || '').trim();
+  if (!name) { inp?.focus(); return; }
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  sup.products.push({ id: uid(), name, defaultUnit: state.ordersNewProductUnit || 'קרטון' });
+  saveOdb(true); pushOrders();
+  if (inp) inp.value = '';
+  render();
+  toast('מוצר נוסף ✓', 'success');
+  setTimeout(() => { const el = document.getElementById('o-new-p-name'); if (el) el.focus(); }, 50);
+}
+
+function ordersSetNewUnit(unit) {
+  state.ordersNewProductUnit = unit;
+  document.getElementById('o-pill-c').className = 'o-unit-pill' + (unit === 'קרטון' ? ' sel' : '');
+  document.getElementById('o-pill-u').className = 'o-unit-pill' + (unit === 'יחידות' ? ' sel' : '');
+  document.getElementById('o-pill-b').className = 'o-unit-pill' + (unit === 'both' ? ' sel' : '');
+}
+
+function ordersEditProductName(pid) {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  const p = sup.products.find(x => x.id === pid);
+  if (!p) return;
+  const newName = prompt('שם המוצר:', p.name);
+  if (newName && newName.trim() && newName.trim() !== p.name) {
+    p.name = newName.trim();
+    saveOdb(true); pushOrders(); render();
+    toast('עודכן ✓', 'success');
+  }
+}
+
+function ordersToggleProductActive(pid) {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  const p = sup.products.find(x => x.id === pid);
+  if (!p) return;
+  p.active = p.active === false ? true : false;
+  saveOdb(true); pushOrders(); render();
+  toast(p.active ? 'מוצר הופעל ✓' : 'מוצר הושבת', p.active ? 'success' : '');
+}
+
+function ordersToggleDefaultUnit(pid) {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  const p = sup.products.find(x => x.id === pid);
+  if (!p) return;
+  if (p.defaultUnit === 'קרטון') p.defaultUnit = 'יחידות';
+  else if (p.defaultUnit === 'יחידות') p.defaultUnit = 'both';
+  else p.defaultUnit = 'קרטון';
+  saveOdb(true); pushOrders();
+  const row = document.getElementById('omr-' + pid);
+  if (row) {
+    const badge = row.querySelector('.o-unit-badge');
+    if (badge) {
+      badge.textContent = p.defaultUnit === 'both' ? '📦+🔢' : p.defaultUnit;
+      badge.className = 'o-unit-badge ' + (p.defaultUnit === 'קרטון' ? 'carton' : p.defaultUnit === 'יחידות' ? 'units' : 'both');
+    }
+  }
+}
+
+function ordersDeleteProduct(pid) {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  const p = sup.products.find(x => x.id === pid);
+  if (!p) return;
+  if (!confirm(`למחוק את "${p.name}"?`)) return;
+  sup.products = sup.products.filter(x => x.id !== pid);
+  saveOdb(true); pushOrders(); render();
+  toast('מוצר נמחק');
+}
+
+function ordersSaveSupplierName() {
+  const inp = document.getElementById('o-sup-name-inp');
+  const name = (inp?.value || '').trim();
+  if (!name) { inp?.focus(); return; }
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  sup.name = name;
+  saveOdb(true); pushOrders();
+  toast('שם נשמר ✓', 'success');
+}
+
+function ordersDeleteSupplier() {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  if (!confirm(`למחוק את הספק "${sup.name}" ואת כל המוצרים שלו?`)) return;
+  odb.suppliers = odb.suppliers.filter(s => s.id !== state.ordersSupplierId);
+  saveOdb(true); pushOrders();
+  setState({ ordersView: 'home', ordersSupplierId: null });
+  toast('ספק נמחק');
+}
+
+function ordersDuplicateSupplier() {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  const inp = document.getElementById('o-dup-supplier-name');
+  const newName = (inp?.value || '').trim();
+  if (!newName) { inp?.focus(); toast('הזן שם לספק החדש', 'error'); return; }
+  if (odb.suppliers.find(s => s.name === newName)) { toast('ספק בשם זה כבר קיים', 'error'); return; }
+  const copy = { id: uid(), name: newName, products: sup.products.map(p => ({ ...p, id: uid() })) };
+  odb.suppliers.push(copy);
+  saveOdb(true); pushOrders();
+  if (inp) inp.value = '';
+  toast('ספק "' + newName + '" נוצר עם ' + copy.products.length + ' מוצרים ✓', 'success');
+  render();
+}
+
+function ordersMoveSupplierUp() {
+  const idx = odb.suppliers.findIndex(s => s.id === state.ordersSupplierId);
+  if (idx <= 0) return;
+  const tmp = odb.suppliers[idx - 1];
+  odb.suppliers[idx - 1] = odb.suppliers[idx];
+  odb.suppliers[idx] = tmp;
+  saveOdb(true); pushOrders(); render();
+  toast('סדר עודכן ✓', 'success');
+}
+
+function ordersMoveSupplierDown() {
+  const idx = odb.suppliers.findIndex(s => s.id === state.ordersSupplierId);
+  if (idx < 0 || idx >= odb.suppliers.length - 1) return;
+  const tmp = odb.suppliers[idx + 1];
+  odb.suppliers[idx + 1] = odb.suppliers[idx];
+  odb.suppliers[idx] = tmp;
+  saveOdb(true); pushOrders(); render();
+  toast('סדר עודכן ✓', 'success');
+}
+
+function ordersDeleteActiveOrder(id) {
+  if (!confirm('למחוק הזמנה זו מהרשימה?')) return;
+  odb.activeOrders = (odb.activeOrders || []).filter(o => o.id !== id);
+  saveOdb(); pushActiveOrders(); render();
+}
+
+function ordersUploadDeliveryNote(event, orderId) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) { const r = Math.min(MAX/w, MAX/h); w = Math.round(w*r); h = Math.round(h*r); }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const order = (odb.activeOrders || []).find(o => o.id === orderId);
+      if (!order) return;
+      order.deliveryNoteImage = canvas.toDataURL('image/jpeg', 0.75);
+      saveOdb(); render();
+      toast('תמונה נשמרה ✓', 'success');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function ordersAddOrderToExpenses(orderId) {
+  const order = (odb.activeOrders || []).find(o => o.id === orderId);
+  if (!order) return;
+  const pending = {
+    supplier: order.supplierName,
+    date: new Date().toISOString().split('T')[0],
+    image: order.deliveryNoteImage || null,
+    notes: order.items.map(it => `${it.name}: ${it.qty} ${it.unit}`).join(', ')
+  };
+  localStorage.setItem('pending-expense', JSON.stringify(pending));
+  odb.activeOrders = (odb.activeOrders || []).filter(o => o.id !== orderId);
+  saveOdb(); pushActiveOrders();
+  setState({ tab: 'scan' });
+  toast('מעבר לסריקה ✓', 'success');
+}
+
+function ordersClearHistory() {
+  if (!odb.history?.length) return;
+  if (!confirm('למחוק את כל היסטוריית ההזמנות?')) return;
+  odb.history = [];
+  saveOdb(); render();
+  toast('ההיסטוריה נמחקה');
+}
+
+function ordersToggleHistCard(headerEl) {
+  const body = headerEl.nextElementSibling;
+  const chevron = headerEl.querySelector('.o-hist-chevron');
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  if (chevron) chevron.classList.toggle('open', !isOpen);
+}
+
+function ordersCopyHistoryRecord(index) {
+  const rec = (odb.history || [])[index];
+  if (!rec) return;
+  navigator.clipboard.writeText(rec.text).then(() => toast('הועתק ✓', 'success'))
+    .catch(() => toast('לא הצליח להעתיק'));
+}
+
+function ordersFilterOrderProducts(query) {
+  const q = (query || '').trim().toLowerCase();
+  document.querySelectorAll('#o-order-products .o-product-row').forEach(function(row) {
+    const name = (row.querySelector('.o-product-row-name-text') || {}).textContent || '';
+    row.hidden = !!(q && !name.toLowerCase().includes(q));
+  });
+}
+
+function ordersFilterManageProducts(query) {
+  const q = (query || '').trim().toLowerCase();
+  document.querySelectorAll('#o-product-list .o-manage-row').forEach(function(row) {
+    const name = (row.querySelector('.o-manage-row-name') || {}).textContent || '';
+    row.hidden = !!(q && !name.toLowerCase().includes(q));
+  });
+}
+
+function ordersInitDragDrop() {
+  var _dragging = null;
+  document.querySelectorAll('#o-product-list .o-manage-row').forEach(function(row) {
+    var handle = row.querySelector('.o-drag-handle');
+    if (!handle) return;
+    handle.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      startDragO(row, e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+    handle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      startDragO(row, e.clientX, e.clientY);
+    });
+  });
+
+  function startDragO(row, startX, startY) {
+    if (_dragging) return;
+    _dragging = row;
+    row.classList.add('dragging');
+    function swapToPosition(clientX, clientY) {
+      _dragging.style.pointerEvents = 'none';
+      var el = document.elementFromPoint(clientX, clientY);
+      _dragging.style.pointerEvents = '';
+      if (!el) return;
+      var target = el.closest('#o-product-list .o-manage-row');
+      if (!target || target === _dragging) return;
+      var parent = document.getElementById('o-product-list');
+      var rows = Array.from(parent.querySelectorAll('.o-manage-row'));
+      var fromIdx = rows.indexOf(_dragging);
+      var toIdx = rows.indexOf(target);
+      if (fromIdx < toIdx) parent.insertBefore(_dragging, target.nextSibling);
+      else parent.insertBefore(_dragging, target);
+    }
+    function endDragO() {
+      if (!_dragging) return;
+      _dragging.classList.remove('dragging');
+      var parent = document.getElementById('o-product-list');
+      var domRows = Array.from(parent.querySelectorAll('.o-manage-row'));
+      var sup = findSupplierOdb(state.ordersSupplierId);
+      if (sup) {
+        var oldProducts = sup.products.slice();
+        var newOrder = domRows.map(function(r) { return r.id.replace('omr-', ''); });
+        sup.products = newOrder.map(function(id) {
+          return oldProducts.find(function(p) { return p.id === id; });
+        }).filter(Boolean);
+        saveOdb(true); pushOrders();
+      }
+      _dragging = null;
+      render();
+    }
+    function onTouchMove(e) { e.preventDefault(); swapToPosition(e.touches[0].clientX, e.touches[0].clientY); }
+    function onTouchEnd() {
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      endDragO();
+    }
+    function onMouseMove(e) { swapToPosition(e.clientX, e.clientY); }
+    function onMouseUp() {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      endDragO();
+    }
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }
+}
+
+function ordersInitSupplierDragDrop() {
+  var _dragging = null;
+  document.querySelectorAll('#o-home-list .o-supplier-card').forEach(function(card) {
+    var handle = card.querySelector('.o-supplier-drag');
+    if (!handle) return;
+    handle.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      startDragSupp(card, e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+    handle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      startDragSupp(card, e.clientX, e.clientY);
+    });
+  });
+
+  function startDragSupp(card, startX, startY) {
+    if (_dragging) return;
+    _dragging = card;
+    card.classList.add('dragging');
+    function swapToPosition(clientX, clientY) {
+      _dragging.style.pointerEvents = 'none';
+      var el = document.elementFromPoint(clientX, clientY);
+      _dragging.style.pointerEvents = '';
+      if (!el) return;
+      var target = el.closest('#o-home-list .o-supplier-card');
+      if (!target || target === _dragging) return;
+      var parent = document.getElementById('o-home-list');
+      var cards = Array.from(parent.querySelectorAll('.o-supplier-card'));
+      var fromIdx = cards.indexOf(_dragging);
+      var toIdx = cards.indexOf(target);
+      if (fromIdx < toIdx) parent.insertBefore(_dragging, target.nextSibling);
+      else parent.insertBefore(_dragging, target);
+    }
+    function endDragSupp() {
+      if (!_dragging) return;
+      _dragging.classList.remove('dragging');
+      var parent = document.getElementById('o-home-list');
+      var domCards = Array.from(parent.querySelectorAll('.o-supplier-card'));
+      var newOrder = domCards.map(function(c) { return c.dataset.id; });
+      var oldSuppliers = odb.suppliers.slice();
+      odb.suppliers = newOrder.map(function(id) {
+        return oldSuppliers.find(function(s) { return s.id === id; });
+      }).filter(Boolean);
+      saveOdb(true); pushOrders();
+      _dragging = null;
+    }
+    function onTouchMove(e) { e.preventDefault(); swapToPosition(e.touches[0].clientX, e.touches[0].clientY); }
+    function onTouchEnd() {
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      endDragSupp();
+    }
+    function onMouseMove(e) { swapToPosition(e.clientX, e.clientY); }
+    function onMouseUp() {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      endDragSupp();
+    }
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }
+}
+
+function fmtOrdersDate(d) {
+  const days = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  return `יום ${days[d.getDay()]}, ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+
+// ── Render functions ───────────────────────────────────────────────────────
+function renderOrdersTab() {
+  switch(state.ordersView) {
+    case 'order':   return renderOrdersOrderView();
+    case 'manage':  return renderOrdersManageView();
+    case 'history': return renderOrdersHistoryView();
+    case 'active':  return renderOrdersActiveView();
+    default:        return renderOrdersHomeView();
+  }
+}
+
+function renderOrdersHomeView() {
+  const { suppliers } = odb;
+  const activeCount = (odb.activeOrders || []).length;
+  const banner = activeCount > 0 ? `
+    <div onclick="setState({ordersView:'active'})"
+      style="background:linear-gradient(135deg,rgba(240,170,36,0.1),rgba(240,170,36,0.05));border:1px solid rgba(240,170,36,0.3);border-radius:var(--r-lg);padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:14px;cursor:pointer">
+      <div style="font-size:22px;flex-shrink:0">🚚</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:700;color:var(--amber)">${activeCount} הזמנ${activeCount === 1 ? 'ה' : 'ות'} בתהליך</div>
+        <div style="font-size:12px;color:var(--textDim);margin-top:1px">לחץ לסימון קבלה ותיעוד</div>
+      </div>
+      <div style="color:var(--textMuted);font-size:16px">←</div>
+    </div>` : '';
+
+  if (!suppliers.length) {
+    return `<div style="padding:16px 16px 80px">
+      ${banner}
+      <div style="text-align:center;padding:60px 20px">
+        <div style="font-size:52px;margin-bottom:16px">📦</div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:8px">אין ספקים עדיין</div>
+        <div style="font-size:14px;color:var(--textDim);line-height:1.6">הוסף ספק ראשון כדי<br>להתחיל לרשום הזמנות</div>
+      </div>
+      <button onclick="setState({ordersModal:'add-supplier'})" style="position:fixed;bottom:80px;right:50%;transform:translateX(50%);max-width:calc(480px - 32px);width:calc(100% - 32px);border:none;border-radius:var(--r-md);padding:15px 20px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent) 0%,#52a428 100%);color:#051201;box-shadow:0 8px 24px -8px rgba(110,198,58,0.5);display:flex;align-items:center;justify-content:center;gap:8px;z-index:10">
+        <span style="font-size:20px;line-height:1">+</span> הוסף ספק
+      </button>
+    </div>`;
+  }
+
+  const cards = suppliers.map((s, i) => `
+    <div class="o-supplier-card fade-up" id="osc-${s.id}" data-id="${s.id}" style="animation-delay:${i*.05}s">
+      <div class="o-supplier-drag" title="גרור לסידור מחדש">⠿</div>
+      <div class="o-supplier-body" onclick="ordersOpenOrder('${s.id}')">
+        <div style="width:44px;height:44px;border-radius:12px;background:var(--accentSoft);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${ORDERS_ICONS[i % ORDERS_ICONS.length]}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:16px;font-weight:700;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}${ordersHasDraftFor(s.id) ? ' <span style="display:inline-block;background:rgba(240,170,36,0.12);border:1px solid rgba(240,170,36,0.3);border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;color:var(--amber);margin-right:5px;vertical-align:middle">📋 טיוטא</span>' : ''}</div>
+          <div style="font-size:12px;color:var(--textDim)">${s.products.length} מוצרים</div>
+        </div>
+      </div>
+      <button onclick="ordersOpenManage('${s.id}','home')" title="נהל" style="width:36px;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:var(--textDim)">⚙</button>
+    </div>`).join('');
+
+  setTimeout(() => ordersInitSupplierDragDrop(), 50);
+
+  return `<div style="padding:16px 16px 80px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div>
+        <div class="display" style="font-size:22px;font-weight:700">הזמנות 📦</div>
+        <div style="font-size:12px;color:var(--textDim);margin-top:2px">${suppliers.length} ספקים</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="orders-sync-dot" style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0" title="מסנכרן..."></div>
+        <button onclick="setState({ordersView:'history'})" style="width:36px;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--textDim)" title="היסטוריה">📋</button>
+      </div>
+    </div>
+    ${banner}
+    <div id="o-home-list">${cards}</div>
+    <button onclick="setState({ordersModal:'add-supplier'})" style="position:fixed;bottom:80px;right:50%;transform:translateX(50%);max-width:calc(480px - 32px);width:calc(100% - 32px);border:none;border-radius:var(--r-md);padding:15px 20px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent) 0%,#52a428 100%);color:#051201;box-shadow:0 8px 24px -8px rgba(110,198,58,0.5);display:flex;align-items:center;justify-content:center;gap:8px;z-index:10">
+      <span style="font-size:20px;line-height:1">+</span> הוסף ספק
+    </button>
+  </div>`;
+}
+
+function renderOrdersOrderView() {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return renderOrdersHomeView();
+  const hasDraft = ordersHasDraftFor(state.ordersSupplierId);
+  const activeProducts = sup.products.filter(p => p.active !== false);
+
+  let productsHtml = '';
+  if (!activeProducts.length) {
+    productsHtml = `<div style="text-align:center;padding:60px 20px">
+      <div style="font-size:52px;margin-bottom:16px">🛒</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px">אין מוצרים פעילים</div>
+      <div style="font-size:14px;color:var(--textDim)">לחץ ⚙ למעלה כדי להוסיף או להפעיל מוצרים</div>
+    </div>`;
+  } else {
+    const rows = activeProducts.map((p, i) => {
+      const st = state.ordersState[p.id] || (p.defaultUnit === 'both' ? { unit:'both', carton:'0', units:'0' } : { qty:'0', unit:p.defaultUnit });
+      const transferBtn = `<button class="o-transfer-btn" onclick="ordersOpenTransferSheet('${p.id}','${p.name.replace(/'/g,"\\'")}')">⇄</button>`;
+      if (st.unit === 'both') {
+        const qc = parseInt(st.carton) || 0;
+        const qu = parseInt(st.units) || 0;
+        return `<div class="o-product-row fade-up" id="opr-${p.id}" style="animation-delay:${i*.04}s">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px">
+            <span class="o-product-row-name-text">${esc(p.name)}</span>${transferBtn}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:13px;font-weight:700;color:var(--textDim);flex-shrink:0">📦 קרטון</span>
+              <div class="o-stepper">
+                <button class="o-step-btn" onclick="ordersStepQtyBoth('${p.id}','carton',-1)">−</button>
+                <span class="o-step-val${qc===0?' zero':''}" id="oqc-${p.id}">${qc}</span>
+                <button class="o-step-btn" onclick="ordersStepQtyBoth('${p.id}','carton',1)">+</button>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:13px;font-weight:700;color:var(--textDim);flex-shrink:0">🔢 יחידות</span>
+              <div class="o-stepper">
+                <button class="o-step-btn" onclick="ordersStepQtyBoth('${p.id}','units',-1)">−</button>
+                <span class="o-step-val${qu===0?' zero':''}" id="oqu-${p.id}">${qu}</span>
+                <button class="o-step-btn" onclick="ordersStepQtyBoth('${p.id}','units',1)">+</button>
+              </div>
+            </div>
+          </div>
+          <input class="o-product-row-note" id="onote-${p.id}" type="text" placeholder="✏️ הערה למוצר..." value="${esc(st.notes||'')}" oninput="ordersSetProductNote('${p.id}',this.value)" autocomplete="off">
+        </div>`;
+      }
+      const isCarton = st.unit === 'קרטון';
+      const qty = parseInt(st.qty) || 0;
+      return `<div class="o-product-row fade-up" id="opr-${p.id}" style="animation-delay:${i*.04}s">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px">
+          <span class="o-product-row-name-text" style="font-size:15px;font-weight:700">${esc(p.name)}</span>${transferBtn}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="o-unit-toggle ${isCarton?'is-carton':'is-units'}" id="out-${p.id}" onclick="ordersToggleUnit('${p.id}')">
+            ${isCarton ? '📦 קרטון' : '🔢 יחידות'}
+          </button>
+          <div class="o-stepper">
+            <button class="o-step-btn" onclick="ordersStepQty('${p.id}',-1)">−</button>
+            <span class="o-step-val${qty===0?' zero':''}" id="oqd-${p.id}">${qty}</span>
+            <button class="o-step-btn" onclick="ordersStepQty('${p.id}',1)">+</button>
+          </div>
+        </div>
+        <input class="o-product-row-note" id="onote-${p.id}" type="text" placeholder="✏️ הערה למוצר..." value="${esc(st.notes||'')}" oninput="ordersSetProductNote('${p.id}',this.value)" autocomplete="off">
+      </div>`;
+    }).join('');
+
+    const manualKeys = Object.keys(state.ordersState).filter(k => k.startsWith('manual_'));
+    const manualHtml = manualKeys.length === 0 ? '' : `
+      <div style="font-size:10.5px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin:18px 0 10px;padding-top:16px;border-top:1px solid var(--border)">📝 פריטים ידניים (${manualKeys.length})</div>
+      ${manualKeys.map(mid => {
+        const st = state.ordersState[mid];
+        if (!st || !st.isManual) return '';
+        const qty = parseInt(st.qty) || 0;
+        const isC = st.unit === 'קרטון';
+        return `<div class="o-product-row fade-up" id="opr-${mid}" style="border-style:dashed">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px">
+            <span class="o-product-row-name-text" style="font-size:14px">${esc(st.name)}</span>
+            <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+              <button class="o-transfer-btn" onclick="ordersOpenTransferSheet('${mid}','${st.name.replace(/'/g,"\\'")}')">⇄</button>
+              <button onclick="ordersRemoveManualItem('${mid}')" style="width:24px;height:24px;border:none;border-radius:6px;background:var(--dangerSoft);color:var(--danger);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="o-unit-toggle ${isC?'is-carton':'is-units'}" id="out-${mid}" onclick="ordersToggleManualItemUnit('${mid}')">
+              ${isC?'📦 קרטון':'🔢 יחידות'}
+            </button>
+            <div class="o-stepper">
+              <button class="o-step-btn" onclick="ordersStepManualItem('${mid}',-1)">−</button>
+              <span class="o-step-val${qty===0?' zero':''}" id="oqd-${mid}">${qty}</span>
+              <button class="o-step-btn" onclick="ordersStepManualItem('${mid}',1)">+</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}`;
+
+    const s = state.ordersManualAddState;
+    const addForm = `
+      <div style="margin-top:16px;padding:14px 16px;background:var(--surface);border:1.5px dashed rgba(110,198,58,0.35);border-radius:var(--r-md)">
+        <div style="font-size:10.5px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">+ הוספת מוצר לרשימה</div>
+        <input class="input" id="o-manual-name-inp" type="text" placeholder="שם המוצר..." value="${esc(s.name)}"
+          oninput="state.ordersManualAddState.name=this.value"
+          onkeydown="if(event.key==='Enter')ordersAddManualProduct()"
+          autocomplete="off" style="margin-bottom:8px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="o-unit-toggle ${s.unit==='קרטון'?'is-carton':'is-units'}" id="o-manual-unit-btn"
+            onclick="state.ordersManualAddState.unit=state.ordersManualAddState.unit==='קרטון'?'יחידות':'קרטון';this.textContent=state.ordersManualAddState.unit==='קרטון'?'📦 קרטון':'🔢 יחידות';this.className='o-unit-toggle '+(state.ordersManualAddState.unit==='קרטון'?'is-carton':'is-units')"
+            style="flex-shrink:0">${s.unit==='קרטון'?'📦 קרטון':'🔢 יחידות'}</button>
+          <div class="o-stepper" style="flex-shrink:0">
+            <button class="o-step-btn" onclick="if(state.ordersManualAddState.qty>1){state.ordersManualAddState.qty--;var el=document.getElementById('o-manual-qty-val');if(el){el.textContent=state.ordersManualAddState.qty;el.className='o-step-val'+(state.ordersManualAddState.qty===0?' zero':'');}}">−</button>
+            <span class="o-step-val" id="o-manual-qty-val">${s.qty}</span>
+            <button class="o-step-btn" onclick="state.ordersManualAddState.qty++;var el=document.getElementById('o-manual-qty-val');if(el){el.textContent=state.ordersManualAddState.qty;el.className='o-step-val';}">+</button>
+          </div>
+          <button onclick="ordersAddManualProduct()" style="flex:1;border:none;border-radius:var(--r-md);padding:12px 8px;background:linear-gradient(135deg,var(--accent),#52a428);color:#051201;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">+ הוסף</button>
+        </div>
+      </div>`;
+
+    productsHtml = `
+      ${hasDraft ? `<div style="background:var(--accentSoft);border:1px solid rgba(110,198,58,0.22);border-radius:var(--r-md);padding:9px 14px;font-size:12px;color:var(--accent);font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span style="flex:1">📋 ממשיך הזמנה שמורה</span><button onclick="ordersClearOrder()" style="background:none;border:none;color:var(--textDim);font-size:13px;cursor:pointer;padding:2px 4px;border-radius:6px;font-family:inherit">✕ נקה</button></div>` : ''}
+      <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">${activeProducts.length} מוצרים פעילים</div>
+      ${activeProducts.length > 4 ? `<div style="position:relative;margin-bottom:12px"><input type="search" id="o-order-search" placeholder="🔍 חיפוש מוצר..." oninput="ordersFilterOrderProducts(this.value)" autocomplete="off" style="width:100%;padding:10px 42px 10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);color:var(--text);font-size:14px;font-family:inherit;outline:none"><span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--textMuted);font-size:14px;pointer-events:none">🔍</span></div>` : ''}
+      <div id="o-order-products">${rows}</div>
+      ${manualHtml}
+      ${addForm}`;
+  }
+
+  setTimeout(() => ordersUpdateOrderCounter(), 30);
+
+  return `<div style="padding:0">
+    <div style="padding:11px 16px;background:rgba(7,9,10,0.98);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <button onclick="setState({ordersView:'home'})" style="width:36px;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:var(--textDim)">←</button>
+      <div style="flex:1;min-width:0">
+        <div class="display" style="font-size:17px">${esc(sup.name)}</div>
+        <div style="font-size:11px;color:var(--textDim)">${fmtOrdersDate(new Date())}</div>
+      </div>
+      <button onclick="ordersOpenManage('${sup.id}','order')" style="width:36px;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:var(--textDim)" title="נהל מוצרים">⚙</button>
+    </div>
+    <div style="padding:16px 16px 240px" id="o-order-main">
+      ${productsHtml}
+    </div>
+    <div style="position:fixed;bottom:60px;right:0;left:0;max-width:480px;margin:0 auto;padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));background:rgba(7,9,10,0.97);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;z-index:10">
+      <div id="orders-counter" class="o-order-counter" hidden></div>
+      <div style="display:flex;gap:8px">
+        <button onclick="ordersClearOrder()" style="border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:var(--surface);color:var(--text);flex-shrink:0">נקה</button>
+        <button onclick="ordersSaveDraftAndGo()" style="border:1px solid rgba(240,170,36,0.4);border-radius:var(--r-md);padding:14px 13px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:rgba(240,170,36,0.1);color:var(--amber);flex-shrink:0;white-space:nowrap">💾 שמור</button>
+        <button onclick="ordersExportOrder()" style="flex:1;border:none;border-radius:var(--r-md);padding:14px 16px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent) 0%,#52a428 100%);color:#051201;box-shadow:0 6px 20px -6px rgba(110,198,58,0.4)">📤 ייצא לוואטסאפ</button>
+      </div>
+      <button onclick="ordersConfirmOrderSent()" style="width:100%;border:none;border-radius:var(--r-md);padding:14px 16px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,#4fc46a 0%,#2f9e4a 100%);color:#fff;box-shadow:0 6px 20px -6px rgba(47,158,74,0.5);letter-spacing:0.01em">✓ הזמנה נשלחה לספק</button>
+    </div>
+  </div>`;
+}
+
+function renderOrdersManageView() {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return renderOrdersHomeView();
+  const suppIdx = odb.suppliers.findIndex(s => s.id === state.ordersSupplierId);
+  const suppTotal = odb.suppliers.length;
+
+  setTimeout(() => ordersInitDragDrop(), 50);
+
+  return `<div style="padding:0">
+    <div style="padding:11px 16px;background:rgba(7,9,10,0.98);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <button onclick="ordersBackFromManage()" style="width:36px;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:var(--textDim)">←</button>
+      <div style="flex:1;min-width:0">
+        <div class="display" style="font-size:17px">ניהול ספק</div>
+      </div>
+    </div>
+    <div style="padding:16px 16px 40px">
+      <div style="margin-bottom:14px">
+        <label style="font-size:10.5px;color:var(--textDim);margin-bottom:5px;display:block;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">שם הספק</label>
+        <div style="display:flex;gap:8px">
+          <input class="input" id="o-sup-name-inp" type="text" value="${esc(sup.name)}"
+            onkeydown="if(event.key==='Enter') ordersSaveSupplierName()" style="flex:1">
+          <button onclick="ordersSaveSupplierName()" style="flex-shrink:0;border:none;border-radius:var(--r-md);padding:0 18px;background:var(--accent);color:#051201;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">שמור</button>
+        </div>
+      </div>
+
+      <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin:20px 0 10px">מוצרים (${sup.products.length})</div>
+
+      ${sup.products.length > 4 ? `<div style="position:relative;margin-bottom:10px"><input type="search" id="o-product-search" placeholder="🔍 חיפוש מוצר..." oninput="ordersFilterManageProducts(this.value)" autocomplete="off" style="width:100%;padding:10px 42px 10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);color:var(--text);font-size:14px;font-family:inherit;outline:none"><span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--textMuted);font-size:14px;pointer-events:none">🔍</span></div>` : ''}
+
+      <div id="o-product-list">
+        ${sup.products.length ? sup.products.map((p, i) => {
+          const isActive = p.active !== false;
+          const uClass = p.defaultUnit === 'קרטון' ? 'carton' : p.defaultUnit === 'יחידות' ? 'units' : 'both';
+          const uText = p.defaultUnit === 'both' ? '📦+🔢' : p.defaultUnit;
+          return `<div class="o-manage-row fade-up${isActive?'':' inactive'}" id="omr-${p.id}" style="animation-delay:${i*.03}s">
+            <div class="o-drag-handle" title="גרור לסידור מחדש">⠿</div>
+            <span class="o-manage-row-name" onclick="ordersEditProductName('${p.id}')" title="לחץ לעריכה">${esc(p.name)}</span>
+            <span class="o-unit-badge ${uClass}" onclick="ordersToggleDefaultUnit('${p.id}')" title="לחץ לשנות יחידה">${uText}</span>
+            <button class="o-active-toggle ${isActive?'on':'off'}" onclick="ordersToggleProductActive('${p.id}')" title="${isActive?'פעיל':'לא פעיל'}">${isActive?'✓':'✗'}</button>
+            <button onclick="ordersDeleteProduct('${p.id}')" style="width:30px;height:30px;border:none;border-radius:8px;background:var(--dangerSoft);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--danger);flex-shrink:0">✕</button>
+          </div>`;
+        }).join('') :
+        '<p style="color:var(--textDim);font-size:13px;text-align:center;padding:16px 0">אין מוצרים — הוסף למטה</p>'}
+      </div>
+
+      <div style="background:rgba(110,198,58,0.04);border:1px dashed rgba(110,198,58,0.2);border-radius:var(--r-md);padding:16px;margin-top:12px">
+        <div style="font-size:10.5px;color:var(--textDim);margin-bottom:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase">➕ מוצר חדש</div>
+        <div style="margin-bottom:12px">
+          <input class="input" id="o-new-p-name" type="text" placeholder="שם המוצר"
+            autocomplete="off" onkeydown="if(event.key==='Enter') ordersAddProduct()">
+        </div>
+        <div style="font-size:10.5px;color:var(--textDim);margin-bottom:6px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase">יחידת ברירת מחדל</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="o-unit-pill sel" id="o-pill-c" onclick="ordersSetNewUnit('קרטון')">📦 קרטון</button>
+          <button class="o-unit-pill" id="o-pill-u" onclick="ordersSetNewUnit('יחידות')">🔢 יחידות</button>
+          <button class="o-unit-pill" id="o-pill-b" onclick="ordersSetNewUnit('both')">📦+🔢 שניהם</button>
+        </div>
+        <button onclick="ordersAddProduct()" style="width:100%;border:1px solid rgba(110,198,58,0.3);border-radius:var(--r-md);padding:12px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;background:var(--accentSoft);color:var(--accent)">+ הוסף מוצר</button>
+      </div>
+
+      <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:10px">סדר בדף הבית</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+          <button onclick="ordersMoveSupplierUp()" ${suppIdx<=0?'disabled':''} style="flex:1;border:1px solid var(--border);border-radius:var(--r-md);padding:12px 8px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;background:var(--surface);color:var(--text);opacity:${suppIdx<=0?'0.3':'1'}">↑ העלה</button>
+          <span style="color:var(--textDim);font-size:13px;font-weight:600;white-space:nowrap;flex-shrink:0;text-align:center;min-width:60px">${suppIdx+1} / ${suppTotal}</span>
+          <button onclick="ordersMoveSupplierDown()" ${suppIdx>=suppTotal-1?'disabled':''} style="flex:1;border:1px solid var(--border);border-radius:var(--r-md);padding:12px 8px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;background:var(--surface);color:var(--text);opacity:${suppIdx>=suppTotal-1?'0.3':'1'}">הורד ↓</button>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;padding:14px;border-radius:var(--r-md);background:var(--infoSoft);border:1px solid rgba(79,159,217,0.2)">
+        <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:10px">שכפול ספק</div>
+        <div style="display:flex;gap:8px">
+          <input class="input" id="o-dup-supplier-name" placeholder="שם הספק החדש..." style="flex:1;padding:10px 12px;font-size:13px">
+          <button onclick="ordersDuplicateSupplier()" style="flex-shrink:0;border:none;border-radius:var(--r-md);padding:10px 16px;background:var(--infoSoft);color:var(--info);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">📋 שכפל</button>
+        </div>
+      </div>
+
+      <div style="margin-top:32px;padding-top:20px;border-top:1px solid rgba(217,79,79,0.15)">
+        <button onclick="ordersDeleteSupplier()" style="width:100%;border:1px solid rgba(217,79,79,0.3);border-radius:var(--r-md);padding:14px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:var(--dangerSoft);color:var(--danger)">🗑 מחק ספק זה לגמרי</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderOrdersHistoryView() {
+  const history = odb.history || [];
+  return `<div style="padding:0">
+    <div style="padding:11px 16px;background:rgba(7,9,10,0.98);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <button onclick="setState({ordersView:'home'})" style="width:36px;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:var(--textDim)">←</button>
+      <div style="flex:1;min-width:0">
+        <div class="display" style="font-size:17px">היסטוריית הזמנות</div>
+        <div style="font-size:11px;color:var(--textDim)">${history.length ? history.length + ' הזמנות' : 'אין הזמנות עדיין'}</div>
+      </div>
+      <button onclick="ordersClearHistory()" style="width:36px;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:var(--danger)" title="מחק הכל">🗑</button>
+    </div>
+    <div style="padding:16px 16px 40px">
+      ${!history.length ? `<div style="text-align:center;padding:60px 20px">
+        <div style="font-size:52px;margin-bottom:16px">📋</div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:8px">אין היסטוריה עדיין</div>
+        <div style="font-size:14px;color:var(--textDim);line-height:1.6">כל הזמנה שתייצא תישמר כאן</div>
+      </div>` : history.map((rec, i) => `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);margin-bottom:10px;overflow:hidden" class="fade-up" style="animation-delay:${i*.03}s">
+          <div style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="ordersToggleHistCard(this)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:700">${esc(rec.supplierName)}</div>
+              <div style="font-size:11px;color:var(--textDim);margin-top:2px">${esc(rec.dateStr)}</div>
+            </div>
+            <span style="font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;background:var(--accentSoft);color:var(--accent);border:1px solid rgba(110,198,58,0.25);flex-shrink:0;margin-right:auto">${rec.items.length} פריטים</span>
+            <span class="o-hist-chevron" style="color:var(--textMuted);font-size:14px;flex-shrink:0;transition:transform 0.2s">›</span>
+          </div>
+          <div class="o-hist-body" style="padding:0 16px 14px;border-top:1px solid var(--border);display:none">
+            <div style="font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--text);padding-top:12px;user-select:all;-webkit-user-select:all">${esc(rec.text)}</div>
+            <button onclick="ordersCopyHistoryRecord(${i})" style="margin-top:10px;width:100%;border:1px solid rgba(110,198,58,0.3);border-radius:10px;padding:9px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:var(--accentSoft);color:var(--accent)">📋 העתק</button>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderOrdersActiveView() {
+  const orders = odb.activeOrders || [];
+  return `<div style="padding:0">
+    <div style="padding:11px 16px;background:rgba(7,9,10,0.98);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <button onclick="setState({ordersView:'home'})" style="width:36px;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:var(--textDim)">←</button>
+      <div style="flex:1;min-width:0">
+        <div class="display" style="font-size:17px">הזמנות בתהליך</div>
+        <div style="font-size:11px;color:var(--textDim)">${orders.length ? orders.length + ' הזמנות ממתינות' : ''}</div>
+      </div>
+    </div>
+    <div style="padding:16px 16px 40px">
+      ${!orders.length ? `<div style="text-align:center;padding:60px 20px">
+        <div style="font-size:52px;margin-bottom:16px">🚚</div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:8px">אין הזמנות בתהליך</div>
+        <div style="font-size:14px;color:var(--textDim);line-height:1.6">לאחר ייצוא הזמנה לווטסאפ<br>היא תופיע כאן עד לקבלתה</div>
+      </div>` : orders.map((o, i) => {
+        const itemsSummary = o.items.map(it => `${it.name}: ${it.qty} ${it.unit}`).join(' · ');
+        return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);margin-bottom:12px;overflow:hidden" class="fade-up" style="animation-delay:${i*.05}s">
+          <div style="padding:14px 16px 10px;display:flex;align-items:flex-start;gap:10px">
+            <div style="font-size:20px;flex-shrink:0;margin-top:1px">🚚</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:15px;font-weight:700;margin-bottom:2px">${esc(o.supplierName)}</div>
+              <div style="font-size:11px;color:var(--textDim)">הוזמן ${esc(o.dateOrdered)}</div>
+            </div>
+            <button onclick="ordersDeleteActiveOrder('${o.id}')" style="width:28px;height:28px;border:none;background:var(--dangerSoft);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--danger);flex-shrink:0">✕</button>
+          </div>
+          <div style="padding:0 16px 10px;font-size:12px;color:var(--textDim);line-height:1.7">${esc(itemsSummary)}</div>
+          ${o.deliveryNoteImage ? `<div style="margin:0 16px 12px;border-radius:10px;overflow:hidden;border:1px solid var(--border);max-height:180px"><img src="${o.deliveryNoteImage}" alt="תעודת משלוח" style="width:100%;max-height:180px;object-fit:contain;background:#000;display:block"></div>` : ''}
+          <div style="padding:10px 16px 14px;border-top:1px solid var(--border);display:flex;gap:8px">
+            <label style="flex:1;border:1px solid var(--border);border-radius:11px;padding:10px 8px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:var(--surfaceHi);color:var(--textDim);text-align:center;position:relative;overflow:hidden">
+              ${o.deliveryNoteImage ? '📷 החלף תמונה' : '📷 תעודת משלוח'}
+              <input type="file" accept="image/*" capture="environment" onchange="ordersUploadDeliveryNote(event,'${o.id}')" style="position:absolute;inset:0;opacity:0;cursor:pointer">
+            </label>
+            <button onclick="ordersAddOrderToExpenses('${o.id}')" style="flex:1;border:none;border-radius:11px;padding:10px 8px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent),#52a428);color:#051201">➕ הוסף להוצאות</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function renderOrdersModals() {
+  const m = state.ordersModal;
+  if (!m) return '';
+
+  if (m === 'add-supplier') {
+    return `<div class="o-overlay" onclick="setState({ordersModal:''})">
+      <div class="o-modal" onclick="event.stopPropagation()">
+        <div class="o-modal-handle"></div>
+        <h2 class="display" style="font-size:20px;margin:0 0 4px">ספק חדש</h2>
+        <p style="font-size:13px;color:var(--textDim);margin:0 0 16px">הזן את שם הספק, אח"כ תוכל להוסיף מוצרים</p>
+        <div style="margin-bottom:14px">
+          <label style="font-size:10.5px;color:var(--textDim);margin-bottom:5px;display:block;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">שם הספק</label>
+          <input class="input" id="o-new-supplier-name" type="text" placeholder='לדוגמה: ביתן אגמי' autocomplete="off"
+            onkeydown="if(event.key==='Enter') ordersConfirmAddSupplier()">
+        </div>
+        <button onclick="ordersConfirmAddSupplier()" style="width:100%;border:none;border-radius:var(--r-md);padding:14px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent) 0%,#52a428 100%);color:#051201;margin-bottom:10px">הוסף ספק ←</button>
+        <button onclick="setState({ordersModal:''})" style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:13px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:transparent;color:var(--textDim)">ביטול</button>
+      </div>
+    </div>`;
+  }
+
+  if (m === 'export') {
+    const text = state.ordersExportText || '';
+    return `<div class="o-overlay" onclick="setState({ordersModal:''})">
+      <div class="o-modal" onclick="event.stopPropagation()">
+        <div class="o-modal-handle"></div>
+        <h2 class="display" style="font-size:20px;margin:0 0 4px">טקסט לוואטסאפ 📤</h2>
+        <p style="font-size:13px;color:var(--textDim);margin:0 0 16px">העתק ושלח. ההזמנה נשמרת — לחץ ✓ נשלחה רק אחרי שהספק קיבל.</p>
+        <div style="background:var(--surfaceHi);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;font-size:13px;line-height:1.8;white-space:pre-wrap;direction:rtl;color:var(--text);margin-bottom:14px;font-family:inherit;user-select:all;-webkit-user-select:all">${esc(text)}</div>
+        <button onclick="ordersCopyExport()" style="width:100%;border:none;border-radius:var(--r-md);padding:14px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent) 0%,#52a428 100%);color:#051201;margin-bottom:10px">📋 העתק טקסט</button>
+        <button onclick="setState({ordersModal:''})" style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:13px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:transparent;color:var(--textDim)">המשך לערוך</button>
+      </div>
+    </div>`;
+  }
+
+  if (m === 'transfer') {
+    const td = state.ordersTransferData;
+    const others = (odb.suppliers || []).filter(s => s.id !== state.ordersSupplierId);
+    return `<div class="o-overlay" onclick="setState({ordersModal:'',ordersTransferData:null})">
+      <div class="o-modal" onclick="event.stopPropagation()">
+        <div class="o-modal-handle"></div>
+        <h2 class="display" style="font-size:18px;margin:0 0 4px">⇄ העבר פריט לספק</h2>
+        <p style="margin:0 0 4px;color:var(--accent);font-weight:700;font-size:14px">"${esc(td?.name||'')}"</p>
+        <p style="margin:0 0 12px;font-size:12px;color:var(--textDim)">הכמות תתאפס אצל הספק הנוכחי</p>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;max-height:50vh;overflow-y:auto">
+          ${others.length ? others.map(s => `
+            <button onclick="ordersExecuteTransfer('${s.id}')"
+              style="display:flex;align-items:center;gap:12px;width:100%;padding:13px 16px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);cursor:pointer;font-family:inherit;text-align:right">
+              <span style="font-size:22px">${ORDERS_ICONS[odb.suppliers.indexOf(s) % ORDERS_ICONS.length]}</span>
+              <span style="font-size:14px;font-weight:700;color:var(--text)">${esc(s.name)}</span>
+            </button>`).join('') :
+            `<div style="text-align:center;padding:20px;color:var(--textDim);font-size:13px">אין ספקים אחרים במערכת</div>`}
+        </div>
+        <button onclick="setState({ordersModal:'',ordersTransferData:null})" style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:13px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:transparent;color:var(--textDim);margin-top:10px">ביטול</button>
+      </div>
+    </div>`;
+  }
+
+  return '';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
