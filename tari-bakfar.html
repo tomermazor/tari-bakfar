@@ -5966,6 +5966,21 @@ function pvQuickDelay(debtId) {
   toast('תשלום נדחה ב-7 ימים');
 }
 
+function pvDateISO(dateValue) {
+  if (!dateValue) return '';
+  const s = String(dateValue).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const parts = s.split(/[\/\.]/);
+  if (parts.length === 3) {
+    const dd = parts[0].padStart(2,'0');
+    const mm = parts[1].padStart(2,'0');
+    const yyyy = parts[2].length === 2 ? '20' + parts[2] : parts[2];
+    if (/^\d{4}$/.test(yyyy) && /^\d{2}$/.test(mm) && /^\d{2}$/.test(dd)) return `${yyyy}-${mm}-${dd}`;
+  }
+  const parsed = parseD(s);
+  return parsed && !isNaN(parsed) ? toISO(parsed) : '';
+}
+
 function renderPayablesDashboard() {
   const today = pvTodayISO();
   if (!DB.checks) DB.checks = [];
@@ -5991,9 +6006,10 @@ function renderPayablesDashboard() {
   });
   openChecks.forEach(c => {
     const amt = +c.amount||0;
-    if (c.clearDate >= today && c.clearDate <= d30) tot30 += amt;
-    if (c.clearDate >= today && c.clearDate <= d60) tot60 += amt;
-    if (c.clearDate >= today && c.clearDate <= d90) tot90 += amt;
+    const clearISO = pvDateISO(c.clearDate);
+    if (clearISO >= today && clearISO <= d30) tot30 += amt;
+    if (clearISO >= today && clearISO <= d60) tot60 += amt;
+    if (clearISO >= today && clearISO <= d90) tot90 += amt;
   });
 
   const allLinkedIds = new Set(pv.taxInvoices.flatMap(ti=>ti.deliveryNoteIds||[]));
@@ -6049,7 +6065,7 @@ function renderPayablesDashboard() {
   activeDebts.forEach(d => {
     if (!pvIsOpenStatus(d.paymentStatus)) return;
     if (linkedOpenDebtIds.has(d.id)) return;
-    const dateToUse = d.dueDate || '';
+    const dateToUse = pvDateISO(d.dueDate);
     payments.push({
       date: dateToUse,
       supplier: d.supplierName || '',
@@ -6059,20 +6075,20 @@ function renderPayablesDashboard() {
       paymentStatus: d.paymentStatus || 'ממתין',
       debtId: d.id,
       invoiceNumber: d.invoiceNumber || '',
-      isOverdue: dateToUse ? pvIsOverdue(dateToUse) : false,
+      isOverdue: dateToUse ? dateToUse < today : false,
     });
   });
 
   openChecks.forEach(c => {
     payments.push({
-      date: c.clearDate || '',
+      date: pvDateISO(c.clearDate),
       supplier: c.supplier || '',
       amount: +c.amount || 0,
       method: "צ'ק",
       checkNumber: c.checkNum || '',
       paymentStatus: 'ממתין לפירעון',
       checkId: c.id,
-      isOverdue: checkUrgency(c.clearDate) === 'overdue',
+      isOverdue: pvDateISO(c.clearDate) ? pvDateISO(c.clearDate) < today : false,
     });
   });
 
@@ -6177,7 +6193,7 @@ function renderPayablesDashboard() {
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
             <div class="display" style="font-size:15px;font-weight:700;color:${itemColor}">${fmtCurr(p.amount)}</div>
-            <button onclick="event.stopPropagation();pvOpenConfirm(decodeURIComponent('${safeId}'),'${pendingType}')"
+            <button type="button" onclick="event.preventDefault();event.stopPropagation();pvOpenConfirm(decodeURIComponent('${safeId}'),'${pendingType}')"
               style="padding:4px 10px;border:1px solid ${itemBorder};border-radius:999px;background:var(--surface);color:${itemColor};font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap">
               ${pvActionLabel(p.method)}
             </button>
@@ -6207,7 +6223,7 @@ function renderPayablesDashboard() {
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
             <div class="display" style="font-size:14px;font-weight:700;color:var(--accent)">${fmtCurr(p.amount)}</div>
-            <button onclick="event.stopPropagation();pvOpenConfirm(decodeURIComponent('${encodeURIComponent(p.debtId || p.checkId || '')}'),'${p.debtId?'debt':'check'}')"
+            <button type="button" onclick="event.preventDefault();event.stopPropagation();pvOpenConfirm(decodeURIComponent('${encodeURIComponent(p.debtId || p.checkId || '')}'),'${p.debtId?'debt':'check'}')"
               style="padding:4px 10px;border:1px solid rgba(143,198,80,0.28);border-radius:999px;background:var(--surface);color:var(--accent);font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap">
               ${pvActionLabel(p.method)}
             </button>
@@ -6545,7 +6561,7 @@ function _renderPayablesSupplierInner() {
               <div style="font-size:11px;color:${urgColor};margin-top:1px">⏳ ${fmtDate(c.clearDate)}${c.checkNum?' · #'+esc(c.checkNum):''}</div>
             </div>
             ${badge}
-            <button onclick="pvOpenConfirm('${c.id}','check')" style="font-size:11px;padding:4px 9px;border:1px solid ${urgBorder};border-radius:999px;background:var(--surface);color:${urgColor};cursor:pointer;font-family:inherit;font-weight:800">שולם</button>
+            <button type="button" onclick="event.preventDefault();event.stopPropagation();pvOpenConfirm('${c.id}','check')" style="font-size:11px;padding:4px 9px;border:1px solid ${urgBorder};border-radius:999px;background:var(--surface);color:${urgColor};cursor:pointer;font-family:inherit;font-weight:800">שולם</button>
             ${linkBtn}
           </div>`;
         }).join('')}
@@ -6558,10 +6574,10 @@ function _renderPayablesSupplierInner() {
     const openDebtsHtml = openDebts.length === 0 ? `<div style="font-size:12px;color:var(--textMuted);padding:6px 0">אין חובות פתוחים</div>` :
       openDebts.sort((a,b)=>String(a.dueDate||'').localeCompare(String(b.dueDate||''))).map(d => {
         const rem = (+d.amount||0)-(+d.paidAmount||0);
-        const debtOverdue = d.dueDate && d.dueDate < todayISO();
+        const debtOverdue = pvDateISO(d.dueDate) && pvDateISO(d.dueDate) < todayISO();
         const debtColor = debtOverdue ? 'var(--danger)' : 'var(--accent)';
         const debtBorder = debtOverdue ? 'rgba(220,98,98,0.28)' : 'rgba(143,198,80,0.28)';
-        const actionBtn = `<button onclick="event.stopPropagation();pvOpenConfirm('${d.id}','debt')" style="font-size:10px;padding:4px 9px;border:1px solid ${debtBorder};border-radius:999px;background:var(--surface);color:${debtColor};cursor:pointer;font-family:inherit;font-weight:800;white-space:nowrap">שולם</button>`;
+        const actionBtn = `<button type="button" onclick="event.preventDefault();event.stopPropagation();pvOpenConfirm('${d.id}','debt')" style="font-size:10px;padding:4px 9px;border:1px solid ${debtBorder};border-radius:999px;background:var(--surface);color:${debtColor};cursor:pointer;font-family:inherit;font-weight:800;white-space:nowrap">שולם</button>`;
         return `<div onclick="setState({payablesView:'debt',payablesDebtId:'${d.id}'})" style="display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer">
           <span style="font-size:18px;flex-shrink:0;margin-top:1px">${pvGetMethodIcon(d.paymentMethod||'')}</span>
           <div style="flex:1;min-width:0">
@@ -6714,7 +6730,7 @@ function renderPayablesDebt() {
     <!-- Actions -->
     ${debt.status !== 'cancelled' ? `
     <div style="display:flex;gap:10px">
-      ${remaining > 0 ? `<button onclick="pvOpenConfirm('${debt.id}','debt')" style="flex:1;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#071302;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer">שולם</button>` : ''}
+      ${remaining > 0 ? `<button type="button" onclick="pvOpenConfirm('${debt.id}','debt')" style="flex:1;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#071302;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer">שולם</button>` : ''}
       <button onclick="setState({payablesModal:'record-payment',payablesModalData:{debtId:'${debt.id}'}})" style="flex:1;padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">רשום תשלום חלקי</button>
       <button onclick="pvCancelDebt('${debt.id}')" style="padding:13px 16px;border:none;border-radius:12px;background:var(--dangerSoft);color:var(--danger);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">🗑</button>
     </div>` : ''}
@@ -6751,7 +6767,7 @@ function renderPayablesReconcile() {
   ).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
 
   // 2. חשבוניות באיחור
-  const overdueDebts = pv.debts.filter(d => d.dueDate && d.dueDate < today && !['paid','cancelled'].includes(d.status));
+  const overdueDebts = pv.debts.filter(d => pvDateISO(d.dueDate) && pvDateISO(d.dueDate) < today && !['paid','cancelled'].includes(d.status));
 
   // 3. צ'קים מתקרבים (7 ימים)
   const openChecks = (DB.checks||[]).filter(c => !c.cleared);
@@ -7234,7 +7250,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=52').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=53').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
