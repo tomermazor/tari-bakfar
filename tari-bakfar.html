@@ -5825,16 +5825,42 @@ function renderPayablesDashboard() {
     <!-- Search -->
     <div style="position:relative;margin-bottom:14px">
       <input type="search" placeholder="🔍 חיפוש ספק..." value="${esc(state.payablesSearch||'')}"
-        oninput="setState({payablesSearch:this.value})"
+        oninput="pvSearchInput(this.value)"
         style="width:100%;padding:10px 40px 10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;font-family:inherit;outline:none;box-sizing:border-box">
     </div>
     ${summaryHtml}
     ${checksHtml}
     ${forecastHtml}
     <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">ספקים</div>
-    ${listHtml}
+    <div id="pv-supplier-list">${listHtml}</div>
     <button onclick="setState({payablesModal:'add-direct',payablesModalData:{}})" style="position:fixed;bottom:calc(80px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:10;padding:14px 28px;border:none;border-radius:50px;background:var(--accent);color:#071302;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:var(--shadow-accent)">+ חוב ישיר</button>
   </div>`;
+}
+
+function pvBuildSupplierListHtml(q) {
+  let suppliers = pvGetAllSuppliers();
+  if (q) suppliers = suppliers.filter(s => s.toLowerCase().includes(q.toLowerCase()));
+  const sorted = suppliers.map(s => ({ name: s, ...pvSupplierStats(s) }))
+    .sort((a,b) => b.outstanding - a.outstanding);
+  if (!sorted.length) return `<div style="text-align:center;padding:20px;color:var(--textMuted);font-size:13px">לא נמצאו ספקים</div>`;
+  return sorted.map(s => `
+    <div onclick="setState({payablesView:'supplier',payablesSupplier:'${esc(s.name)}'})" style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:13px;background:var(--surface);border:1px solid var(--border);cursor:pointer;margin-bottom:8px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px">${esc(s.name)}</div>
+        <div style="font-size:12px;color:var(--textDim)">${s.openDNs > 0 ? `${s.openDNs} ת"מ פתוחות · ` : ''}${s.debtCount} חובות</div>
+      </div>
+      <div style="text-align:left">
+        <div class="display" style="font-size:16px;font-weight:700;color:${s.outstanding>0?'var(--danger)':'var(--textDim)'}">${fmtCurr(s.outstanding)}</div>
+        <div style="margin-top:3px;text-align:left">${pvStatusBadge(s.status)}</div>
+      </div>
+      <div style="color:var(--textMuted);font-size:18px">›</div>
+    </div>`).join('');
+}
+
+function pvSearchInput(val) {
+  state.payablesSearch = val;
+  const el = document.getElementById('pv-supplier-list');
+  if (el) el.innerHTML = pvBuildSupplierListHtml(val);
 }
 
 // ── Supplier sub-view ────────────────────────────────────────────────────────
