@@ -4350,7 +4350,8 @@ function ordersExecuteTransfer(targetSupplierId) {
   ordersSaveDraft();
   const targetSup = findSupplierOdb(targetSupplierId);
   setState({ ordersModal: '', ordersTransferData: null });
-  setTimeout(() => ordersUpdateOrderCounter(), 10);
+  // Update counter after DOM settles
+  requestAnimationFrame(() => requestAnimationFrame(() => ordersUpdateOrderCounter()));
   toast(`⇄ הועבר ל${targetSup?.name||''} ✓`, 'success');
 }
 
@@ -4915,7 +4916,7 @@ function renderOrdersOrderView() {
       ${addForm}`;
   }
 
-  setTimeout(() => ordersUpdateOrderCounter(), 30);
+  requestAnimationFrame(() => ordersUpdateOrderCounter());
 
   return `<div style="padding:0">
     <div style="padding:11px 16px;background:rgba(7,9,10,0.98);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
