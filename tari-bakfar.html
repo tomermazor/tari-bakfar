@@ -1971,15 +1971,15 @@ function renderFixedAndWorkers() {
   // renderFixed() returns a full div; renderWorkers() returns a full div.
   // We combine them with a prominent section divider.
   return `
-    ${fixedContent}
+    ${workersContent}
     <div style="margin:0 16px;border-top:2px solid var(--border);padding-top:4px">
       <div style="display:flex;align-items:center;gap:10px;padding:14px 0 4px">
         <div style="flex:1;height:1px;background:var(--border)"></div>
-        <span style="font-size:12px;font-weight:700;color:var(--textDim);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;padding:0 8px">👷 עובדים</span>
+        <span style="font-size:12px;font-weight:700;color:var(--textDim);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;padding:0 8px">📌 הוצאות קבועות</span>
         <div style="flex:1;height:1px;background:var(--border)"></div>
       </div>
     </div>
-    ${workersContent}`;
+    ${fixedContent}`;
 }
 
 function startFixed() { setState({fixedAdding:true, fixedForm:{name:"",amount:"",category:"שכירות",frequency:"חודשי",day:"1",supplier:"",notes:"",active:true}}); }
