@@ -5868,7 +5868,22 @@ function renderPayablesDashboard() {
     </div>`).join('')
   : `<div style="text-align:center;padding:20px;color:var(--textMuted);font-size:13px">לא נמצאו ספקים</div>`;
 
+  // Accounting alert — debts not yet passed to accountant
+  const notPassedDebts = pv.debts.filter(d => !d.accountingPassed && !['cancelled'].includes(d.status));
+  const accountingAlert = notPassedDebts.length > 0 ? `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:13px;background:rgba(244,185,66,0.08);border:1px solid rgba(244,185,66,0.35);margin-bottom:14px;cursor:pointer"
+         onclick="setState({payablesView:'dashboard'})">
+      <div style="font-size:22px;flex-shrink:0">📋</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--amber)">${notPassedDebts.length} חשבוניות טרם עברו להנה"ח</div>
+        <div style="font-size:11px;color:var(--textDim);margin-top:1px">לחץ על כל חוב לסימון</div>
+      </div>
+      <div style="color:var(--amber);font-size:18px">›</div>
+    </div>` : '';
+
   return `<div style="padding:16px 16px 100px" class="fade-up">
+    <!-- Accounting alert -->
+    ${accountingAlert}
     <!-- Search -->
     <div style="position:relative;margin-bottom:14px">
       <input type="search" placeholder="🔍 חיפוש ספק..." value="${esc(state.payablesSearch||'')}"
