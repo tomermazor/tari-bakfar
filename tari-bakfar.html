@@ -1149,17 +1149,18 @@ function renderDashboard() {
     const needsAcc = ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type);
     const accPending = needsAcc && !e.sentToAccountant;
     const accOK = needsAcc && e.sentToAccountant;
+    const docShort = {'תעודת משלוח':'ת"מ','חשבונית מס':'חשב"מ','חשבונית מס קבלה':'חשב"מ קבלה','קבלה':'קבלה'}[e.document_type] || (e.document_type||'—');
     const statusEl = accPending
       ? badge('ממתינה','#D97706','#FEF3C7')
       : accOK ? badge('הועברה','#15803D','#DCFCE7')
-      : badge(esc(e.document_type||'—'),'#64748B','#F1F5F9');
+      : badge(esc(docShort),'#64748B','#F1F5F9');
     return `<tr style="border-bottom:1px solid #F1F5F9;transition:background 0.1s">
       <td style="padding:11px 16px">
         <div style="font-size:13px;font-weight:600;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${esc(e.supplier||'—')}</div>
         <div style="font-size:10px;color:#94A3B8;margin-top:1px">${fmtDate(e.date)}</div>
       </td>
       <td style="padding:11px 8px"><span style="font-size:10.5px;font-weight:600;background:${c}18;color:${c};padding:2px 8px;border-radius:100px;white-space:nowrap">${esc(e.category)}</span></td>
-      <td style="padding:11px 8px">${statusEl}</td>
+      <td style="padding:11px 8px;white-space:nowrap">${statusEl}</td>
       <td style="padding:11px 16px;text-align:left"><span class="display" style="font-size:13px;color:#0F172A;font-weight:700">${fmtCurr(e.total_amount)}</span></td>
       <td style="padding:11px 10px;text-align:center">
         <button onclick="setState({tab:'list',listOpen:'${e.id}'})" style="width:26px;height:26px;border:1px solid #E2E8F0;border-radius:7px;background:#fff;cursor:pointer;color:#64748B;font-size:13px;display:inline-flex;align-items:center;justify-content:center;transition:all 0.12s">→</button>
