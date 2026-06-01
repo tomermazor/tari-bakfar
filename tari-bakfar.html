@@ -6110,8 +6110,10 @@ function renderPayablesDashboard() {
   [...byDate.entries()].forEach(([date, items], idx) => {
     const dayTotal = items.reduce((s,p)=>s+p.amount, 0);
     const isOverdueGroup = date < today;
-    const borderColor = isOverdueGroup ? 'rgba(220,98,98,0.3)' : 'var(--border)';
-    const bgTint = isOverdueGroup ? 'rgba(220,98,98,0.04)' : 'transparent';
+    // Red = overdue, Green = future
+    const borderColor = isOverdueGroup ? 'rgba(220,98,98,0.3)' : 'rgba(143,198,80,0.25)';
+    const bgTint     = isOverdueGroup ? 'rgba(220,98,98,0.04)' : 'rgba(143,198,80,0.03)';
+    const dateColor  = isOverdueGroup ? 'var(--danger)' : 'var(--accent)';
 
     if (!isOverdueGroup) {
       const d = new Date(date);
@@ -6131,8 +6133,8 @@ function renderPayablesDashboard() {
 
     timelineRows += `<div style="border-radius:13px;border:1px solid ${borderColor};background:${bgTint};margin-bottom:10px;overflow:hidden">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:var(--surfaceHi)">
-        <div style="font-size:13px;font-weight:800;color:${isOverdueGroup?'var(--danger)':'var(--text)'}">${isOverdueGroup?'🔴 ':''} ${fmtDate(date)}</div>
-        <div class="display" style="font-size:14px;font-weight:700;color:${isOverdueGroup?'var(--danger)':'var(--text)'}">${fmtCurr(dayTotal)}</div>
+        <div style="font-size:13px;font-weight:800;color:${dateColor}">${isOverdueGroup?'🔴 ':'🟢 '} ${fmtDate(date)}</div>
+        <div class="display" style="font-size:14px;font-weight:700;color:${dateColor}">${fmtCurr(dayTotal)}</div>
       </div>`;
 
     items.forEach(p => {
@@ -6145,7 +6147,8 @@ function renderPayablesDashboard() {
         : `setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(p.supplier)}')})`;
 
       const openLbl = pvOpenLabel(p.method);
-      const pendingId = p.debtId || p.checkId;
+      // Use encoded IDs to avoid onclick breakage with special chars
+      const safeId = encodeURIComponent(p.debtId || p.checkId || '');
       const pendingType = p.debtId ? 'debt' : 'check';
 
       timelineRows += `
@@ -6156,11 +6159,11 @@ function renderPayablesDashboard() {
             <div style="font-size:11px;color:var(--textDim);margin-top:2px">${openLbl}${p.checkNumber?` · מס' ${esc(p.checkNumber)}`:''}${p.invoiceNumber?` · #${esc(p.invoiceNumber)}`:''}
             </div>
           </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
             <div class="display" style="font-size:15px;font-weight:700;color:var(--text)">${fmtCurr(p.amount)}</div>
-            <button onclick="event.stopPropagation();pvOpenConfirm('${pendingId}','${pendingType}')"
-              style="padding:4px 10px;border:none;border-radius:20px;background:rgba(244,185,66,0.15);color:var(--amber);font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">
-              ⏳ ממתין לתשלום
+            <button onclick="event.stopPropagation();pvOpenConfirm(decodeURIComponent('${safeId}'),'${pendingType}')"
+              style="padding:5px 12px;border:none;border-radius:20px;background:linear-gradient(135deg,var(--accent),#52a428);color:#051201;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap">
+              ✅ שולם
             </button>
           </div>
         </div>`;
@@ -6191,7 +6194,10 @@ function renderPayablesDashboard() {
   const timelineHtml = `
     <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
       <span>📅 התחייבויות פתוחות</span>
-      <button onclick="setState({payablesView:'supplierBook'})" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">📒 ספר ספקים</button>
+      <div style="display:flex;gap:5px">
+        <button onclick="setState({payablesView:'archive'})" style="font-size:11px;padding:4px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">🗂</button>
+        <button onclick="setState({payablesView:'supplierBook'})" style="font-size:11px;padding:4px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">📒</button>
+      </div>
     </div>
     ${filterBar}
     ${noItems
