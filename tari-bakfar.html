@@ -915,6 +915,8 @@ let state = {
   payablesSupplier: '',
   payablesSupplierTab: 'summary',
   payablesDebtId: '',
+  pvTimelineRange: '30',
+  pvMonthlySummaryCollapsed: false,
   payablesModal: '',
   payablesModalData: null,
   productsView: 'list',
@@ -5872,93 +5874,292 @@ function renderPayablesDashboard() {
   if (!DB.checks) DB.checks = [];
   const openChecks = DB.checks.filter(c => !c.cleared).sort((a,b) => parseD(a.clearDate) - parseD(b.clearDate));
 
-  // ── Data calculations ────────────────────────────────────────────────────────
-  let overdueAmt = 0, soonAmt = 0, totalAmt = 0;
-  const overdueDebts = [], soonDebts = [];
+  // ── Data calculations ─────────────────────────────────────────────────────
+  let totalAmt = 0;
+  const overdueDebts = [], soonDebts = [], week14Debts = [], week30Debts = [];
+  let overdueAmt = 0, soonAmt = 0, amt14 = 0, amt30 = 0;
   activeDebts.forEach(d => {
     const rem = (+d.amount||0) - (+d.paidAmount||0);
     totalAmt += rem;
     if (pvIsOverdue(d.dueDate)) { overdueAmt += rem; overdueDebts.push(d); }
     else if (pvDateInDays(d.dueDate, 7)) { soonAmt += rem; soonDebts.push(d); }
+    if (d.dueDate && d.dueDate >= today && pvDateInDays(d.dueDate, 14)) { amt14 += rem; week14Debts.push(d); }
+    if (d.dueDate && d.dueDate >= today && pvDateInDays(d.dueDate, 30)) { amt30 += rem; week30Debts.push(d); }
   });
   const totalChecks = openChecks.reduce((s,c) => s+(+c.amount||0), 0);
-  const overdueChecks = openChecks.filter(c => checkUrgency(c.clearDate) === 'overdue');
-  const soonChecks = openChecks.filter(c => checkUrgency(c.clearDate) === 'soon');
+  const openChecks7 = openChecks.filter(c => c.clearDate && c.clearDate >= today && pvDateInDays(c.clearDate, 7));
+  const openChecks14 = openChecks.filter(c => c.clearDate && c.clearDate >= today && pvDateInDays(c.clearDate, 14));
+  const openChecks30 = openChecks.filter(c => c.clearDate && c.clearDate >= today && pvDateInDays(c.clearDate, 30));
+  const due7  = soonAmt  + openChecks7.reduce((s,c)=>s+(+c.amount||0),0);
+  const due14 = amt14    + openChecks14.reduce((s,c)=>s+(+c.amount||0),0);
+  const due30 = amt30    + openChecks30.reduce((s,c)=>s+(+c.amount||0),0);
   const allLinkedIds = new Set(pv.taxInvoices.flatMap(ti => ti.deliveryNoteIds || []));
   const openDNs = (DB.expenses||[]).filter(e =>
     e.document_type === 'תעודת משלוח' && !pv.cancelledDNIds.includes(e.id) && !allLinkedIds.has(e.id)
   );
+  const openInvoicesNoDebt = (DB.expenses||[]).filter(e =>
+    ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type) &&
+    !pv.debts.find(d => d.expenseId === e.id && !['cancelled'].includes(d.status))
+  );
   const notPassedDebts = pv.debts.filter(d => !d.accountingPassed && !['cancelled','paid'].includes(d.status));
 
-  // ── "לטפל עכשיו" action items ─────────────────────────────────────────────
-  const actionItems = [];
-  if (overdueDebts.length) actionItems.push({
-    icon:'🔴', label:`${overdueDebts.length} חובות באיחור`, sub: fmtCurr(overdueAmt),
-    color:'var(--danger)', bg:'rgba(220,98,98,0.07)', border:'rgba(220,98,98,0.3)',
-    action:`setState({payablesView:'reconcile'})`
-  });
-  if (soonDebts.length) actionItems.push({
-    icon:'🟡', label:`${soonDebts.length} תשלומים השבוע`, sub: fmtCurr(soonAmt),
-    color:'var(--amber)', bg:'rgba(244,185,66,0.07)', border:'rgba(244,185,66,0.3)',
-    action:`setState({payablesView:'reconcile'})`
-  });
-  if (openDNs.length) actionItems.push({
-    icon:'📦', label:`${openDNs.length} ת"מ ממתינות לחשבונית`, sub:'לחץ לשיוך',
-    color:'var(--blue)', bg:'rgba(91,156,246,0.07)', border:'rgba(91,156,246,0.3)',
-    action:`setState({payablesView:'reconcile'})`
-  });
-  if (overdueChecks.length) actionItems.push({
-    icon:'💳', label:`${overdueChecks.length} צ'קים שעברו פירעון`, sub: fmtCurr(overdueChecks.reduce((s,c)=>s+(+c.amount||0),0)),
-    color:'var(--danger)', bg:'rgba(220,98,98,0.07)', border:'rgba(220,98,98,0.3)',
-    action:`setState({payablesView:'reconcile'})`
-  });
-  if (notPassedDebts.length) actionItems.push({
-    icon:'📋', label:`${notPassedDebts.length} חשבוניות לא עברו להנה"ח`, sub:'',
-    color:'var(--amber)', bg:'rgba(244,185,66,0.07)', border:'rgba(244,185,66,0.3)',
-    action:`setState({payablesView:'reconcile'})`
-  });
-
-  const actionSection = actionItems.length ? `
-    <div style="margin-bottom:14px">
-      <div style="font-size:10px;font-weight:700;color:var(--textDim);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">⚡ לטפל עכשיו</div>
-      ${actionItems.map(a => `
-        <div onclick="${a.action}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:${a.bg};border:1px solid ${a.border};margin-bottom:6px;cursor:pointer">
-          <span style="font-size:18px;flex-shrink:0">${a.icon}</span>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:700;color:${a.color}">${a.label}</div>
-            ${a.sub ? `<div style="font-size:11px;color:var(--textDim);margin-top:1px">${a.sub}</div>` : ''}
-          </div>
-          <span style="color:${a.color};font-size:16px">›</span>
-        </div>`).join('')}
-    </div>` : `
-    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.25);margin-bottom:14px">
-      <span style="font-size:18px">✅</span>
-      <span style="font-size:13px;font-weight:700;color:var(--accent)">הכל מסודר — אין פעולות ממתינות</span>
-    </div>`;
-
-  // ── Compact summary strip ─────────────────────────────────────────────────
-  const chip = (label, val, color) => `
-    <div style="flex-shrink:0;padding:8px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--border);text-align:center;min-width:80px">
-      <div style="font-size:9px;color:var(--textDim);font-weight:600;letter-spacing:.04em;margin-bottom:2px">${label}</div>
-      <div class="display" style="font-size:14px;font-weight:700;color:${color}">${val}</div>
+  // ── 1. SUMMARY STRIP ──────────────────────────────────────────────────────
+  const chip = (icon, label, val, color) => `
+    <div style="flex-shrink:0;padding:7px 12px;border-radius:11px;background:var(--surface);border:1px solid var(--border);text-align:center;min-width:76px">
+      <div style="font-size:9px;color:var(--textDim);font-weight:600;letter-spacing:.04em;margin-bottom:1px;white-space:nowrap">${icon} ${label}</div>
+      <div class="display" style="font-size:13px;font-weight:700;color:${color};line-height:1.2">${val}</div>
     </div>`;
   const summaryHtml = `
-    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none">
-      ${chip('סה"כ חוב', fmtCurr(totalAmt), 'var(--text)')}
-      ${chip('מאחר', fmtCurr(overdueAmt), overdueAmt>0?'var(--danger)':'var(--textMuted)')}
-      ${chip('השבוע', fmtCurr(soonAmt), soonAmt>0?'var(--amber)':'var(--textMuted)')}
-      ${chip("צ'קים", fmtCurr(totalChecks), totalChecks>0?'var(--blue)':'var(--textMuted)')}
-      ${chip('ת"מ פתוחות', String(openDNs.length), openDNs.length>0?'var(--blue)':'var(--textMuted)')}
+    <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none;-webkit-overflow-scrolling:touch">
+      ${chip('💰','7 ימים',    fmtCurr(due7),   due7>0?'var(--amber)':'var(--textMuted)')}
+      ${chip('💰','14 ימים',   fmtCurr(due14),  due14>0?'var(--amber)':'var(--textMuted)')}
+      ${chip('💰','30 ימים',   fmtCurr(due30),  due30>0?'var(--text)':'var(--textMuted)')}
+      ${chip('📊','סה"כ חוב',  fmtCurr(totalAmt), totalAmt>0?'var(--text)':'var(--textMuted)')}
+      ${chip('📦','ת"מ פתוחות', String(openDNs.length), openDNs.length>0?'var(--info)':'var(--textMuted)')}
+      ${chip('🧾','חשבוניות',  String(openInvoicesNoDebt.length), openInvoicesNoDebt.length>0?'var(--amber)':'var(--textMuted)')}
+      ${chip('🏦',"צ'קים",     fmtCurr(totalChecks), totalChecks>0?'var(--info)':'var(--textMuted)')}
     </div>`;
 
-  // ── Quick filters ─────────────────────────────────────────────────────────
+  // ── Accounting alert ───────────────────────────────────────────────────────
+  const accountingAlert = notPassedDebts.length ? `
+    <div onclick="setState({payablesView:'reconcile'})" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:11px;background:var(--amberSoft);border:1px solid rgba(240,170,36,0.3);margin-bottom:12px;cursor:pointer">
+      <span style="font-size:16px;flex-shrink:0">📋</span>
+      <div style="flex:1;font-size:12px;font-weight:700;color:var(--amber)">${notPassedDebts.length} חשבוניות לא עברו להנה"ח</div>
+      <span style="color:var(--amber);font-size:15px">›</span>
+    </div>` : '';
+
+  // ── 2. "לטפל עכשיו" action cards 2×2 grid ────────────────────────────────
+  const actionCards = [];
+  if (overdueDebts.length) actionCards.push({
+    icon:'🔴', label:'מאחר', amount: fmtCurr(overdueAmt),
+    sub: `${overdueDebts.length} חובות`,
+    color:'var(--danger)', bg:'var(--dangerSoft)', border:'rgba(217,79,79,0.3)',
+    action:`setState({payablesView:'reconcile'})`
+  });
+  if (soonDebts.length) actionCards.push({
+    icon:'🟡', label:'השבוע', amount: fmtCurr(soonAmt),
+    sub: `${soonDebts.length} תשלומים`,
+    color:'var(--amber)', bg:'var(--amberSoft)', border:'rgba(240,170,36,0.3)',
+    action:`setState({payablesView:'reconcile'})`
+  });
+  const soonChecksDue = openChecks.filter(c => c.clearDate && pvDateInDays(c.clearDate, 7));
+  if (soonChecksDue.length) actionCards.push({
+    icon:'🏦', label:"צ'קים לפירעון", amount: fmtCurr(soonChecksDue.reduce((s,c)=>s+(+c.amount||0),0)),
+    sub: `${soonChecksDue.length} צ'קים`,
+    color:'var(--info)', bg:'var(--infoSoft)', border:'rgba(79,159,217,0.3)',
+    action:`setState({payablesView:'reconcile'})`
+  });
+  if (openDNs.length) actionCards.push({
+    icon:'📦', label:'ת"מ פתוחות', amount: String(openDNs.length),
+    sub: 'ממתינות לשיוך',
+    color:'var(--info)', bg:'var(--infoSoft)', border:'rgba(79,159,217,0.3)',
+    action:`setState({payablesView:'reconcile'})`
+  });
+
+  const actionSection = actionCards.length ? `
+    <div style="margin-bottom:16px">
+      <div style="font-size:10px;font-weight:700;color:var(--textDim);letter-spacing:.07em;margin-bottom:8px">⚡ לטפל עכשיו</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        ${actionCards.slice(0,4).map(a => `
+          <div onclick="${a.action}" style="padding:12px 14px;border-radius:13px;background:${a.bg};border:1px solid ${a.border};cursor:pointer;min-height:76px;display:flex;flex-direction:column;justify-content:space-between">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:16px">${a.icon}</span>
+              <span style="font-size:10px;font-weight:700;color:${a.color}">${a.label}</span>
+            </div>
+            <div class="display" style="font-size:20px;font-weight:700;color:${a.color};line-height:1">${a.amount}</div>
+            <div style="font-size:10px;color:var(--textDim);margin-top:3px">${a.sub}</div>
+          </div>`).join('')}
+      </div>
+    </div>` : `
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:rgba(110,198,58,0.07);border:1px solid rgba(110,198,58,0.25);margin-bottom:14px">
+      <span style="font-size:18px">✅</span>
+      <span style="font-size:13px;font-weight:700;color:var(--accent)">הכל מסודר</span>
+    </div>`;
+
+  // ── 3. CASH FLOW TIMELINE ─────────────────────────────────────────────────
+  const tlRange = parseInt(state.pvTimelineRange || '30', 10);
+  const tlRanges = ['30','60','90'];
+
+  // Build unified payment list
+  const tlItems = [];
+  // Debts
+  activeDebts.forEach(d => {
+    if (!d.dueDate) return;
+    const rem = (+d.amount||0) - (+d.paidAmount||0);
+    tlItems.push({
+      date: d.dueDate,
+      supplier: d.supplierName || '',
+      amount: rem,
+      type: d.paymentMethod || 'חוב',
+      debtId: d.id,
+      status: d.status,
+      isPast: d.dueDate < today
+    });
+  });
+  // Checks
+  openChecks.forEach(c => {
+    if (!c.clearDate) return;
+    tlItems.push({
+      date: c.clearDate,
+      supplier: c.supplier || '',
+      amount: +c.amount || 0,
+      type: "צ'ק",
+      checkId: c.id,
+      status: 'פתוח',
+      isPast: c.clearDate < today
+    });
+  });
+
+  // Filter to range (include past-due items too)
+  const rangeEnd = new Date(today);
+  rangeEnd.setDate(rangeEnd.getDate() + tlRange);
+  const rangeEndISO = rangeEnd.getFullYear() + '-' + String(rangeEnd.getMonth()+1).padStart(2,'0') + '-' + String(rangeEnd.getDate()).padStart(2,'0');
+  const tlFiltered = tlItems.filter(item => item.isPast || item.date <= rangeEndISO);
+
+  // Sort: past-due first (ascending by date), then future (ascending)
+  tlFiltered.sort((a, b) => {
+    if (a.isPast && !b.isPast) return -1;
+    if (!a.isPast && b.isPast) return 1;
+    return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+  });
+
+  // Group by day
+  const typeIcon = t => { if (!t) return '📄'; if (t.includes("צ'ק") || t.includes('אשראי')) return '💳'; if (t.includes('העברה')) return '🏦'; if (t.includes('מזומן')) return '💵'; return '📄'; };
+
+  const dayGroups = [];
+  const dayMap = new Map();
+  tlFiltered.forEach(item => {
+    const key = item.date;
+    if (!dayMap.has(key)) { const g = {date: key, items: [], total: 0, isPast: item.isPast}; dayMap.set(key, g); dayGroups.push(g); }
+    const g = dayMap.get(key);
+    g.total += item.amount;
+    g.items.push(item);
+  });
+
+  // Weekly subtotal tracking
+  const getWeekNum = isoDate => {
+    const d = parseD(isoDate);
+    if (!d) return 0;
+    const jan1 = new Date(d.getFullYear(), 0, 1);
+    return Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  };
+
+  let prevWeek = null;
+  let weekTotal = 0;
+  let weekNum = 0;
+  const timelineRows = [];
+
+  dayGroups.forEach(grp => {
+    const curWeek = getWeekNum(grp.date);
+    if (prevWeek !== null && curWeek !== prevWeek) {
+      timelineRows.push(`<div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;color:var(--textDim);font-size:11px;font-weight:700">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span>שבוע ${weekNum} · סה"כ ${fmtCurr(weekTotal)}</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>`);
+      weekTotal = 0;
+      weekNum++;
+    } else if (prevWeek === null) { weekNum = 1; }
+    prevWeek = curWeek;
+    weekTotal += grp.total;
+
+    const bgColor = grp.isPast ? 'rgba(217,79,79,0.06)' : 'transparent';
+    const borderColor = grp.isPast ? 'rgba(217,79,79,0.2)' : 'var(--border)';
+    timelineRows.push(`
+      <div style="margin-bottom:8px;border-radius:12px;background:${bgColor};border:1px solid ${borderColor};overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:var(--surfaceHi);border-bottom:1px solid ${borderColor}">
+          <span style="font-size:12px;font-weight:700;color:${grp.isPast?'var(--danger)':'var(--text)'}">${grp.isPast?'⚠️ ':''}${fmtDate(grp.date)}</span>
+          <span class="display" style="font-size:14px;font-weight:700;color:${grp.isPast?'var(--danger)':'var(--accent)'}">סה"כ: ${fmtCurr(grp.total)}</span>
+        </div>
+        ${grp.items.map(item => {
+          const quickPaid = item.debtId
+            ? `<button onclick="event.stopPropagation();pvQuickMarkPaid('${item.debtId}')" style="flex-shrink:0;padding:4px 8px;border:none;border-radius:7px;background:rgba(110,198,58,0.12);color:var(--accent);font-size:10px;font-weight:700;font-family:inherit;cursor:pointer">✅ שולם</button>`
+            : `<button onclick="event.stopPropagation();toggleCheckCleared('${item.checkId}')" style="flex-shrink:0;padding:4px 8px;border:none;border-radius:7px;background:rgba(110,198,58,0.12);color:var(--accent);font-size:10px;font-weight:700;font-family:inherit;cursor:pointer">✅ שולם</button>`;
+          const delay7 = item.debtId
+            ? `<button onclick="event.stopPropagation();pvQuickDelay('${item.debtId}')" style="flex-shrink:0;padding:4px 8px;border:none;border-radius:7px;background:var(--surfaceHi);color:var(--textDim);font-size:10px;font-weight:700;font-family:inherit;cursor:pointer">⏩ +7</button>`
+            : '';
+          const supplierEnc = encodeURIComponent(item.supplier || '');
+          const toSupplier = `<button onclick="event.stopPropagation();setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${supplierEnc}')})" style="flex-shrink:0;padding:4px 8px;border:none;border-radius:7px;background:var(--surfaceHi);color:var(--textDim);font-size:10px;font-weight:600;font-family:inherit;cursor:pointer">→ ספק</button>`;
+          return `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border)">
+            <span style="font-size:14px;flex-shrink:0">${typeIcon(item.type)}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.supplier)}</div>
+              <div style="font-size:10px;color:var(--textDim)">${item.type}</div>
+            </div>
+            <div class="display" style="font-size:14px;font-weight:700;color:var(--text);flex-shrink:0">${fmtCurr(item.amount)}</div>
+            <div style="display:flex;gap:4px;flex-shrink:0">
+              ${quickPaid}${delay7}${toSupplier}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`);
+  });
+
+  // Final week separator
+  if (weekTotal > 0 && dayGroups.length > 0) {
+    timelineRows.push(`<div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;color:var(--textDim);font-size:11px;font-weight:700">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <span>שבוע ${weekNum} · סה"כ ${fmtCurr(weekTotal)}</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>`);
+  }
+
+  const timelineHtml = `
+    <div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:800;color:var(--text)">📅 תזרים תשלומים</div>
+        <div style="display:flex;gap:4px">
+          ${tlRanges.map(r => `<button onclick="setState({pvTimelineRange:'${r}'})"
+            style="padding:4px 10px;border-radius:8px;border:none;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;
+              background:${state.pvTimelineRange===r?'var(--accent)':'var(--surface)'};
+              color:${state.pvTimelineRange===r?'#071302':'var(--textDim)'};
+              border:1px solid ${state.pvTimelineRange===r?'var(--accent)':'var(--border)'}">${r} ימים</button>`).join('')}
+        </div>
+      </div>
+      ${tlFiltered.length ? timelineRows.join('') : `<div style="text-align:center;padding:24px;color:var(--textMuted);font-size:13px">אין תשלומים בטווח הנבחר</div>`}
+    </div>`;
+
+  // ── 4. MONTHLY SUMMARY ────────────────────────────────────────────────────
+  const now = new Date();
+  const monthItems = tlFiltered.filter(item => {
+    const d = parseD(item.date);
+    return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  const monthTotal = monthItems.reduce((s,i)=>s+i.amount,0);
+  const monthChecks = monthItems.filter(i=>i.type.includes("צ'ק")).reduce((s,i)=>s+i.amount,0);
+  const monthTransfer = monthItems.filter(i=>i.type.includes('העברה')).reduce((s,i)=>s+i.amount,0);
+  const monthCash = monthItems.filter(i=>i.type.includes('מזומן')).reduce((s,i)=>s+i.amount,0);
+  const monthCollapsed = state.pvMonthlySummaryCollapsed || false;
+  const monthlySummaryHtml = `
+    <div style="margin-bottom:16px;border-radius:13px;background:var(--surface);border:1px solid var(--border);overflow:hidden">
+      <div onclick="setState({pvMonthlySummaryCollapsed:${!monthCollapsed}})" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer">
+        <div style="font-size:14px;font-weight:800;color:var(--text)">📊 סיכום חודשי</div>
+        <span style="color:var(--textDim);font-size:16px;transform:rotate(${monthCollapsed?'0':'180'}deg);display:inline-block;transition:transform 0.2s">⌄</span>
+      </div>
+      ${!monthCollapsed ? `
+      <div style="padding:0 14px 12px;border-top:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
+          <span style="color:var(--textDim)">סה"כ התחייבויות</span>
+          <span class="display" style="font-weight:700;color:var(--text)">${fmtCurr(monthTotal)}</span>
+        </div>
+        ${monthChecks>0?`<div style="display:flex;justify-content:space-between;padding:5px 0 5px 16px;font-size:12px;border-top:1px solid var(--border)">
+          <span style="color:var(--textDim)">מזה צ'קים</span><span style="color:var(--text)">${fmtCurr(monthChecks)}</span></div>`:''}
+        ${monthTransfer>0?`<div style="display:flex;justify-content:space-between;padding:5px 0 5px 16px;font-size:12px;border-top:1px solid var(--border)">
+          <span style="color:var(--textDim)">מזה העברות</span><span style="color:var(--text)">${fmtCurr(monthTransfer)}</span></div>`:''}
+        ${monthCash>0?`<div style="display:flex;justify-content:space-between;padding:5px 0 5px 16px;font-size:12px;border-top:1px solid var(--border)">
+          <span style="color:var(--textDim)">מזה מזומן</span><span style="color:var(--text)">${fmtCurr(monthCash)}</span></div>`:''}
+      </div>` : ''}
+    </div>`;
+
+  // ── 5. SUPPLIER LIST ──────────────────────────────────────────────────────
   const pf = state.payablesFilter || 'הכל';
   const filters = ['הכל','מאחר','השבוע',"ת\"מ פתוחות","צ'קים",'אין חוב'];
   const filterBar = `
-    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none">
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none">
       ${filters.map(f => `
         <button onclick="setState({payablesFilter:'${f}'})"
-          style="flex-shrink:0;padding:5px 12px;border-radius:20px;border:none;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;
+          style="flex-shrink:0;padding:4px 11px;border-radius:20px;border:none;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;
             background:${pf===f?'var(--accent)':'var(--surface)'};
             color:${pf===f?'#071302':'var(--textDim)'};
             border:1px solid ${pf===f?'var(--accent)':'var(--border)'}">
@@ -5966,12 +6167,9 @@ function renderPayablesDashboard() {
         </button>`).join('')}
     </div>`;
 
-  // ── Compact supplier list ─────────────────────────────────────────────────
   const q = (state.payablesSearch||'').trim().toLowerCase();
   let suppliers = pvGetAllSuppliers();
   if (q) suppliers = suppliers.filter(s => s.toLowerCase().includes(q));
-
-  // Apply filter
   let allStats = suppliers.map(s => ({ name: s, ...pvSupplierStats(s) }));
   if (pf === 'מאחר') allStats = allStats.filter(s => s.status === 'overdue');
   else if (pf === 'השבוע') allStats = allStats.filter(s => s.status === 'soon');
@@ -5982,28 +6180,26 @@ function renderPayablesDashboard() {
 
   const listHtml = allStats.length ? allStats.map(s => {
     const dotColor = s.status==='overdue'?'var(--danger)':s.status==='soon'?'var(--amber)':s.outstanding>0?'var(--accent)':'var(--textMuted)';
-    const openInvoices = (DB.expenses||[]).filter(e => ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type) && pvSupplierNorm(e.supplier)===pvSupplierNorm(s.name) && !pv.debts.find(d=>d.expenseId===e.id&&['paid','cancelled'].includes(d.status))).length;
+    const supOpenInvoices = (DB.expenses||[]).filter(e => ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type) && pvSupplierNorm(e.supplier)===pvSupplierNorm(s.name) && !pv.debts.find(d=>d.expenseId===e.id&&['paid','cancelled'].includes(d.status))).length;
     return `
     <div onclick="setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(s.name)}')})"
-      style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--border);cursor:pointer;margin-bottom:7px">
+      style="display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:11px;background:var(--surface);border:1px solid var(--border);cursor:pointer;margin-bottom:6px">
       <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</div>
-        <div style="font-size:11px;color:var(--textDim);margin-top:1px">
-          ${s.openDNs>0?`<span style="color:var(--blue)">${s.openDNs} ת"מ · </span>`:''}
-          ${openInvoices>0?`<span style="color:var(--amber)">${openInvoices} חשב' · </span>`:''}
+        <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</div>
+        <div style="font-size:10px;color:var(--textDim);margin-top:1px">
+          ${s.openDNs>0?`<span style="color:var(--info)">${s.openDNs} ת"מ · </span>`:''}
+          ${supOpenInvoices>0?`<span style="color:var(--amber)">${supOpenInvoices} חשב' · </span>`:''}
           ${s.debtCount>0?`${s.debtCount} חובות`:'אין חוב'}
         </div>
       </div>
-      <div style="text-align:left;flex-shrink:0">
-        <div class="display" style="font-size:15px;font-weight:700;color:${s.outstanding>0?dotColor:'var(--textMuted)'}">${s.outstanding>0?fmtCurr(s.outstanding):'—'}</div>
-      </div>
-      <div style="color:var(--textMuted);font-size:16px">›</div>
+      <div class="display" style="font-size:14px;font-weight:700;color:${s.outstanding>0?dotColor:'var(--textMuted)'};flex-shrink:0">${s.outstanding>0?fmtCurr(s.outstanding):'—'}</div>
+      <div style="color:var(--textMuted);font-size:15px">›</div>
     </div>`;
   }).join('')
   : `<div style="text-align:center;padding:20px;color:var(--textMuted);font-size:13px">לא נמצאו ספקים</div>`;
 
-  // ── FAB menu ───────────────────────────────────────────────────────────────
+  // ── 6. FAB ────────────────────────────────────────────────────────────────
   const fabItems = [
     {icon:'📄', label:'תעודת משלוח', type:'תעודת משלוח'},
     {icon:'🧾', label:'חשבונית', type:'חשבונית מס'},
@@ -6026,17 +6222,21 @@ function renderPayablesDashboard() {
 
   return `<div style="padding:16px 16px 120px" class="fade-up" onclick="${state.pvFabOpen?'pvCloseFab()':''}">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div style="font-size:17px;font-weight:800;color:var(--text)">ספקים 🏭</div>
+      <div style="font-size:17px;font-weight:800;color:var(--text)">💰 תזרים ספקים</div>
       <button onclick="setState({payablesView:'reconcile'})" style="display:flex;align-items:center;gap:4px;padding:6px 11px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--textDim);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">
-        🔔 התאמות${actionItems.length>0?` <span style="background:var(--danger);color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;margin-right:2px">${actionItems.length}</span>`:''}
+        🔔 התאמות${notPassedDebts.length>0?` <span style="background:var(--danger);color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;margin-right:2px">${notPassedDebts.length}</span>`:''}
       </button>
     </div>
-    ${actionSection}
+    ${accountingAlert}
     ${summaryHtml}
-    <div style="position:relative;margin-bottom:10px">
+    ${actionSection}
+    ${timelineHtml}
+    ${monthlySummaryHtml}
+    <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:10px">ספקים</div>
+    <div style="position:relative;margin-bottom:8px">
       <input type="search" placeholder="🔍 חיפוש ספק..." value="${esc(state.payablesSearch||'')}"
         oninput="pvSearchInput(this.value)"
-        style="width:100%;padding:9px 38px 9px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;font-family:inherit;outline:none;box-sizing:border-box">
+        style="width:100%;padding:8px 14px;background:var(--surface);border:1px solid var(--border);border-radius:11px;color:var(--text);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
     </div>
     ${filterBar}
     <div id="pv-supplier-list">${listHtml}</div>
