@@ -5888,7 +5888,7 @@ function pvOpenConfirm(id, type) {
 }
 
 function pvActionLabel(method) {
-  return 'שולם';
+  return 'לא שולם';
 }
 function pvActionStatus(method) {
   return 'שולם';
@@ -5979,6 +5979,55 @@ function pvDateISO(dateValue) {
   }
   const parsed = parseD(s);
   return parsed && !isNaN(parsed) ? toISO(parsed) : '';
+}
+
+function pvGetPaidItems() {
+  const closedDebts = (pv.debts||[]).filter(d => !pvIsOpenStatus(d.paymentStatus));
+  const clearedChecks = (DB.checks||[]).filter(c => c.cleared);
+  return [
+    ...closedDebts.map(d => ({
+      date: d.paidDate || (d.payments||[]).slice(-1)[0]?.date || d.dueDate || '',
+      supplier: d.supplierName || '',
+      amount: +d.amount || 0,
+      method: d.paymentMethod || '',
+      checkNum: d.checkNumber || '',
+      invoiceNumber: d.invoiceNumber || '',
+    })),
+    ...clearedChecks.map(c => ({
+      date: c.clearedDate || c.clearDate || '',
+      supplier: c.supplier || '',
+      amount: +c.amount || 0,
+      method: "צ'ק",
+      checkNum: c.checkNum || '',
+      invoiceNumber: '',
+    })),
+  ].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+}
+
+function renderPaidPaymentsSection() {
+  const rows = pvGetPaidItems();
+  const recent = rows.slice(0, 30);
+  if (rows.length === 0) return '';
+  return `
+    <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;display:flex;justify-content:space-between;align-items:center">
+      <span>✅ שולמו</span>
+      <span style="font-size:11px;color:var(--textMuted);font-weight:600;letter-spacing:0;text-transform:none">${rows.length} רשומות</span>
+    </div>
+    <div style="padding:0 14px;background:var(--surface);border:1px solid var(--border);border-radius:14px">
+      ${recent.map(item => `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:18px;flex-shrink:0">${pvGetMethodIcon(item.method)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.supplier)}</div>
+            <div style="font-size:11px;color:var(--textDim);margin-top:1px">${fmtDate(item.date)}${item.checkNum?' · מס\' '+esc(item.checkNum):''}${item.invoiceNumber?' · #'+esc(item.invoiceNumber):''}</div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div class="display" style="font-size:13px;font-weight:700;color:var(--text)">${fmtCurr(item.amount)}</div>
+            <div style="font-size:10px;font-weight:800;color:var(--accent);text-align:left;margin-top:2px">שולם</div>
+          </div>
+        </div>`).join('')}
+    </div>
+    ${rows.length > recent.length ? `<div style="font-size:11px;color:var(--textMuted);text-align:center;margin-top:8px">מוצגות ${recent.length} הרשומות האחרונות מתוך ${rows.length}</div>` : ''}`;
 }
 
 function renderPayablesDashboard() {
@@ -6271,6 +6320,7 @@ function renderPayablesDashboard() {
     ${overdueAlert}
     ${summaryHtml}
     ${timelineHtml}
+    ${renderPaidPaymentsSection()}
     ${fabHtml}
   </div>`;
 }
@@ -7250,7 +7300,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=53').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=54').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
