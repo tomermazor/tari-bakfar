@@ -4350,6 +4350,7 @@ function ordersExecuteTransfer(targetSupplierId) {
   ordersSaveDraft();
   const targetSup = findSupplierOdb(targetSupplierId);
   setState({ ordersModal: '', ordersTransferData: null });
+  setTimeout(() => ordersUpdateOrderCounter(), 10);
   toast(`⇄ הועבר ל${targetSup?.name||''} ✓`, 'success');
 }
 
@@ -4925,17 +4926,17 @@ function renderOrdersOrderView() {
       </div>
       <button onclick="ordersOpenManage('${sup.id}','order')" style="width:36px;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:var(--textDim)" title="נהל מוצרים">⚙</button>
     </div>
-    <div style="padding:16px 16px 240px" id="o-order-main">
+    <div style="padding:16px 16px 160px" id="o-order-main">
       ${productsHtml}
     </div>
-    <div style="position:fixed;bottom:60px;right:0;left:0;max-width:480px;margin:0 auto;padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));background:rgba(7,9,10,0.97);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;z-index:10">
+    <div style="position:fixed;bottom:60px;right:0;left:0;max-width:480px;margin:0 auto;padding:8px 12px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));background:rgba(7,9,10,0.97);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;z-index:10">
       <div id="orders-counter" class="o-order-counter" hidden></div>
-      <div style="display:flex;gap:8px">
-        <button onclick="ordersClearOrder()" style="border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:var(--surface);color:var(--text);flex-shrink:0">נקה</button>
-        <button onclick="ordersSaveDraftAndGo()" style="border:1px solid rgba(240,170,36,0.4);border-radius:var(--r-md);padding:14px 13px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:rgba(240,170,36,0.1);color:var(--amber);flex-shrink:0;white-space:nowrap">💾 שמור</button>
-        <button onclick="ordersExportOrder()" style="flex:1;border:none;border-radius:var(--r-md);padding:14px 16px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent) 0%,#52a428 100%);color:#051201;box-shadow:0 6px 20px -6px rgba(110,198,58,0.4)">📤 ייצא לוואטסאפ</button>
+      <div style="display:flex;gap:6px">
+        <button onclick="ordersClearOrder()" style="border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;background:var(--surface);color:var(--text);flex-shrink:0">נקה</button>
+        <button onclick="ordersSaveDraftAndGo()" style="border:1px solid rgba(240,170,36,0.4);border-radius:var(--r-md);padding:10px 11px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;background:rgba(240,170,36,0.1);color:var(--amber);flex-shrink:0;white-space:nowrap">💾 שמור</button>
+        <button onclick="ordersExportOrder()" style="flex:1;border:none;border-radius:var(--r-md);padding:10px 12px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent) 0%,#52a428 100%);color:#051201">📤 לוואטסאפ</button>
+        <button onclick="ordersConfirmOrderSent()" style="flex-shrink:0;border:none;border-radius:var(--r-md);padding:10px 12px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,#4fc46a 0%,#2f9e4a 100%);color:#fff;white-space:nowrap">✓ נשלח</button>
       </div>
-      <button onclick="ordersConfirmOrderSent()" style="width:100%;border:none;border-radius:var(--r-md);padding:14px 16px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,#4fc46a 0%,#2f9e4a 100%);color:#fff;box-shadow:0 6px 20px -6px rgba(47,158,74,0.5);letter-spacing:0.01em">✓ הזמנה נשלחה לספק</button>
     </div>
   </div>`;
 }
