@@ -5861,6 +5861,23 @@ const PV_METHOD_ICONS = {
 };
 function pvGetMethodIcon(m) { return PV_METHOD_ICONS[m] || '📄'; }
 function pvGetStatusIcon(s) { return PV_STATUS_ICONS[s] || '🟡'; }
+// Forward-looking labels for open commitments (not past-tense!)
+function pvOpenLabel(method) {
+  const m = method||'';
+  if (m.includes("צ'ק")||m.includes('צק')) return "💳 צ'ק לפירעון";
+  if (m.includes('העברה')) return '🏦 העברה ממתינה';
+  if (m.includes('מזומן')) return '💵 לתשלום במזומן';
+  if (m.includes('אשראי')) return '💳 חיוב אשראי עתידי';
+  return '📄 ממתין לסגירה';
+}
+function pvActionLabel(method) {
+  const m = method||'';
+  return (m.includes("צ'ק")||m.includes('צק')) ? "✅ סמן כנפרע" : '✅ סמן כשולם';
+}
+function pvActionStatus(method) {
+  const m = method||'';
+  return (m.includes("צ'ק")||m.includes('צק')) ? 'נפרע' : 'שולם';
+}
 function pvIsOpenStatus(s) {
   return !s || !['נפרע','שולם','בוטל'].includes(s);
 }
@@ -6119,36 +6136,39 @@ function renderPayablesDashboard() {
       const canAdvance = debtObj && pvNextStatus(debtObj);
       const nextSt = debtObj ? pvNextStatus(debtObj) : null;
 
+      // Forward-looking action: "סמן כנפרע" / "סמן כשולם"
+      const termStatus = pvActionStatus(p.method);
+      const termLabel  = pvActionLabel(p.method);
       const actionBtn = p.checkId
-        ? `<button onclick="event.stopPropagation();toggleCheckCleared('${p.checkId}')" style="padding:5px 10px;border:none;border-radius:8px;background:rgba(143,198,80,0.12);color:var(--accent);font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">✅ הצ'ק נפרע</button>`
-        : nextSt
-          ? `<button onclick="event.stopPropagation();pvSetPaymentStatus('${p.debtId}','${nextSt}')" style="padding:5px 10px;border:none;border-radius:8px;background:rgba(143,198,80,0.12);color:var(--accent);font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">${pvGetStatusIcon(nextSt)} ${nextSt}</button>`
+        ? `<button onclick="event.stopPropagation();toggleCheckCleared('${p.checkId}')" style="padding:6px 12px;border:none;border-radius:8px;background:rgba(143,198,80,0.12);color:var(--accent);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">✅ סמן כנפרע</button>`
+        : p.debtId
+          ? `<button onclick="event.stopPropagation();pvSetPaymentStatus('${p.debtId}','${termStatus}')" style="padding:6px 12px;border:none;border-radius:8px;background:rgba(143,198,80,0.12);color:var(--accent);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">${termLabel}</button>`
           : '';
 
       const onclick = p.debtId
         ? `setState({payablesView:'debt',payablesDebtId:'${p.debtId}'})`
         : `setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(p.supplier)}')})`;
 
+      // Open-commitment label (forward-looking, not "נפרע")
+      const openLbl = pvOpenLabel(p.method);
+
       timelineRows += `
         <div onclick="${onclick}" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer">
-          <div style="display:flex;align-items:flex-start;gap:10px">
-            <div style="font-size:20px;flex-shrink:0;margin-top:1px">${pvGetMethodIcon(p.method)}</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:22px;flex-shrink:0">${pvGetMethodIcon(p.method)}</div>
             <div style="flex:1;min-width:0">
-              <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.supplier)}</div>
-              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-                ${statusBadge(p.paymentStatus)}
-                ${p.checkNumber?`<span style="font-size:10px;color:var(--textDim)">מס' ${esc(p.checkNumber)}</span>`:''}
-                ${p.invoiceNumber?`<span style="font-size:10px;color:var(--textDim)">#${esc(p.invoiceNumber)}</span>`:''}
+              <div style="font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.supplier)}</div>
+              <div style="font-size:11px;color:var(--textDim);margin-top:2px">
+                ${openLbl}${p.checkNumber?` · מס' ${esc(p.checkNumber)}`:''}${p.invoiceNumber?` · #${esc(p.invoiceNumber)}`:''}
               </div>
             </div>
             <div class="display" style="font-size:16px;font-weight:700;color:var(--text);flex-shrink:0">${fmtCurr(p.amount)}</div>
           </div>
-          ${(actionBtn||p.debtId)?`
           <div style="display:flex;gap:6px;margin-top:8px">
             ${actionBtn}
-            ${p.debtId?`<button onclick="event.stopPropagation();pvQuickDelay('${p.debtId}')" style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">⏩ +7 ימים</button>`:''}
+            ${p.debtId?`<button onclick="event.stopPropagation();pvQuickDelay('${p.debtId}')" style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">⏩ +7</button>`:''}
             <button onclick="event.stopPropagation();setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(p.supplier)}')})" style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--textDim);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">→ ספק</button>
-          </div>`:''}
+          </div>
         </div>`;
     });
     timelineRows += '</div>';
@@ -6176,8 +6196,11 @@ function renderPayablesDashboard() {
   const noItems = sortedPayments.length === 0;
   const timelineHtml = `
     <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-      <span>📅 התחייבויות</span>
-      <button onclick="setState({payablesView:'supplierBook'})" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">📒 ספר ספקים</button>
+      <span>📅 התחייבויות פתוחות</span>
+      <div style="display:flex;gap:6px">
+        <button onclick="setState({payablesView:'archive'})" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">🗂 ארכיון</button>
+        <button onclick="setState({payablesView:'supplierBook'})" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">📒 ספרים</button>
+      </div>
     </div>
     ${filterBar}
     ${noItems
@@ -6795,11 +6818,57 @@ function renderPayablesReconcile() {
 }
 
 // ── Main renderPayables entry ────────────────────────────────────────────────
+function renderPayablesArchive() {
+  const closedDebts = pv.debts.filter(d => !pvIsOpenStatus(d.paymentStatus))
+    .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const clearedChecks = (DB.checks||[]).filter(c=>c.cleared)
+    .sort((a,b)=>parseD(b.clearDate)-parseD(a.clearDate));
+
+  function archiveRow(date, supplier, amount, method, checkNum, status) {
+    const statusColor = status==='נפרע'||status==='שולם'?'var(--accent)':status==='בוטל'?'var(--danger)':'var(--textMuted)';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:18px;flex-shrink:0">${pvGetMethodIcon(method)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(supplier)}</div>
+        <div style="font-size:11px;color:var(--textDim);margin-top:1px">${fmtDate(date)}${checkNum?' · מס\' '+esc(checkNum):''}</div>
+      </div>
+      <div style="text-align:left;flex-shrink:0">
+        <div class="display" style="font-size:13px;font-weight:700;color:var(--text)">${fmtCurr(amount)}</div>
+        <div style="font-size:10px;font-weight:700;color:${statusColor};text-align:left;margin-top:2px">✅ ${status}</div>
+      </div>
+    </div>`;
+  }
+
+  const rows = [
+    ...closedDebts.map(d => archiveRow(
+      d.dueDate||'', d.supplierName||'',
+      (+d.amount||0), d.paymentMethod||'',
+      d.checkNumber||'', d.paymentStatus||'שולם'
+    )),
+    ...clearedChecks.map(c => archiveRow(
+      c.clearDate||'', c.supplier||'',
+      +c.amount||0, "צ'ק", c.note||'', 'נפרע'
+    )),
+  ];
+
+  return `<div style="padding:14px 14px 100px" class="fade-up">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <button onclick="setState({payablesView:'dashboard'})" style="width:36px;height:36px;border:none;border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">‹</button>
+      <h2 class="display" style="font-size:18px;margin:0;flex:1">🗂 ארכיון תשלומים</h2>
+      <span style="font-size:12px;color:var(--textDim)">${rows.length} רשומות</span>
+    </div>
+    ${rows.length === 0
+      ? `<div style="text-align:center;padding:40px;color:var(--textMuted)"><div style="font-size:32px;margin-bottom:8px">📂</div><div>אין תשלומים מוגמרים עדיין</div></div>`
+      : `<div style="padding:0 14px;background:var(--surface);border:1px solid var(--border);border-radius:14px">${rows.join('')}</div>`}
+  </div>`;
+}
+
 function renderPayables() {
   if (state.payablesView === 'supplier') return renderPayablesSupplier();
   if (state.payablesView === 'debt') return renderPayablesDebt();
   if (state.payablesView === 'reconcile') return renderPayablesReconcile();
   if (state.payablesView === 'supplierBook') return renderPayablesSupplierBook();
+  if (state.payablesView === 'archive') return renderPayablesArchive();
   return renderPayablesDashboard();
 }
 
