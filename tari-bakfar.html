@@ -936,7 +936,7 @@ const TABS = [
   {id:'reports',label:'דוחות'},{id:'fixed',label:'קבועות'},
   {id:'installments',label:'תשלומים'},{id:'credits',label:'זיכויים'},
   {id:'workers',label:'עובדים'},{id:'checks',label:"צ'קים"},
-  {id:'payables',label:'חובות'},
+  {id:'payables',label:'ספקים'},
   {id:'products',label:'מוצרים'},
 ];
 
@@ -4473,11 +4473,12 @@ function renderPayablesSupplier() {
     : debts.map(d => {
         const remaining = (+d.amount||0) - (+d.paidAmount||0);
         return `
-          <div onclick="setState({payablesView:'debt',payablesDebtId:'${d.id}'})" style="padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer">
+          <div onclick="setState({payablesView:'debt',payablesDebtId:'${d.id}'})" style="padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:8px">
             <div style="display:flex;align-items:center;gap:8px">
               <div style="flex:1;min-width:0">
                 <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(d.invoiceNumber||'ללא מספר')} · לתשלום: ${d.dueDate ? fmtDate(d.dueDate) : '—'}</div>
                 <div style="font-size:11px;color:var(--textDim)">שולם: ${fmtCurr(d.paidAmount||0)} / ${fmtCurr(d.amount||0)}</div>
+                ${!d.accountingPassed ? `<div style="font-size:10px;color:var(--amber);font-weight:700;margin-top:2px">⚠️ טרם עבר להנה"ח</div>` : `<div style="font-size:10px;color:var(--accent);font-weight:700;margin-top:2px">✅ עבר להנה"ח</div>`}
               </div>
               <div style="text-align:left">
                 <div class="display" style="font-size:14px;font-weight:700;color:${remaining>0?'var(--danger)':'var(--accent)'}">${fmtCurr(remaining)}</div>
@@ -4577,6 +4578,16 @@ function renderPayablesDebt() {
         <span style="font-size:13px;color:var(--textDim)">הערות: </span>
         <span style="font-size:13px">${esc(debt.notes)}</span>
       </div>` : ''}
+      <!-- Accounting checkbox -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+        <span style="font-size:13px;color:var(--textDim)">עבר להנהלת חשבונות</span>
+        <button onclick="pvToggleAccounting('${debt.id}')"
+          style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;
+            background:${debt.accountingPassed ? 'rgba(143,198,80,0.15)' : 'var(--surfaceHi)'};
+            color:${debt.accountingPassed ? 'var(--accent)' : 'var(--textMuted)'}">
+          ${debt.accountingPassed ? '✅ עבר' : '⬜ טרם עבר'}
+        </button>
+      </div>
     </div>
 
     <!-- Payments history -->
@@ -4592,6 +4603,14 @@ function renderPayablesDebt() {
       <button onclick="pvCancelDebt('${debt.id}')" style="padding:13px 16px;border:none;border-radius:12px;background:var(--dangerSoft);color:var(--danger);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">🗑</button>
     </div>` : ''}
   </div>`;
+}
+
+function pvToggleAccounting(debtId) {
+  const debt = pv.debts.find(d => d.id === debtId);
+  if (!debt) return;
+  debt.accountingPassed = !debt.accountingPassed;
+  savePv(true);
+  setState({});
 }
 
 // ── Main renderPayables entry ────────────────────────────────────────────────
