@@ -1181,29 +1181,27 @@ function renderDashboard() {
 
   const hasAlerts = overdueChecks.length>0||soonChecks.length>0||pendingAcc>0||openCredits.length>0;
 
-  const deskPad = window.innerWidth>=768 ? '24px 28px 32px' : '16px 16px 24px';
   return `
-  <div style="padding:${deskPad}" class="fade-up">
+  <div style="padding:16px 16px 24px" class="fade-up">
 
     <!-- Greeting row -->
-    <div style="margin-bottom:${window.innerWidth>=768?'24':'16'}px">
-      <h1 class="display" style="font-size:26px;color:#0F172A;margin:0 0 4px">${greeting} 👋</h1>
-      <p style="font-size:13px;color:#64748B;margin:0">${dateStr} · הנה סיכום העסק שלך</p>
+    <div style="margin-bottom:16px">
+      <h1 class="display" style="font-size:24px;color:#0F172A;margin:0 0 4px">${greeting} 👋</h1>
+      <p style="font-size:12px;color:#64748B;margin:0">${dateStr}</p>
     </div>
 
     <!-- KPI row -->
-    <div style="display:grid;grid-template-columns:${window.innerWidth>=768?'repeat(4,1fr)':'1fr 1fr'};gap:${window.innerWidth>=768?'14':'10'}px;margin-bottom:${window.innerWidth>=768?'24':'16'}px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       ${card('💰','#DCFCE7','הכנסות השבוע',fmtCurr(weekIncTotal),`היום: ${fmtCurr(todayIncTotal)}`)}
       ${card('📉','#FEE2E2','הוצאות השבוע',fmtCurr(weekExpTotal),`${weekExpCount} רשומות`)}
       ${card(weekProfit>=0?'📈':'📊',weekProfit>=0?'#DCFCE7':'#FEE2E2','רווח השבוע',(weekProfit>=0?'+':'')+fmtCurr(weekProfit),weekIncTotal>0?`${Math.abs(Math.round(weekProfit/weekIncTotal*100))}% מרווח`:'אין הכנסות')}
       ${card('📋','#FEF3C7','ממתינות להנה"ח',pendingAcc.toString(),`${fmtCurr(monthTotal)} החודש`,pendingAcc>0?badge('!','#D97706','#FEF3C7'):'')}
     </div>
 
-    <!-- Main grid: left alerts + right table -->
-    <div style="display:grid;grid-template-columns:${window.innerWidth>=768?'1fr 2.2fr':'1fr'};gap:${window.innerWidth>=768?'18':'14'}px;align-items:start">
+    <!-- Single column layout for mobile -->
+    <div style="display:flex;flex-direction:column;gap:14px">
 
-      <!-- Left column -->
-      <div style="display:flex;flex-direction:column;gap:14px">
+      <!-- Alerts + Quick actions + Checks -->
 
         <!-- Alerts -->
         <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)">
@@ -1242,10 +1240,7 @@ function renderDashboard() {
           <div style="font-size:11px;color:#64748B">${openChecks.length} צ'קים · הבא: ${fmtDate(openChecks[0]?.clearDate||'')}</div>
         </div>`:''}
 
-      </div>
-
-      <!-- Right column -->
-      <div style="display:flex;flex-direction:column;gap:14px">
+      <!-- Chart + Recent expenses -->
 
         <!-- Bar chart -->
         <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)">
@@ -1267,19 +1262,25 @@ function renderDashboard() {
           </div>
           ${recentExp.length===0
             ? `<div style="text-align:center;padding:36px 20px;color:#94A3B8;font-size:13px">אין הוצאות עדיין</div>`
-            : `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:400px">
-                <thead><tr style="background:#F8FAFC">
-                  <th style="padding:9px 16px;text-align:right;font-size:10.5px;font-weight:600;color:#64748B;letter-spacing:0.04em;border-bottom:1px solid #F1F5F9">ספק</th>
-                  <th style="padding:9px 8px;text-align:right;font-size:10.5px;font-weight:600;color:#64748B;letter-spacing:0.04em;border-bottom:1px solid #F1F5F9">קטגוריה</th>
-                  <th style="padding:9px 8px;text-align:right;font-size:10.5px;font-weight:600;color:#64748B;letter-spacing:0.04em;border-bottom:1px solid #F1F5F9">סטטוס</th>
-                  <th style="padding:9px 16px;text-align:left;font-size:10.5px;font-weight:600;color:#64748B;letter-spacing:0.04em;border-bottom:1px solid #F1F5F9">סכום</th>
-                  <th style="padding:9px 10px;border-bottom:1px solid #F1F5F9"></th>
-                </tr></thead>
-                <tbody>${recentExp.map(tableRow).join('')}</tbody>
-              </table></div>`
+            : recentExp.map(e => {
+                const c = getCatColor(e.category);
+                const docShort = {'תעודת משלוח':'ת"מ','חשבונית מס':'חשב"מ','חשבונית מס קבלה':'חשב"מ קבלה','קבלה':'קבלה'}[e.document_type] || (e.document_type||'');
+                return `
+                <div onclick="setState({tab:'list',listOpen:'${e.id}'})" style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #F1F5F9;cursor:pointer">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:600;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.supplier||'—')}</div>
+                    <div style="display:flex;align-items:center;gap:5px;margin-top:2px;flex-wrap:nowrap">
+                      <span style="font-size:10px;font-weight:600;background:${c}18;color:${c};padding:1px 6px;border-radius:100px;white-space:nowrap;flex-shrink:0">${esc(e.category)}</span>
+                      <span style="font-size:10px;color:#94A3B8;flex-shrink:0">${docShort}</span>
+                      <span style="font-size:10px;color:#94A3B8;flex-shrink:0">${fmtDate(e.date)}</span>
+                    </div>
+                  </div>
+                  <div class="display" style="font-size:14px;font-weight:700;color:#0F172A;flex-shrink:0">${fmtCurr(e.total_amount)}</div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="2" style="flex-shrink:0"><polyline points="9 18 3 12 9 6"/></svg>
+                </div>`;
+              }).join('')
           }
         </div>
-      </div>
     </div>
   </div>`;
 }
