@@ -2601,6 +2601,22 @@ function pvOpenLinkCheckToDebt(checkId) {
   setState({payablesModal:'link-check-to-debt', payablesModalData:{checkId}});
 }
 
+function pvOpenEditCheck(checkId) {
+  const c = (DB.checks||[]).find(x => x.id === checkId);
+  if (!c) return;
+  setState({payablesModal:'edit-check', payablesModalData:{
+    checkId,
+    supplier: c.supplier || '',
+    amount: String(+c.amount || 0),
+    checkNum: c.checkNum || '',
+    issueDate: heToISO(c.issueDate || todayStr()),
+    clearDate: heToISO(c.clearDate || todayStr()),
+    paidDate: pvDateISO(c.clearedDate || '') || pvTodayISO(),
+    note: c.note || '',
+    paidState: c.cleared ? 'paid' : 'open'
+  }});
+}
+
 function toggleCheckCleared(id) {
   const c = DB.checks.find(x => x.id === id);
   if (!c) return;
@@ -6091,6 +6107,7 @@ function pvGetPaidItems() {
       method: d.paymentMethod || '',
       checkNum: d.checkNumber || '',
       invoiceNumber: d.invoiceNumber || '',
+      debtId: d.id,
     })),
     ...clearedChecks.map(c => ({
       date: c.clearedDate || c.clearDate || '',
@@ -6099,6 +6116,7 @@ function pvGetPaidItems() {
       method: "צ'ק",
       checkNum: c.checkNum || '',
       invoiceNumber: '',
+      checkId: c.id,
     })),
   ].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
 }
@@ -6114,7 +6132,7 @@ function renderPaidPaymentsSection() {
     </div>
     <div style="padding:0 14px;background:var(--surface);border:1px solid var(--border);border-radius:14px">
       ${recent.map(item => `
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div onclick="${item.debtId?`setState({payablesView:'debt',payablesDebtId:'${item.debtId}'})`:item.checkId?`pvOpenEditCheck('${item.checkId}')`:''}" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:${item.debtId||item.checkId?'pointer':'default'}">
           <div style="font-size:18px;flex-shrink:0">${pvGetMethodIcon(item.method)}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.supplier)}</div>
@@ -6321,7 +6339,7 @@ function renderPayablesDashboard() {
     items.forEach(p => {
       const onclick = p.debtId
         ? `setState({payablesView:'debt',payablesDebtId:'${p.debtId}'})`
-        : `setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(p.supplier)}')})`;
+        : `pvOpenEditCheck('${p.checkId}')`;
 
       const openLbl = pvOpenLabel(p.method);
       const itemOverdue = p.date && p.date < today;
@@ -6815,6 +6833,7 @@ function renderPayablesDebt() {
         <h2 class="display" style="font-size:17px;margin:0">${esc(debt.supplierName)}</h2>
         <div style="font-size:12px;color:var(--textDim)">חשבונית: ${esc(debt.invoiceNumber||'ללא מספר')}</div>
       </div>
+      <button onclick="pvOpenEditDebt('${debt.id}')" style="border:1px solid var(--border);border-radius:10px;padding:7px 12px;background:var(--surface);color:var(--text);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">ערוך</button>
       ${pvDebtStatusBadge(debt)}
     </div>
 
@@ -6852,7 +6871,7 @@ function renderPayablesDebt() {
         <span style="font-size:13px;font-weight:600">${esc(debt.paymentMethod||'—')}</span>
       </div>
       ${debt.checkNumber ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:13px;color:var(--textDim)">מספר צ'ק</span>
+        <span style="font-size:13px;color:var(--textDim)">מספר צ'ק / אסמכתא</span>
         <span style="font-size:13px;font-weight:600">${esc(debt.checkNumber)}</span>
       </div>` : ''}
       ${debt.notes ? `<div style="padding:6px 0">
@@ -6886,10 +6905,11 @@ function renderPayablesDebt() {
 
     <!-- Actions -->
     ${debt.status !== 'cancelled' ? `
-    <div style="display:flex;gap:10px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       ${remaining > 0 ? `<button type="button" onclick="pvOpenConfirm('${debt.id}','debt')" style="flex:1;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#071302;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer">שולם</button>` : ''}
-      <button onclick="setState({payablesModal:'record-payment',payablesModalData:{debtId:'${debt.id}'}})" style="flex:1;padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">רשום תשלום חלקי</button>
-      <button onclick="pvCancelDebt('${debt.id}')" style="padding:13px 16px;border:none;border-radius:12px;background:var(--dangerSoft);color:var(--danger);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">🗑</button>
+      <button onclick="pvOpenEditDebt('${debt.id}')" style="padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">ערוך תנועה</button>
+      <button onclick="setState({payablesModal:'record-payment',payablesModalData:{debtId:'${debt.id}'}})" style="padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">תשלום חלקי</button>
+      <button onclick="pvCancelDebt('${debt.id}')" style="padding:13px 16px;border:none;border-radius:12px;background:var(--dangerSoft);color:var(--danger);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">בטל</button>
     </div>` : ''}
   </div>`;
 }
@@ -6901,6 +6921,25 @@ function pvOpenDirectDebt(sup) {
 function pvGetDebtInvoiceImage(debtId) {
   const debt = pv.debts.find(d => d.id === debtId);
   return debt ? (debt.invoiceImage || '') : '';
+}
+
+function pvOpenEditDebt(debtId) {
+  const debt = pv.debts.find(d => d.id === debtId);
+  if (!debt) return;
+  setState({payablesModal:'edit-debt', payablesModalData:{
+    debtId,
+    supplier: debt.supplierName || '',
+    invoiceNumber: debt.invoiceNumber || '',
+    amount: String(+debt.amount || 0),
+    dueDate: debt.dueDate || '',
+    paidDate: debt.paidDate || pvTodayISO(),
+    paymentMethod: debt.paymentMethod || "צ'ק",
+    checkNumber: debt.checkNumber || '',
+    notes: debt.notes || '',
+    accountingPassed: !!debt.accountingPassed,
+    invoiceImage: debt.invoiceImage || null,
+    paidState: (!pvIsOpenStatus(debt.paymentStatus) || debt.status === 'paid') ? 'paid' : 'open'
+  }});
 }
 
 function pvOpenDebtFromExpense(expId, supplier, amount, invoiceNumber, date) {
@@ -7039,6 +7078,8 @@ function renderPayablesModal() {
   switch(state.payablesModal) {
     case 'link-dn': return renderPvModalLinkDN();
     case 'add-direct': return renderPvModalAddDirect();
+    case 'edit-debt': return renderPvModalEditDebt();
+    case 'edit-check': return renderPvModalEditCheck();
     case 'record-payment': return renderPvModalRecordPayment();
     case 'link-check-to-debt': return renderPvModalLinkCheckToDebt();
     case 'confirm-paid': return renderPvModalConfirmPaid();
@@ -7286,6 +7327,147 @@ function pvAddDirectConfirm() {
   toast('חוב נוסף ✓', 'success');
 }
 
+function renderPvModalEditDebt() {
+  const d = state.payablesModalData || {};
+  const selectedPaymentMethod = d.paymentMethod || "צ'ק";
+  const isPaid = d.paidState === 'paid';
+  const body = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <button type="button" onclick="state.payablesModalData.paidState='open';render()"
+        style="padding:11px;border:1.5px solid ${!isPaid?'var(--accent)':'var(--border)'};border-radius:12px;background:${!isPaid?'var(--accentSoft)':'var(--surfaceHi)'};color:${!isPaid?'var(--accent)':'var(--textDim)'};font-size:13px;font-weight:800;font-family:inherit;cursor:pointer">לא שולם</button>
+      <button type="button" onclick="state.payablesModalData.paidState='paid';render()"
+        style="padding:11px;border:1.5px solid ${isPaid?'var(--accent)':'var(--border)'};border-radius:12px;background:${isPaid?'var(--accentSoft)':'var(--surfaceHi)'};color:${isPaid?'var(--accent)':'var(--textDim)'};font-size:13px;font-weight:800;font-family:inherit;cursor:pointer">שולם</button>
+    </div>
+    <div class="field"><label class="label">ספק</label><input class="input" value="${esc(d.supplier||'')}" oninput="state.payablesModalData.supplier=this.value"></div>
+    <div class="field"><label class="label">מספר חשבונית</label><input class="input" value="${esc(d.invoiceNumber||'')}" oninput="state.payablesModalData.invoiceNumber=this.value"></div>
+    <div class="field"><label class="label">סכום ₪</label><input class="input" type="number" inputmode="decimal" value="${esc(d.amount||'')}" oninput="state.payablesModalData.amount=this.value"></div>
+    <div class="row">
+      <div class="field"><label class="label">תאריך פירעון</label><input class="input" type="date" value="${d.dueDate||''}" oninput="state.payablesModalData.dueDate=this.value"></div>
+      ${isPaid ? `<div class="field"><label class="label">תאריך תשלום</label><input class="input" type="date" value="${d.paidDate||pvTodayISO()}" oninput="state.payablesModalData.paidDate=this.value"></div>` : ''}
+    </div>
+    <div class="field"><label class="label">דרך תשלום</label><select class="input" onchange="state.payablesModalData.paymentMethod=this.value;render()">
+      ${PV_PAYMENT_METHODS.map(m=>`<option value="${m}" ${selectedPaymentMethod===m?'selected':''}>${m}</option>`).join('')}
+    </select></div>
+    <div class="field"><label class="label">מספר צ'ק / אסמכתא</label><input class="input" value="${esc(d.checkNumber||'')}" oninput="state.payablesModalData.checkNumber=this.value"></div>
+    ${pvInvoiceImagePickerHtml(d.invoiceImage||'')}
+    <div class="field"><label class="label">הערות</label><input class="input" value="${esc(d.notes||'')}" oninput="state.payablesModalData.notes=this.value"></div>
+    <label style="display:flex;align-items:center;gap:8px;padding:10px 0;font-size:13px;color:var(--text);font-weight:700;cursor:pointer">
+      <input type="checkbox" ${d.accountingPassed?'checked':''} onchange="state.payablesModalData.accountingPassed=this.checked" style="width:17px;height:17px;accent-color:var(--accent)">
+      עבר להנהלת חשבונות
+    </label>`;
+  return pvModalWrap('עריכת תנועת ספק', body, 'שמור', 'pvEditDebtConfirm', `setState({payablesModal:'',payablesModalData:null})`);
+}
+
+function pvEditDebtConfirm() {
+  const d = state.payablesModalData || {};
+  const debt = pv.debts.find(x => x.id === d.debtId);
+  if (!debt) return;
+  const amount = +(d.amount||0);
+  if (!d.supplier) { toast('נא להזין שם ספק', 'error'); return; }
+  if (!amount || amount <= 0) { toast('נא להזין סכום', 'error'); return; }
+
+  debt.supplierName = d.supplier.trim();
+  debt.invoiceNumber = d.invoiceNumber || '';
+  debt.amount = amount;
+  debt.dueDate = d.dueDate || '';
+  debt.paymentMethod = d.paymentMethod || "צ'ק";
+  debt.checkNumber = d.checkNumber || '';
+  debt.notes = d.notes || '';
+  debt.accountingPassed = !!d.accountingPassed;
+  debt.invoiceImage = d.invoiceImage || null;
+
+  if (d.paidState === 'paid') {
+    const paidDate = d.paidDate || pvTodayISO();
+    debt.status = 'paid';
+    debt.paymentStatus = pvActionStatus(debt.paymentMethod);
+    debt.paidAmount = amount;
+    debt.paidDate = paidDate;
+    debt.closedAt = Date.now();
+    debt.payments = [{
+      id: uid(),
+      amount,
+      date: paidDate,
+      method: debt.paymentMethod,
+      reference: debt.checkNumber || '',
+      notes: 'עודכן בעריכה',
+      finalStatus: debt.paymentStatus,
+      createdAt: Date.now()
+    }];
+  } else {
+    debt.status = 'open';
+    debt.paymentStatus = pvIsCheckMethod(debt.paymentMethod) ? 'ממתין לפירעון' : 'ממתין';
+    debt.paidAmount = 0;
+    debt.payments = [];
+    delete debt.paidDate;
+    delete debt.closedAt;
+  }
+
+  if (debt.taxInvoiceId) {
+    const ti = pv.taxInvoices.find(x => x.id === debt.taxInvoiceId);
+    if (ti) {
+      ti.supplierName = debt.supplierName;
+      ti.invoiceNumber = debt.invoiceNumber;
+      ti.amount = amount;
+      ti.invoiceImage = debt.invoiceImage || null;
+      ti.notes = debt.notes || '';
+    }
+  }
+
+  savePv(true);
+  setState({payablesModal:'', payablesModalData:null, payablesView:'debt', payablesDebtId:debt.id});
+  toast('התנועה עודכנה ✓', 'success');
+}
+
+function renderPvModalEditCheck() {
+  const d = state.payablesModalData || {};
+  const isPaid = d.paidState === 'paid';
+  const body = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <button type="button" onclick="state.payablesModalData.paidState='open';render()"
+        style="padding:11px;border:1.5px solid ${!isPaid?'var(--accent)':'var(--border)'};border-radius:12px;background:${!isPaid?'var(--accentSoft)':'var(--surfaceHi)'};color:${!isPaid?'var(--accent)':'var(--textDim)'};font-size:13px;font-weight:800;font-family:inherit;cursor:pointer">לא שולם</button>
+      <button type="button" onclick="state.payablesModalData.paidState='paid';render()"
+        style="padding:11px;border:1.5px solid ${isPaid?'var(--accent)':'var(--border)'};border-radius:12px;background:${isPaid?'var(--accentSoft)':'var(--surfaceHi)'};color:${isPaid?'var(--accent)':'var(--textDim)'};font-size:13px;font-weight:800;font-family:inherit;cursor:pointer">שולם</button>
+    </div>
+    <div class="field"><label class="label">ספק</label><input class="input" value="${esc(d.supplier||'')}" oninput="state.payablesModalData.supplier=this.value"></div>
+    <div class="field"><label class="label">סכום ₪</label><input class="input" type="number" inputmode="decimal" value="${esc(d.amount||'')}" oninput="state.payablesModalData.amount=this.value"></div>
+    <div class="field"><label class="label">מספר צ'ק / אסמכתא</label><input class="input" value="${esc(d.checkNum||'')}" oninput="state.payablesModalData.checkNum=this.value"></div>
+    <div class="row">
+      <div class="field"><label class="label">תאריך מסירה</label><input class="input" type="date" value="${d.issueDate||todayISO()}" oninput="state.payablesModalData.issueDate=this.value"></div>
+      <div class="field"><label class="label">תאריך פירעון</label><input class="input" type="date" value="${d.clearDate||todayISO()}" oninput="state.payablesModalData.clearDate=this.value"></div>
+    </div>
+    ${isPaid ? `<div class="field"><label class="label">תאריך תשלום</label><input class="input" type="date" value="${d.paidDate||pvTodayISO()}" oninput="state.payablesModalData.paidDate=this.value"></div>` : ''}
+    <div class="field"><label class="label">הערות</label><input class="input" value="${esc(d.note||'')}" oninput="state.payablesModalData.note=this.value"></div>`;
+  return pvModalWrap('עריכת צ׳ק ספק', body, 'שמור', 'pvEditCheckConfirm', `setState({payablesModal:'',payablesModalData:null})`);
+}
+
+function pvEditCheckConfirm() {
+  const d = state.payablesModalData || {};
+  const c = (DB.checks||[]).find(x => x.id === d.checkId);
+  if (!c) return;
+  const amount = +(d.amount||0);
+  if (!d.supplier) { toast('נא להזין שם ספק', 'error'); return; }
+  if (!amount || amount <= 0) { toast('נא להזין סכום', 'error'); return; }
+  if (!d.clearDate) { toast('נא להזין תאריך פירעון', 'error'); return; }
+
+  c.supplier = d.supplier.trim();
+  c.amount = amount;
+  c.checkNum = d.checkNum || '';
+  c.issueDate = isoToHe(d.issueDate || todayISO());
+  c.clearDate = isoToHe(d.clearDate || todayISO());
+  c.note = d.note || '';
+  c.cleared = d.paidState === 'paid';
+  if (c.cleared) c.clearedDate = d.paidDate || pvTodayISO();
+  else delete c.clearedDate;
+
+  persistLocal();
+  PENDING.push({action:'delete_check', payload:{id:c.id}});
+  PENDING.push({action:'add_check', payload:{payload:c}});
+  localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+  if (CFG.webAppUrl) syncAll();
+  setState({payablesModal:'', payablesModalData:null});
+  toast('הצ׳ק עודכן ✓', 'success');
+}
+
 // Modal: record payment
 function renderPvModalRecordPayment() {
   const d = state.payablesModalData || {};
@@ -7419,7 +7601,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=56').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=57').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
