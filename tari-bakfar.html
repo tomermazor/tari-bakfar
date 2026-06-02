@@ -5887,6 +5887,61 @@ function pvOpenConfirm(id, type) {
   setState({payablesModal:'confirm-paid', payablesModalData:{id, type}});
 }
 
+function pvInvoiceImagePickerHtml(image) {
+  return `
+    <div class="field">
+      <label class="label">צילום חשבונית מס</label>
+      ${image ? `
+        <div style="position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--border);margin-bottom:8px;background:#000">
+          <img src="${image}" style="width:100%;max-height:170px;object-fit:contain;display:block">
+          <button type="button" onclick="state.payablesModalData.invoiceImage=null;render()" style="position:absolute;top:7px;left:7px;width:28px;height:28px;border:none;border-radius:50%;background:rgba(0,0,0,0.65);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+        </div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button type="button" onclick="pvPickInvoiceImage('camera')" style="padding:10px;border:1px dashed var(--borderHi);border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">📷 צלם</button>
+        <button type="button" onclick="pvPickInvoiceImage('gallery')" style="padding:10px;border:1px dashed var(--borderHi);border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">🖼 העלה</button>
+      </div>
+    </div>`;
+}
+
+function pvPickInvoiceImage(source) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  if (source === 'camera') inp.capture = 'environment';
+  inp.style.display = 'none';
+  document.body.appendChild(inp);
+  inp.onchange = () => {
+    pvHandleInvoiceImage(inp.files && inp.files[0]);
+    document.body.removeChild(inp);
+  };
+  inp.click();
+}
+
+function pvHandleInvoiceImage(file) {
+  if (!file) return;
+  const rd = new FileReader();
+  rd.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const max = 1400;
+      let w = img.width, h = img.height;
+      if (w > max || h > max) {
+        const r = Math.min(max / w, max / h);
+        w = Math.round(w * r); h = Math.round(h * r);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      state.payablesModalData = state.payablesModalData || {};
+      state.payablesModalData.invoiceImage = canvas.toDataURL('image/jpeg', 0.74);
+      render();
+      toast('צילום נשמר ✓', 'success');
+    };
+    img.src = e.target.result;
+  };
+  rd.readAsDataURL(file);
+}
+
 function pvActionLabel(method) {
   return 'לא שולם';
 }
@@ -6597,7 +6652,7 @@ function _renderPayablesSupplierInner() {
               <div style="display:flex;align-items:center;gap:8px">
                 <div style="flex:1;min-width:0">
                   <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(ti.invoiceNumber||'ללא מספר')} · ${fmtDate(ti.date)}</div>
-                  <div style="font-size:11px;color:var(--textDim)">${(ti.deliveryNoteIds||[]).length} ת"מ · ${fmtCurr(ti.amount)}</div>
+                  <div style="font-size:11px;color:var(--textDim)">${(ti.deliveryNoteIds||[]).length} ת"מ · ${fmtCurr(ti.amount)}${ti.invoiceImage?' · 📷':''}</div>
                 </div>
                 ${linkedDebt
                   ? `<div onclick="setState({payablesView:'debt',payablesDebtId:'${linkedDebt.id}'})" style="cursor:pointer">${pvDebtStatusBadge(linkedDebt)}</div>`
@@ -6617,7 +6672,7 @@ function _renderPayablesSupplierInner() {
               <div style="display:flex;align-items:center;gap:8px">
                 <div style="flex:1;min-width:0">
                   <div style="font-size:13px;font-weight:600;color:var(--text)">${eNum} · ${fmtDate(e.date)}</div>
-                  <div style="font-size:11px;color:var(--textDim)">${fmtCurr(eAmt)} ${accBadge}</div>
+                  <div style="font-size:11px;color:var(--textDim)">${fmtCurr(eAmt)}${e.image?' · 📷':''} ${accBadge}</div>
                 </div>
                 ${linkedDebt
                   ? `<div onclick="setState({payablesView:'debt',payablesDebtId:'${linkedDebt.id}'})" style="cursor:pointer">${pvDebtStatusBadge(linkedDebt)}</div>`
@@ -6804,6 +6859,13 @@ function renderPayablesDebt() {
         <span style="font-size:13px;color:var(--textDim)">הערות: </span>
         <span style="font-size:13px">${esc(debt.notes)}</span>
       </div>` : ''}
+      ${debt.invoiceImage ? `
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;color:var(--textDim);margin-bottom:8px">צילום חשבונית</div>
+        <button onclick="setState({viewCreditImage:pvGetDebtInvoiceImage('${debt.id}')})" style="width:100%;border:none;border-radius:12px;overflow:hidden;background:#000;padding:0;cursor:pointer">
+          <img src="${debt.invoiceImage}" style="width:100%;max-height:190px;object-fit:contain;display:block">
+        </button>
+      </div>` : ''}
       <!-- Accounting checkbox -->
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
         <span style="font-size:13px;color:var(--textDim)">עבר להנהלת חשבונות</span>
@@ -6834,6 +6896,11 @@ function renderPayablesDebt() {
 
 function pvOpenDirectDebt(sup) {
   setState({payablesModal:'add-direct', payablesModalData:{supplier:sup}});
+}
+
+function pvGetDebtInvoiceImage(debtId) {
+  const debt = pv.debts.find(d => d.id === debtId);
+  return debt ? (debt.invoiceImage || '') : '';
 }
 
 function pvOpenDebtFromExpense(expId, supplier, amount, invoiceNumber, date) {
@@ -7106,6 +7173,7 @@ function renderPvModalLinkDN() {
       ${PV_PAYMENT_METHODS.map(m=>`<option value="${m}" ${selectedPaymentMethod===m?'selected':''}>${m}</option>`).join('')}
     </select></div>
     ${selectedPaymentMethod === "צ'ק" ? `<div class="field"><label class="label">מספר צ'ק</label><input class="input" value="${esc(data.checkNumber||'')}" oninput="state.payablesModalData.checkNumber=this.value"></div>` : ''}
+    ${pvInvoiceImagePickerHtml(data.invoiceImage||'')}
     <div class="field"><label class="label">הערות</label><input class="input" value="${esc(data.notes||'')}" oninput="state.payablesModalData.notes=this.value"></div>`;
   return pvModalWrap('שיוך לחשבונית מס — פרטים', body2, 'שמור', 'pvLinkDNConfirm', `setState({payablesModal:'',payablesModalData:null})`);
 }
@@ -7136,6 +7204,7 @@ function pvLinkDNConfirm() {
     date: d.invoiceDate || todayISO(),
     amount: +(d.invoiceAmount||0),
     deliveryNoteIds: d.selectedDNIds || [],
+    invoiceImage: d.invoiceImage || null,
     notes: d.notes || '',
     createdAt: Date.now(),
   };
@@ -7151,6 +7220,7 @@ function pvLinkDNConfirm() {
     dueDate: d.dueDate || '',
     paymentMethod: d.paymentMethod || "צ'ק",
     checkNumber: d.checkNumber || '',
+    invoiceImage: d.invoiceImage || null,
     paymentStatus: pvIsCheckMethod(d.paymentMethod || "צ'ק") ? 'ממתין לפירעון' : 'ממתין',
     notes: d.notes || '',
     status: 'open',
@@ -7181,6 +7251,7 @@ function renderPvModalAddDirect() {
       ${PV_PAYMENT_METHODS.map(m=>`<option value="${m}" ${selectedPaymentMethod===m?'selected':''}>${m}</option>`).join('')}
     </select></div>
     ${selectedPaymentMethod === "צ'ק" ? `<div class="field"><label class="label">מספר צ'ק</label><input class="input" value="${esc(d.checkNumber||'')}" oninput="state.payablesModalData.checkNumber=this.value"></div>` : ''}
+    ${pvInvoiceImagePickerHtml(d.invoiceImage||'')}
     <div class="field"><label class="label">הערות</label><input class="input" value="${esc(d.notes||'')}" oninput="state.payablesModalData.notes=this.value"></div>`;
   return pvModalWrap('הוספת חוב ישיר', body, 'שמור', 'pvAddDirectConfirm', `setState({payablesModal:'',payablesModalData:null})`);
 }
@@ -7201,6 +7272,7 @@ function pvAddDirectConfirm() {
     dueDate: d.dueDate || '',
     paymentMethod: d.paymentMethod || "צ'ק",
     checkNumber: d.checkNumber || '',
+    invoiceImage: d.invoiceImage || null,
     paymentStatus: pvIsCheckMethod(d.paymentMethod || "צ'ק") ? 'ממתין לפירעון' : 'ממתין',
     notes: d.notes || '',
     status: 'open',
@@ -7282,6 +7354,7 @@ function pvAutoCreateDebtFromExpense(item) {
     dueDate: item.paymentDueDate || '',
     paymentMethod: "צ'ק",
     checkNumber: '',
+    invoiceImage: item.image || null,
     paymentStatus: 'ממתין לפירעון',
     notes: item.paymentTerms ? 'תנאים: '+item.paymentTerms : '',
     status: 'open',
@@ -7316,6 +7389,7 @@ function pvCreateDebtFromTI(tiId) {
     dueDate: '',
     paymentMethod: "צ'ק",
     checkNumber: '',
+    invoiceImage: ti.invoiceImage || null,
     paymentStatus: 'ממתין לפירעון',
     notes: ti.notes || '',
     status: 'open',
@@ -7345,7 +7419,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=55').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=56').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
