@@ -641,19 +641,24 @@ function toast(msg, type='info') {
 // categoryField – e.g. 'category' – auto-filled when a known supplier is chosen
 function supplierInput(formStateRef, fieldName, currentVal, categoryField) {
   const listId = 'sup-dl-' + fieldName.replace('.','_');
+  const suppliers = getApprovedSuppliers();
+  const currentSupplier = findApprovedSupplier(currentVal);
+  const needsChoice = currentVal && !currentSupplier;
   return `
     <datalist id="${listId}">
-      ${DB.suppliers.map(s=>`<option value="${esc(s.name)}">`).join('')}
+      ${suppliers.map(s=>`<option value="${esc(s.name)}">`).join('')}
     </datalist>
-    <input class="input" list="${listId}" placeholder="שם הספק" value="${esc(currentVal)}"
+    <input class="input" list="${listId}" placeholder="בחר ספק מאושר..." value="${esc(currentVal)}"
+      style="${needsChoice?'border-color:var(--danger);box-shadow:0 0 0 3px rgba(220,98,98,0.12)':''}"
       oninput="${formStateRef}.${fieldName}=this.value"
-      onchange="applySupplierDefaults(this.value,'${formStateRef}','${categoryField}')">`;
+      onchange="applySupplierDefaults(this.value,'${formStateRef}','${categoryField}')">
+    ${needsChoice ? `<div style="margin-top:6px;font-size:12px;color:var(--danger);font-weight:700">הספק לא מזוהה ככרטיס מאושר. בחר ספק מהרשימה.</div>` : ''}`;
 }
 
 // Called onchange — fills category if supplier matches a known entry
 function applySupplierDefaults(nameVal, formStateRef, categoryField) {
   if (!nameVal || !categoryField) return;
-  const sup = DB.suppliers.find(s => s.name.trim().toLowerCase() === nameVal.trim().toLowerCase());
+  const sup = findApprovedSupplier(nameVal);
   if (!sup || !sup.defaultCategory) return;
   try {
     // Walk dotted path: 'state.scanForm' → window['state']['scanForm']
@@ -667,6 +672,54 @@ function applySupplierDefaults(nameVal, formStateRef, categoryField) {
   } catch(e) { /* ignore */ }
 }
 
+function supplierKey(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function getApprovedSuppliers() {
+  return (DB.suppliers || [])
+    .filter(s => s && s.name && s.approved !== false)
+    .sort((a,b) => String(a.name).localeCompare(String(b.name), 'he'));
+}
+
+function findApprovedSupplier(name) {
+  const key = supplierKey(name);
+  if (!key) return null;
+  return getApprovedSuppliers().find(s => supplierKey(s.name) === key) || null;
+}
+
+function requireApprovedSupplier(name) {
+  const sup = findApprovedSupplier(name);
+  if (!sup) {
+    toast('בחר ספק מתוך כרטיסי הספק המאושרים', 'error');
+    return null;
+  }
+  return sup;
+}
+
+function approvedSupplierInput(targetExpr, currentVal, placeholder) {
+  const listId = 'approved-sup-dl-' + Math.random().toString(36).slice(2);
+  const needsChoice = currentVal && !findApprovedSupplier(currentVal);
+  return `
+    <datalist id="${listId}">
+      ${getApprovedSuppliers().map(s=>`<option value="${esc(s.name)}">`).join('')}
+    </datalist>
+    <input class="input" list="${listId}" placeholder="${esc(placeholder || 'בחר ספק מאושר...')}" value="${esc(currentVal||'')}"
+      style="${needsChoice?'border-color:var(--danger);box-shadow:0 0 0 3px rgba(220,98,98,0.12)':''}"
+      oninput="${targetExpr}=this.value">
+    ${needsChoice ? `<div style="margin-top:6px;font-size:12px;color:var(--danger);font-weight:700">בחר ספק מכרטיס ספק מאושר.</div>` : ''}`;
+}
+
+function migrateApprovedSuppliers() {
+  if (!DB.suppliers) DB.suppliers = [];
+  let changed = false;
+  DB.suppliers.forEach(function(s) {
+    if (!s.id) { s.id = uid(); changed = true; }
+    if (s.approved !== true) { s.approved = true; changed = true; }
+  });
+  if (changed) persistLocal();
+}
+
 // Supplier CRUD
 function addSupplier() {
   const nameEl = document.getElementById('sup-name-inp');
@@ -676,7 +729,7 @@ function addSupplier() {
   if (DB.suppliers.find(s => s.name.toLowerCase() === name.toLowerCase())) {
     toast('ספק זה כבר קיים', 'error'); return;
   }
-  DB.suppliers.push({ id: uid(), name, defaultCategory: catEl?.value || CATS[0] });
+  DB.suppliers.push({ id: uid(), name, defaultCategory: catEl?.value || CATS[0], approved: true });
   persistLocal();
   if (nameEl) nameEl.value = '';
   render();
@@ -754,7 +807,7 @@ function seedSuppliersFromExpenses() {
     });
     if (exists) return;
     const defaultCategory = Object.entries(cats).sort(function(a,b){return b[1]-a[1];})[0]?.[0] || (CATS[0] || 'אחר');
-    DB.suppliers.push({ id: uid(), name: name, defaultCategory: defaultCategory });
+    DB.suppliers.push({ id: uid(), name: name, defaultCategory: defaultCategory, approved: true });
     changed = true;
   });
   if (changed) persistLocal();
@@ -767,8 +820,9 @@ async function scanInvoice(base64, mime) {
   if (!CFG.apiKey) throw new Error("חסר API Key — הכנס אותו בהגדרות");
   if (!CFG.apiKey.startsWith("sk-")) throw new Error("מפתח לא תקין — חייב להתחיל ב-sk-");
 
-  const knownSuppliers = DB.suppliers.length > 0
-    ? `\nספקים ידועים במערכת — אם הספק על המסמך תואם אחד מהם, השתמש בשם המדויק:\n${DB.suppliers.map(s=>`• ${s.name}${s.defaultCategory?' ('+s.defaultCategory+')':''}`).join('\n')}\n`
+  const knownSuppliersList = getApprovedSuppliers();
+  const knownSuppliers = knownSuppliersList.length > 0
+    ? `\nספקים מאושרים במערכת — אם הספק על המסמך תואם אחד מהם, השתמש בשם המדויק. אם אין התאמה, החזר את מה שמופיע במסמך והמשתמש יבחר ספק מאושר:\n${knownSuppliersList.map(s=>`• ${s.name}${s.defaultCategory?' ('+s.defaultCategory+')':''}`).join('\n')}\n`
     : '';
   const prompt = `אתה מערכת OCR לירקניה בכפר מעש.
 קרא את המסמך והחזר JSON בלבד, בלי טקסט נוסף, בלי backticks.
@@ -1515,6 +1569,10 @@ function warnDuplicate(dup) {
 
 async function saveScanResult() {
   const item = state.scanForm;
+  const supplier = requireApprovedSupplier(item.supplier);
+  if (!supplier) return;
+  item.supplier = supplier.name;
+  if (supplier.defaultCategory) item.category = supplier.defaultCategory;
   const dup = findDuplicate(item);
   if (dup && !warnDuplicate(dup)) return;
   const localItem = {...item, image: item.image?.startsWith('data:') ? '' : (item.image || '')};
@@ -1798,6 +1856,10 @@ function renderEditModal() {
 async function saveEditExpense() {
   if (!state.editForm || !state.editId) return;
   const f = state.editForm;
+  const supplier = requireApprovedSupplier(f.supplier);
+  if (!supplier) return;
+  f.supplier = supplier.name;
+  if (supplier.defaultCategory) f.category = supplier.defaultCategory;
   const editId = state.editId;
   const updated = {
     ...(DB.expenses.find(e => e.id === editId) || {}),
@@ -1928,6 +1990,10 @@ function addTotal(v) {
 async function submitAdd() {
   if (!addForm.supplier) { toast('נא להזין ספק', 'error'); return; }
   if (!addForm.total_amount) { toast('נא להזין סכום', 'error'); return; }
+  const supplier = requireApprovedSupplier(addForm.supplier);
+  if (!supplier) return;
+  addForm.supplier = supplier.name;
+  if (supplier.defaultCategory) addForm.category = supplier.defaultCategory;
   const item = {...addForm, id:uid(), total_amount:+addForm.total_amount, vat_amount:+addForm.vat_amount||0, amount_before_vat:+addForm.amount_before_vat||0};
   const dup = findDuplicate(item);
   if (dup && !warnDuplicate(dup)) return;
@@ -1953,7 +2019,7 @@ function renderFixed() {
         </div>
         <div class="field"><label class="label">תדירות</label><select class="input" onchange="state.fixedForm.frequency=this.value">${FIXED_FREQ.map(c=>`<option ${c===f.frequency?'selected':''}>${c}</option>`).join('')}</select></div>
         <div class="field"><label class="label">קטגוריה</label><select class="input" onchange="state.fixedForm.category=this.value">${FIXED_CATS.map(c=>`<option ${c===f.category?'selected':''}>${c}</option>`).join('')}</select></div>
-        <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.fixedForm.supplier=this.value"></div>
+        <div class="field"><label class="label">ספק</label>${approvedSupplierInput('state.fixedForm.supplier', f.supplier||'', 'בחר ספק מאושר...')}</div>
         <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.fixedForm.notes=this.value"></div>
         <button class="btn-primary" onclick="saveFixed()">💾 שמור</button>
         <button class="btn-ghost" onclick="setState({fixedAdding:false,fixedForm:null})">ביטול</button>
@@ -2100,6 +2166,11 @@ async function saveFixed() {
   const f = state.fixedForm;
   if (!f.name) { toast('נא למלא שם הוצאה', 'error'); return; }
   if (f.amount===''||f.amount===null||f.amount===undefined) { toast('נא למלא סכום', 'error'); return; }
+  if (f.supplier) {
+    const supplier = requireApprovedSupplier(f.supplier);
+    if (!supplier) return;
+    f.supplier = supplier.name;
+  }
   const item = {...f, amount:+f.amount};
   if (f.id) {
     await queueAndSync('update_fixed', {payload: item}, () => DB.fixed = DB.fixed.map(x=>x.id===f.id?item:x));
@@ -2142,7 +2213,7 @@ function renderInstallments() {
         <div id="per-install-display" style="padding:10px 14px;margin-bottom:14px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2);border-radius:10px;font-size:13px;color:var(--accent);${perInstall?'':'display:none'}">💡 תשלום חודשי: <span id="per-install-val">${perInstall?fmtCurr(perInstall):''}</span></div>
         <div class="field"><label class="label">תשלומים ששולמו</label><input class="input" type="number" value="${f.paid}" oninput="state.installForm.paid=this.value"></div>
         <div class="field"><label class="label">תאריך תשלום ראשון</label><input class="input" type="date" value="${heToISO(f.first_date)}" oninput="state.installForm.first_date=isoToHe(this.value)"></div>
-        <div class="field"><label class="label">ספק</label><input class="input" value="${esc(f.supplier)}" oninput="state.installForm.supplier=this.value"></div>
+        <div class="field"><label class="label">ספק</label>${approvedSupplierInput('state.installForm.supplier', f.supplier||'', 'בחר ספק מאושר...')}</div>
         <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.installForm.notes=this.value"></div>
         <button class="btn-primary" onclick="saveInstall()">💾 שמור</button>
         <button class="btn-ghost" onclick="setState({installAdding:false,installForm:null})">ביטול</button>
@@ -2231,6 +2302,11 @@ async function saveInstall() {
   if (!f.name) { toast('נא למלא שם', 'error'); return; }
   if (!f.total) { toast('נא למלא סכום', 'error'); return; }
   if (!f.installments) { toast('נא למלא מספר תשלומים', 'error'); return; }
+  if (f.supplier) {
+    const supplier = requireApprovedSupplier(f.supplier);
+    if (!supplier) return;
+    f.supplier = supplier.name;
+  }
   const item = {...f, total:+f.total, installments:+f.installments, paid:+f.paid||0};
   if (f.id) {
     await queueAndSync('update_installment', {payload: item}, () => DB.installments = DB.installments.map(x=>x.id===f.id?item:x));
@@ -2568,6 +2644,9 @@ function addCheck() {
   if (!cf.supplier.trim()) { toast('נא להזין ספק', 'error'); return; }
   if (!cf.amount) { toast('נא להזין סכום', 'error'); return; }
   if (!cf.clearDate) { toast('נא להזין תאריך פירעון', 'error'); return; }
+  const supplier = requireApprovedSupplier(cf.supplier);
+  if (!supplier) return;
+  cf.supplier = supplier.name;
   const item = {
     id: uid(),
     supplier: cf.supplier.trim(),
@@ -2774,7 +2853,7 @@ function renderChecks() {
         ${state.checkScanStage==='done' ? `<div style="font-size:12px;color:var(--accent);background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.3);border-radius:8px;padding:8px 12px;margin-bottom:12px">✓ פרטים חולצו — בדוק ותקן לפי הצורך</div>` : ''}
         <div class="field">
           <label class="label">ספק *</label>
-          <input class="input" placeholder="שם הספק" value="${esc(cf.supplier)}" oninput="state.checkForm.supplier=this.value" onkeydown="if(event.key==='Enter')addCheck()">
+          ${approvedSupplierInput('state.checkForm.supplier', cf.supplier||'', 'בחר ספק מאושר...')}
         </div>
         <div class="row">
           <div class="field">
@@ -2881,7 +2960,7 @@ function renderCredits() {
         <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">+ בקשת זיכוי חדשה</div>
         <div class="field">
           <label class="label">ספק *</label>
-          <input class="input" placeholder="שם הספק" value="${esc(cf.supplier)}" oninput="state.creditForm.supplier=this.value" onkeydown="if(event.key==='Enter')addCredit()">
+          ${approvedSupplierInput('state.creditForm.supplier', cf.supplier||'', 'בחר ספק מאושר...')}
         </div>
         <div class="row">
           <div class="field">
@@ -2980,6 +3059,9 @@ async function addCredit() {
   if (!cf.supplier) { toast('נא להזין ספק', 'error'); return; }
   if (!cf.amount) { toast('נא להזין סכום', 'error'); return; }
   if (!cf.reason) { toast('נא להזין סיבת הזיכוי', 'error'); return; }
+  const supplier = requireApprovedSupplier(cf.supplier);
+  if (!supplier) return;
+  cf.supplier = supplier.name;
   const dateEl = document.getElementById('credit-date-inp');
   const item = {
     id: uid(), date: state.creditForm.date || (dateEl ? isoToHe(dateEl.value) : todayStr()),
@@ -4005,6 +4087,7 @@ function initApp() {
   mergeAccFlags(DB.expenses); // restore any flags saved before this session
   migrateCategoryNames();
   seedSuppliersFromExpenses();
+  migrateApprovedSuppliers();
   seedSupplierProfiles();
   if (pdb.products.length === 0) importProductsFromOrders();
   loadOdb();
@@ -5931,21 +6014,17 @@ function confirmAddProduct() {
 
 function renderProductsModalAddSupplierPrice() {
   const d = state.productsModalData || {};
-  let ordersSuppliers = [];
-  try { ordersSuppliers = (JSON.parse(localStorage.getItem('orders-v1')||'{}').suppliers||[]); } catch(e){}
-  const supOptions = ordersSuppliers.map(s=>`<option value="${esc(s.name)}">`).join('');
-  const dlId = 'add-sp-sup-dl';
   const body = `
-    <datalist id="${dlId}">${supOptions}</datalist>
-    <div class="field"><label class="label">ספק *</label><input class="input" list="${dlId}" placeholder="שם הספק" oninput="state.productsModalData=state.productsModalData||{};state.productsModalData.supplierName=this.value"></div>
+    <div class="field"><label class="label">ספק *</label>${approvedSupplierInput('state.productsModalData.supplierName', d.supplierName||'', 'בחר ספק מאושר...')}</div>
     <div class="field"><label class="label">מחיר קניה ₪</label><input class="input" type="number" inputmode="decimal" placeholder="0.00" oninput="state.productsModalData=state.productsModalData||{};state.productsModalData.buyPrice=this.value"></div>`;
   return productsModalWrap('הוסף מחיר ספק', body, 'הוסף', 'confirmAddSupplierPrice()', `setState({productsModal:'',productsModalData:null})`);
 }
 
 function confirmAddSupplierPrice() {
   const d = state.productsModalData || {};
-  const supName = (d.supplierName||'').trim();
-  if (!supName) { toast('יש להזין שם ספק', 'error'); return; }
+  const sup = requireApprovedSupplier(d.supplierName);
+  if (!sup) return;
+  const supName = sup.name;
   const p = pdb.products.find(x => x.id === d.productId);
   if (!p) return;
   const bp = parseFloat(d.buyPrice);
@@ -7439,6 +7518,9 @@ function pvLinkDNStep2() {
 function pvLinkDNConfirm() {
   const d = state.payablesModalData || {};
   if (!d.invoiceNumber) { toast('נא להזין מספר חשבונית', 'error'); return; }
+  const supplier = requireApprovedSupplier(d.supplier);
+  if (!supplier) return;
+  d.supplier = supplier.name;
   const tiId = uid();
   const ti = {
     id: tiId,
@@ -7479,11 +7561,9 @@ function pvLinkDNConfirm() {
 // Modal: add direct debt
 function renderPvModalAddDirect() {
   const d = state.payablesModalData || {};
-  const suppliers = pvGetAllSuppliers();
   const selectedPaymentMethod = d.paymentMethod || "צ'ק";
   const body = `
-    <datalist id="pv-sup-dl">${suppliers.map(s=>`<option value="${esc(s)}">`).join('')}</datalist>
-    <div class="field"><label class="label">ספק *</label><input class="input" list="pv-sup-dl" placeholder="שם הספק" value="${esc(d.supplier||'')}" oninput="state.payablesModalData.supplier=this.value"></div>
+    <div class="field"><label class="label">ספק *</label>${approvedSupplierInput('state.payablesModalData.supplier', d.supplier||'', 'בחר ספק מאושר...')}</div>
     <div class="field"><label class="label">מספר חשבונית</label><input class="input" placeholder="123456" value="${esc(d.invoiceNumber||'')}" oninput="state.payablesModalData.invoiceNumber=this.value"></div>
     <div class="row">
       <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${d.date||todayISO()}" oninput="state.payablesModalData.date=this.value"></div>
@@ -7503,6 +7583,9 @@ function pvAddDirectConfirm() {
   const d = state.payablesModalData || {};
   if (!d.supplier) { toast('נא להזין שם ספק', 'error'); return; }
   if (!d.amount || +d.amount <= 0) { toast('נא להזין סכום', 'error'); return; }
+  const supplier = requireApprovedSupplier(d.supplier);
+  if (!supplier) return;
+  d.supplier = supplier.name;
   const debt = {
     id: uid(),
     supplierName: d.supplier.trim(),
@@ -7540,7 +7623,7 @@ function renderPvModalEditDebt() {
       <button type="button" onclick="state.payablesModalData.paidState='paid';render()"
         style="padding:11px;border:1.5px solid ${isPaid?'var(--accent)':'var(--border)'};border-radius:12px;background:${isPaid?'var(--accentSoft)':'var(--surfaceHi)'};color:${isPaid?'var(--accent)':'var(--textDim)'};font-size:13px;font-weight:800;font-family:inherit;cursor:pointer">שולם</button>
     </div>
-    <div class="field"><label class="label">ספק</label><input class="input" value="${esc(d.supplier||'')}" oninput="state.payablesModalData.supplier=this.value"></div>
+    <div class="field"><label class="label">ספק</label>${approvedSupplierInput('state.payablesModalData.supplier', d.supplier||'', 'בחר ספק מאושר...')}</div>
     <div class="field"><label class="label">מספר חשבונית</label><input class="input" value="${esc(d.invoiceNumber||'')}" oninput="state.payablesModalData.invoiceNumber=this.value"></div>
     <div class="field"><label class="label">סכום ₪</label><input class="input" type="number" inputmode="decimal" value="${esc(d.amount||'')}" oninput="state.payablesModalData.amount=this.value"></div>
     <div class="row">
@@ -7567,6 +7650,9 @@ function pvEditDebtConfirm() {
   const amount = +(d.amount||0);
   if (!d.supplier) { toast('נא להזין שם ספק', 'error'); return; }
   if (!amount || amount <= 0) { toast('נא להזין סכום', 'error'); return; }
+  const supplier = requireApprovedSupplier(d.supplier);
+  if (!supplier) return;
+  d.supplier = supplier.name;
 
   debt.supplierName = d.supplier.trim();
   debt.invoiceNumber = d.invoiceNumber || '';
@@ -7630,7 +7716,7 @@ function renderPvModalEditCheck() {
       <button type="button" onclick="state.payablesModalData.paidState='paid';render()"
         style="padding:11px;border:1.5px solid ${isPaid?'var(--accent)':'var(--border)'};border-radius:12px;background:${isPaid?'var(--accentSoft)':'var(--surfaceHi)'};color:${isPaid?'var(--accent)':'var(--textDim)'};font-size:13px;font-weight:800;font-family:inherit;cursor:pointer">שולם</button>
     </div>
-    <div class="field"><label class="label">ספק</label><input class="input" value="${esc(d.supplier||'')}" oninput="state.payablesModalData.supplier=this.value"></div>
+    <div class="field"><label class="label">ספק</label>${approvedSupplierInput('state.payablesModalData.supplier', d.supplier||'', 'בחר ספק מאושר...')}</div>
     <div class="field"><label class="label">סכום ₪</label><input class="input" type="number" inputmode="decimal" value="${esc(d.amount||'')}" oninput="state.payablesModalData.amount=this.value"></div>
     <div class="field"><label class="label">מספר צ'ק / אסמכתא</label><input class="input" value="${esc(d.checkNum||'')}" oninput="state.payablesModalData.checkNum=this.value"></div>
     <div class="row">
@@ -7650,6 +7736,9 @@ function pvEditCheckConfirm() {
   if (!d.supplier) { toast('נא להזין שם ספק', 'error'); return; }
   if (!amount || amount <= 0) { toast('נא להזין סכום', 'error'); return; }
   if (!d.clearDate) { toast('נא להזין תאריך פירעון', 'error'); return; }
+  const supplier = requireApprovedSupplier(d.supplier);
+  if (!supplier) return;
+  d.supplier = supplier.name;
 
   c.supplier = d.supplier.trim();
   c.amount = amount;
@@ -7803,7 +7892,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=62').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=63').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
