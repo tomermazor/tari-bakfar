@@ -766,6 +766,14 @@ function saveEditSupplier() {
   toast('ספק עודכן ✓', 'success');
 }
 
+function openSupplierManager() {
+  setState({tab:'settings', editId:null, editForm:null, supplierEditId:null, supplierEditName:''});
+  setTimeout(function() {
+    const el = document.getElementById('supplier-manager-card');
+    if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  }, 60);
+}
+
 // Seed DB.suppliers from existing expenses (run once on init)
 function migrateCategoryNames() {
   if (localStorage.getItem('tari_cat_migrated_v1')) return;
@@ -1761,6 +1769,7 @@ function renderList() {
       <div class="scard" style="padding:16px 20px;margin-bottom:16px">
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
           ${searchBar}
+          <button onclick="openSupplierManager()" style="border:1px solid rgba(21,128,61,0.25);border-radius:10px;padding:9px 12px;background:rgba(21,128,61,0.08);color:#15803D;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap">ספקים מאושרים</button>
           <div style="display:flex;gap:5px;flex-wrap:nowrap">${periodPills}</div>
           <div style="width:1px;height:28px;background:#E2E8F0;flex-shrink:0"></div>
           <div style="display:flex;gap:5px;overflow-x:auto;max-width:480px">${catPills}</div>
@@ -1800,6 +1809,7 @@ function renderList() {
         </div>
       </div>
       <div style="position:relative;margin-bottom:12px">${searchBar.replace('flex:1;min-width:200px','width:100%')}</div>
+      <button onclick="openSupplierManager()" style="width:100%;margin-bottom:10px;border:1px solid rgba(110,198,58,0.25);border-radius:12px;padding:10px 12px;background:var(--accentSoft);color:var(--accent);font-size:13px;font-weight:800;font-family:inherit;cursor:pointer">ספקים מאושרים</button>
       <div style="display:flex;gap:5px;overflow-x:auto;margin-bottom:7px;padding-bottom:2px">${periodPills}</div>
       <div style="display:flex;gap:4px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px">${catPills}</div>
       <div id="list-meta-el" style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;padding:0 2px">
@@ -1830,7 +1840,13 @@ function renderEditModal() {
           <h2 class="display" style="font-size:17px;margin:0;flex:1">עריכת הוצאה</h2>
           <button onclick="saveEditExpense()" style="border:none;border-radius:10px;padding:8px 18px;background:var(--accent);color:#071302;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;flex-shrink:0">שמור</button>
         </div>
-        <div class="field"><label class="label">ספק</label>${supplierInput('state.editForm','supplier',f.supplier,'category')}</div>
+        <div class="field">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px">
+            <label class="label" style="margin:0">ספק</label>
+            <button type="button" onclick="openSupplierManager()" style="border:1px solid var(--border);border-radius:9px;padding:6px 9px;background:var(--surfaceHi);color:var(--textDim);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">נהל ספקים</button>
+          </div>
+          ${supplierInput('state.editForm','supplier',f.supplier,'category')}
+        </div>
         <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${heToISO(f.date)}" oninput="state.editForm.date=isoToHe(this.value)"></div>
         <div class="row">
           <div class="field"><label class="label">סכום כולל ₪</label><input class="input" type="number" value="${f.total_amount}" oninput="state.editForm.total_amount=+this.value"></div>
@@ -3501,6 +3517,7 @@ function renderSupplierManager() {
   const catOpts = CATS.map(c => '<option>' + esc(c) + '</option>').join('');
   let rows = '';
   DB.suppliers.forEach(function(s) {
+    const profile = getOrCreateSupplierProfile(s.name);
     const opts = CATS.map(function(c) {
       return '<option' + (c === s.defaultCategory ? ' selected' : '') + '>' + esc(c) + '</option>';
     }).join('');
@@ -3513,17 +3530,26 @@ function renderSupplierManager() {
         + '<button onclick="saveEditSupplier()" style="flex-shrink:0;border:none;border-radius:8px;padding:0 10px;height:34px;background:var(--accent);color:#0a1505;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">✓</button>'
       : '<span style="flex:1;font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(s.name) + '</span>'
         + '<button onclick="startEditSupplier(\'' + s.id + '\')" style="flex-shrink:0;width:26px;height:26px;border:none;border-radius:7px;background:var(--surfaceHi);color:var(--textDim);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">✏️</button>';
-    rows += '<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)">'
+    const encodedName = encodeURIComponent(s.name);
+    rows += '<div style="padding:10px 0;border-bottom:1px solid var(--border)">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
       + '<div style="width:7px;height:7px;border-radius:50%;background:#5b9cf6;flex-shrink:0"></div>'
       + nameCell
       + '<select onchange="updateSupplierCat(\'' + s.id + '\',this.value)" style="font-size:11px;padding:3px 24px 3px 6px;border:1px solid var(--border);border-radius:7px;background:var(--surfaceHi);color:var(--textDim);font-family:inherit;cursor:pointer;max-width:120px">' + opts + '</select>'
       + '<button onclick="deleteSupplier(\'' + s.id + '\')" style="width:26px;height:26px;border:none;border-radius:7px;background:var(--dangerSoft);color:var(--danger);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-right:15px">'
+      + '<input class="input" style="font-size:12px;padding:7px 9px" placeholder="איש קשר" value="' + esc(profile.contactPerson||'') + '" onchange="saveSupplierProfileField(decodeURIComponent(\'' + encodedName + '\'),\'contactPerson\',this.value)">'
+      + '<input class="input" style="font-size:12px;padding:7px 9px" type="tel" placeholder="טלפון" value="' + esc(profile.contactPhone||'') + '" onchange="saveSupplierProfileField(decodeURIComponent(\'' + encodedName + '\'),\'contactPhone\',this.value)">'
+      + '<input class="input" style="font-size:12px;padding:7px 9px" placeholder="תנאי תשלום" value="' + esc(profile.paymentTerms||'') + '" onchange="saveSupplierProfileField(decodeURIComponent(\'' + encodedName + '\'),\'paymentTerms\',this.value)">'
+      + '<input class="input" style="font-size:12px;padding:7px 9px" placeholder="הערות" value="' + esc(profile.notes||'') + '" onchange="saveSupplierProfileField(decodeURIComponent(\'' + encodedName + '\'),\'notes\',this.value)">'
+      + '</div>'
       + '</div>';
   });
   const listHtml = DB.suppliers.length > 0
     ? '<div style="margin-bottom:12px">' + rows + '</div>'
     : '<div style="text-align:center;padding:16px;color:var(--textMuted);font-size:13px;border:1px dashed var(--border);border-radius:10px;margin-bottom:12px">הוסף ספקים כדי לשפר את הסריקה ולמנוע שגיאות כתיב</div>';
-  return '<div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">'
+  return '<div id="supplier-manager-card" style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px;scroll-margin-top:16px">'
     + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'
     + '<div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,rgba(91,156,246,0.13),rgba(168,85,247,0.13));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏭</div>'
     + '<div style="flex:1"><div style="font-size:15px;font-weight:700;color:var(--text)">ספקים קבועים</div>'
@@ -7892,7 +7918,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=63').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=64').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
