@@ -76,11 +76,11 @@ input:-webkit-autofill { -webkit-box-shadow:0 0 0 40px var(--surface) inset; -we
 
 /* ── Desktop layout (≥ 768px) ────────────────────────────────────── */
 @media (min-width:768px) {
-  .app { max-width:100%; margin:0; display:grid; grid-template-columns:230px 1fr; grid-template-rows:auto auto 1fr; grid-template-areas:"sidebar top" "sidebar subhead" "sidebar main"; }
+  .app { max-width:100%; margin:0; display:grid; grid-template-columns:248px 1fr; grid-template-rows:58px 74px 1fr; grid-template-areas:"sidebar top" "sidebar subhead" "sidebar main"; background:#F8FAFC; }
   /* app-switcher → top bar */
-  .app-switcher { grid-area:top; position:static; border-radius:0; padding:8px 20px; padding-top:8px; border-bottom:1px solid var(--border); }
+  .app-switcher { grid-area:top; position:static; border-radius:0; padding:9px 22px; padding-top:9px; border-bottom:1px solid var(--border); align-items:center; gap:10px; }
   /* header → sub-header */
-  .header { grid-area:subhead; position:static; border-radius:0; background:var(--surface) !important; padding:12px 24px; }
+  .header { grid-area:subhead; position:static; border-radius:0; background:var(--surface) !important; padding:13px 28px; min-height:74px; }
   /* main → main content */
   .main { grid-area:main; padding-bottom:0; }
   .main > div { max-width:100% !important; padding:20px 28px 28px !important; }
@@ -125,6 +125,40 @@ input:-webkit-autofill { -webkit-box-shadow:0 0 0 40px var(--surface) inset; -we
 }
 
 /* ── App-switcher — always at top of flex, no sticky needed ─────── */
+.desktop-only { display:none !important; }
+.desktop-shell-container { display:none; }
+@media (min-width:768px) {
+  .mobile-only { display:none !important; }
+  .desktop-only { display:flex !important; }
+  .app-switcher > .sw-btn.active { display:none; }
+  .desktop-shell-container { display:block; }
+  .desktop-brand-chip { flex:0 0 auto; min-width:178px; align-items:center; gap:10px; color:var(--text); font-weight:800; }
+  .desktop-brand-mark { width:34px; height:34px; border-radius:10px; background:var(--accentSoft); color:var(--accent); display:flex; align-items:center; justify-content:center; font-size:18px; border:1px solid rgba(21,128,61,0.18); }
+  .desktop-global-search { position:relative; flex:1; max-width:720px; }
+  .desktop-global-search input { width:100%; height:40px; border:1px solid var(--border); border-radius:11px; background:var(--surfaceHi); color:var(--text); padding:0 42px 0 92px; font-family:inherit; font-size:13px; outline:none; }
+  .desktop-global-search input:focus { border-color:var(--borderFocus); box-shadow:0 0 0 3px rgba(21,128,61,0.08); background:var(--surface); }
+  .desktop-search-icon { position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--textMuted); font-size:15px; }
+  .desktop-search-hint { position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:10px; color:var(--textMuted); border:1px solid var(--border); border-radius:6px; padding:2px 6px; background:var(--surface); }
+  .desktop-toolbar-actions { align-items:center; gap:8px; margin-inline-start:auto; }
+  .desktop-action-btn { height:40px; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--textDim); padding:0 12px; display:flex; align-items:center; gap:7px; cursor:pointer; font-family:inherit; font-size:12px; font-weight:700; white-space:nowrap; }
+  .desktop-action-btn:hover { border-color:var(--borderHi); background:var(--surfaceHi); color:var(--text); }
+  .desktop-action-btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .desktop-action-btn.primary:hover { background:var(--accentHover); }
+  .desktop-breadcrumb { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--textDim); font-weight:700; margin-bottom:4px; }
+  .desktop-header-actions { display:flex; align-items:center; gap:8px; margin-inline-start:auto; }
+  .desktop-search-popover, .desktop-quick-menu, .desktop-side-panel { position:fixed; z-index:80; background:var(--surface); border:1px solid var(--border); box-shadow:var(--shadow-lg); }
+  .desktop-search-popover { top:58px; right:292px; left:280px; max-width:720px; border-radius:14px; overflow:hidden; }
+  .desktop-search-row { display:flex; align-items:center; gap:12px; padding:11px 14px; border-bottom:1px solid var(--border); cursor:pointer; }
+  .desktop-search-row:hover { background:var(--surfaceHi); }
+  .desktop-search-row:last-child { border-bottom:none; }
+  .desktop-search-type { width:34px; height:34px; border-radius:9px; background:var(--accentSoft); color:var(--accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .desktop-quick-menu { top:58px; left:22px; width:300px; border-radius:14px; padding:8px; }
+  .desktop-quick-item { width:100%; border:none; background:transparent; color:var(--text); border-radius:10px; padding:11px 12px; display:flex; align-items:center; gap:10px; cursor:pointer; font-family:inherit; text-align:right; }
+  .desktop-quick-item:hover { background:var(--surfaceHi); }
+  .desktop-side-panel { top:58px; bottom:0; left:0; width:min(420px,34vw); border-radius:0; border-left:none; overflow:auto; padding:18px; }
+  .desktop-panel-close { width:34px; height:34px; border:none; border-radius:10px; background:var(--surfaceHi); color:var(--textDim); cursor:pointer; font-size:18px; }
+}
+
 .app-switcher { display:flex; gap:4px; padding:5px 8px; padding-top:calc(5px + env(safe-area-inset-top,0px)); background:rgba(7,9,10,0.97); backdrop-filter:blur(24px); border-bottom:1px solid var(--border); flex-shrink:0; }
 .sw-btn { flex:1; text-align:center; padding:8px 6px; border-radius:var(--r-sm); font-size:12.5px; font-weight:700; text-decoration:none; color:var(--textDim); border:1px solid transparent; display:block; transition:color var(--t-fast),background var(--t-fast),border-color var(--t-fast); }
 .sw-btn:not(.active):hover { color:var(--text); background:rgba(255,255,255,0.05); }
@@ -327,6 +361,22 @@ input[type="date"] { min-width:0; max-width:100%; }
 <div class="app" id="app" hidden>
 
   <div class="app-switcher">
+    <div class="desktop-only desktop-brand-chip">
+      <div class="desktop-brand-mark">🌿</div>
+      <div>
+        <div style="font-size:13px;line-height:1">טרי בכפר</div>
+        <div style="font-size:10px;color:var(--textMuted);font-weight:700">מערכת ניהול</div>
+      </div>
+    </div>
+    <div class="desktop-only desktop-global-search">
+      <span class="desktop-search-icon">⌕</span>
+      <input id="desktop-global-search-input" placeholder="חיפוש מהיר: ספק, חשבונית, מוצר, הזמנה..." oninput="desktopSetGlobalSearch(this.value)" onfocus="desktopSetGlobalSearch(this.value)" autocomplete="off">
+      <span class="desktop-search-hint">Ctrl K</span>
+    </div>
+    <div class="desktop-only desktop-toolbar-actions">
+      <button class="desktop-action-btn primary" onclick="setState({desktopQuickOpen:!state.desktopQuickOpen})">+ פעולה</button>
+      <button class="desktop-action-btn" onclick="setState({desktopPanel:'alerts'})">התראות</button>
+    </div>
     <span class="sw-btn active">🌿 טרי בכפר</span>
 
     <button class="sw-icon-btn" id="sync-top-btn" onclick="triggerTopSync()" title="סנכרן עכשיו">🔄</button>
@@ -337,6 +387,7 @@ input[type="date"] { min-width:0; max-width:100%; }
 
   <header class="header">
     <div style="flex:1;min-width:0">
+      <div id="desktop-breadcrumb" class="desktop-only desktop-breadcrumb"></div>
       <div id="header-greeting" style="font-size:16px;font-weight:800;color:var(--text);line-height:1.2;font-family:'Frank Ruhl Libre',serif">טרי בכפר 🌿</div>
       <div style="display:flex;gap:6px;align-items:center;margin-top:3px">
         <div id="sync-badge" class="sync-badge local">⚠ לא מחובר</div>
@@ -350,6 +401,7 @@ input[type="date"] { min-width:0; max-width:100%; }
 </div>
 <div id="toast-container"></div>
 <div id="modal-container"></div>
+<div id="desktop-shell-container" class="desktop-shell-container"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1305,6 +1357,10 @@ let state = {
   ordersManualAddState: { name: '', qty: 1, unit: 'קרטון' },
   ordersTransferData: null,
   ordersModal: '',
+  desktopGlobalSearch: '',
+  desktopQuickOpen: false,
+  desktopPanel: '',
+  desktopPanelData: null,
 };
 function setState(patch) { Object.assign(state, patch); render(); }
 
@@ -1342,6 +1398,146 @@ function clearListSearch() {
 // ═══════════════════════════════════════════════════════════════════════════
 // ICONS & TABS
 // ═══════════════════════════════════════════════════════════════════════════
+function desktopSetGlobalSearch(value) {
+  state.desktopGlobalSearch = value || '';
+  const shell = document.getElementById('desktop-shell-container');
+  if (shell) shell.innerHTML = renderDesktopShell();
+}
+
+function desktopSearchResults(query) {
+  const q = (query || '').trim().toLowerCase();
+  if (q.length < 2) return [];
+  const hit = v => String(v || '').toLowerCase().includes(q);
+  const results = [];
+  (DB.suppliers || []).forEach(s => {
+    if (hit(s.name)) results.push({icon:'🏭', title:s.name, sub:'ספק מאושר', action:`desktopOpenSupplier('${encodeURIComponent(s.name)}')`});
+  });
+  (DB.expenses || []).slice(0, 300).forEach(e => {
+    if (hit(e.supplier) || hit(e.document_number) || hit(e.notes) || hit(e.category)) {
+      results.push({icon:'🧾', title:e.supplier || 'מסמך', sub:`${fmtDate(e.date)} · ${fmtCurr(e.total_amount)} · ${e.document_type || ''}`, action:`setState({tab:'list',listOpen:'${e.id}',desktopGlobalSearch:''})`});
+    }
+  });
+  ((pv && pv.debts) || []).forEach(d => {
+    if (hit(d.supplierName) || hit(d.invoiceNumber) || hit(d.notes)) {
+      results.push({icon:'💳', title:d.supplierName || 'חוב ספק', sub:`${fmtDate(d.dueDate || d.date)} · ${fmtCurr(d.amount)} · ${pvDebtStatusText(d)}`, action:`setState({tab:'payables',payablesView:'debt',payablesDebtId:'${d.id}',desktopGlobalSearch:''})`});
+    }
+  });
+  ((pdb && pdb.products) || []).forEach(p => {
+    if (hit(p.name) || hit(p.category)) {
+      results.push({icon:'🏷️', title:p.name, sub:`${p.category || 'מוצר'} · מחיר מכירה ${fmtCurr(p.sellPrice || 0)}`, action:`setState({tab:'products',productsView:'detail',productsDetailId:'${p.id}',desktopGlobalSearch:''})`});
+    }
+  });
+  ((odb && odb.activeOrders) || []).forEach(o => {
+    const sup = typeof ordersGetSupplierName === 'function' ? ordersGetSupplierName(o.supplierId) : '';
+    if (hit(sup) || hit(o.id)) {
+      results.push({icon:'🚚', title:sup || 'הזמנה פעילה', sub:`${fmtDate(o.createdAt || o.date)} · ${o.status || 'פתוחה'}`, action:`setState({tab:'orders',ordersView:'active',desktopGlobalSearch:''})`});
+    }
+  });
+  return results.slice(0, 9);
+}
+
+function desktopOpenSupplier(nameEnc) {
+  const name = decodeURIComponent(nameEnc || '');
+  setState({tab:'payables', payablesView:'supplier', payablesSupplier:name, desktopGlobalSearch:''});
+}
+
+function renderDesktopSearchPopover() {
+  const q = state.desktopGlobalSearch || '';
+  if (q.trim().length < 2) return '';
+  const results = desktopSearchResults(q);
+  if (!results.length) return `<div class="desktop-search-popover"><div style="padding:16px;color:var(--textDim);font-size:13px">לא נמצאו תוצאות עבור "${esc(q)}"</div></div>`;
+  return `<div class="desktop-search-popover">${results.map(r => `<div class="desktop-search-row" onclick="${r.action}">
+    <div class="desktop-search-type">${r.icon}</div>
+    <div style="min-width:0;flex:1">
+      <div style="font-size:13px;font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</div>
+      <div style="font-size:11px;color:var(--textDim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.sub)}</div>
+    </div>
+  </div>`).join('')}</div>`;
+}
+
+function renderDesktopQuickMenu() {
+  if (!state.desktopQuickOpen) return '';
+  const item = (icon, label, sub, action) => `<button class="desktop-quick-item" onclick="${action};setState({desktopQuickOpen:false})">
+    <span style="width:32px;height:32px;border-radius:9px;background:var(--accentSoft);color:var(--accent);display:flex;align-items:center;justify-content:center">${icon}</span>
+    <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:800">${label}</span><span style="display:block;font-size:11px;color:var(--textDim)">${sub}</span></span>
+  </button>`;
+  return `<div class="desktop-quick-menu">
+    ${item('📷','סריקת חשבונית','צילום או העלאת מסמך',"setState({tab:'scan',scanStage:'idle'})")}
+    ${item('🏭','הוסף ספק','כרטיס ספק מאושר',"setState({tab:'settings'});setTimeout(()=>document.getElementById('sup-name-inp')?.focus(),80)")}
+    ${item('🏷️','הוסף מוצר','קטלוג ומלאי',"setState({tab:'products',productsModal:'add'})")}
+    ${item('💳','הוסף התחייבות','חוב/תעודה/חשבונית ספק',"setState({tab:'payables',payablesModal:'add-direct',payablesModalData:{}})")}
+    ${item('🚚','הזמנה חדשה','פתיחת מסך הזמנות',"setState({tab:'orders',ordersView:'home'})")}
+  </div>`;
+}
+
+function desktopAlertItems() {
+  const today = new Date();
+  const soon = new Date(); soon.setDate(today.getDate() + 7);
+  const debts = ((pv && pv.debts) || []).filter(d => !d.paid && !d.cancelled);
+  const dueDebts = debts.filter(d => { const dt = parseD(d.dueDate || d.date); return dt && dt <= soon; });
+  const futureChecks = (DB.checks || []).filter(c => !c.cleared);
+  const openOrders = ((odb && odb.activeOrders) || []);
+  const accPending = (DB.expenses || []).filter(e => ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type) && !e.sentToAccountant);
+  return {dueDebts, futureChecks, openOrders, accPending};
+}
+
+function desktopPanelCard(icon, title, count, sub, action) {
+  return `<div onclick="${action}" style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:10px;cursor:pointer;background:var(--surfaceHi)">
+    <div style="width:38px;height:38px;border-radius:10px;background:var(--surface);display:flex;align-items:center;justify-content:center">${icon}</div>
+    <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:var(--text)">${title}</div><div style="font-size:11px;color:var(--textDim)">${sub}</div></div>
+    <div class="display" style="font-size:22px;color:var(--accent)">${count}</div>
+  </div>`;
+}
+
+function renderDesktopSidePanel() {
+  if (!state.desktopPanel) return '';
+  const a = desktopAlertItems();
+  return `<aside class="desktop-side-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div><div class="display" style="font-size:22px;color:var(--text)">התראות עבודה</div><div style="font-size:12px;color:var(--textDim)">תמונת מצב מהירה לדסקטופ</div></div>
+      <button class="desktop-panel-close" onclick="setState({desktopPanel:'',desktopPanelData:null})">×</button>
+    </div>
+    ${desktopPanelCard('💳','תשלומים קרובים',a.dueDebts.length,fmtCurr(a.dueDebts.reduce((s,d)=>s+(+d.amount||0),0)),"setState({tab:'payables',payablesView:'dashboard',desktopPanel:''})")}
+    ${desktopPanelCard('🧾','חשבוניות להנהלת חשבונות',a.accPending.length,'ממתינות',"setState({tab:'list',desktopPanel:''})")}
+    ${desktopPanelCard('🚚','הזמנות פתוחות',a.openOrders.length,'לטיפול',"setState({tab:'orders',ordersView:'active',desktopPanel:''})")}
+    ${desktopPanelCard('🏦','צ׳קים פתוחים',a.futureChecks.length,fmtCurr(a.futureChecks.reduce((s,c)=>s+(+c.amount||0),0)),"setState({tab:'checks',desktopPanel:''})")}
+  </aside>`;
+}
+
+function renderDesktopShell() {
+  return renderDesktopSearchPopover() + renderDesktopQuickMenu() + renderDesktopSidePanel();
+}
+
+function updateDesktopHeader() {
+  const crumb = document.getElementById('desktop-breadcrumb');
+  if (!crumb) return;
+  const tab = TABS.find(t => t.id === state.tab);
+  const detail = state.tab === 'payables' && state.payablesView !== 'dashboard' ? ` / ${state.payablesSupplier || state.payablesView}` :
+                 state.tab === 'orders' && state.ordersView !== 'home' ? ` / ${state.ordersView}` :
+                 state.tab === 'products' && state.productsView !== 'list' ? ' / מוצר' : '';
+  crumb.innerHTML = `<span>טרי בכפר</span><span>›</span><span style="color:var(--text)">${esc((tab && tab.label) || state.tab)}${esc(detail)}</span>`;
+  const inp = document.getElementById('desktop-global-search-input');
+  if (inp && inp.value !== (state.desktopGlobalSearch || '')) inp.value = state.desktopGlobalSearch || '';
+}
+
+document.addEventListener('keydown', function(e) {
+  const tag = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
+  const typing = ['input','textarea','select'].includes(tag);
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    document.getElementById('desktop-global-search-input')?.focus();
+  } else if (e.key === 'Escape') {
+    if (state.desktopGlobalSearch || state.desktopQuickOpen || state.desktopPanel) {
+      state.desktopGlobalSearch = '';
+      state.desktopQuickOpen = false;
+      state.desktopPanel = '';
+      render();
+    }
+  } else if (!typing && e.key.toLowerCase() === 'n' && window.matchMedia('(min-width:768px)').matches) {
+    setState({desktopQuickOpen:true});
+  }
+});
+
 const ICONS = {
   dashboard: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
   scan: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>',
@@ -4218,6 +4414,9 @@ function render() {
   document.getElementById('modal-container').innerHTML = state.viewCreditImage ? renderImageLightbox() : (state.editId ? renderEditModal() : (state.payablesModal ? renderPayablesModal() : (state.productsModal ? renderProductsModal() : (state.ordersModal ? renderOrdersModals() : ''))));
   renderNav();
   updateHeader();
+  updateDesktopHeader();
+  const desktopShell = document.getElementById('desktop-shell-container');
+  if (desktopShell) desktopShell.innerHTML = renderDesktopShell();
   // Auto-focus supplier edit input if in edit mode
   if (state.supplierEditId) {
     const el = document.getElementById('sup-edit-inp');
@@ -8231,7 +8430,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=67').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=68').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
