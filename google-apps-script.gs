@@ -16,6 +16,8 @@ const SHEETS = {
   installments: 'תשלומים',
   suppliers: 'ספקים',
   products: 'מוצרים',
+  active_orders: 'הזמנות פעילות',
+  app_state: 'מצב מערכת',
   pending: 'ממתין לאישור'
 };
 
@@ -26,6 +28,8 @@ const HEADERS = {
   installments: ['id','שם','סכום כולל','מספר תשלומים','תשלומים ששולמו','תאריך התחלה','ספק','הערות','נוצר ב'],
   suppliers: ['supplier_id','supplier_name','product_id','product_name','default_unit'],
   products: ['id','name','category','sell_price','sell_price_updated','active','aliases','supplier_prices_json','created_at'],
+  active_orders: ['orders_json'],
+  app_state: ['key','json','updated_at'],
   pending: ['id','name_on_invoice','supplier_name','qty','unit','price','date','suggested_match_id','skipped']
 };
 
@@ -59,6 +63,8 @@ function doPost(e) {
       // ספקים (מערכת הזמנות)
       case 'list_suppliers':   result = listSuppliers(); break;
       case 'save_suppliers':   result = saveSuppliers(data.payload); break;
+      case 'list_active_orders': result = listActiveOrders(); break;
+      case 'save_active_orders': result = saveActiveOrders(data.payload); break;
 
       // העלאת תמונה
       case 'upload_image':     result = uploadImage(data.base64, data.mime, data.filename); break;
@@ -74,6 +80,10 @@ function doPost(e) {
       // ממתין לאישור
       case 'list_pending':     result = listPending(); break;
       case 'save_pending':     result = savePending(data.payload); break;
+
+      // מצב מערכת מלא בין מכשירים
+      case 'get_app_state':    result = getAppState(data.key); break;
+      case 'save_app_state':   result = saveAppState(data.key, data.payload); break;
 
       // בדיקת חיבור
       case 'ping':             result = { ok: true, time: new Date().toISOString() }; break;
@@ -313,6 +323,50 @@ function saveSuppliers(suppliers) {
 }
 
 // ─── מוצרים ──────────────────────────────────────────────────────────────────
+function listActiveOrders() {
+  const sheet = getSheet('active_orders');
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const val = sheet.getRange(2, 1).getValue();
+  if (!val) return [];
+  try { return JSON.parse(val); } catch(e) { return []; }
+}
+
+function saveActiveOrders(orders) {
+  const sheet = getSheet('active_orders');
+  if (sheet.getLastRow() < 2) sheet.appendRow(['']);
+  sheet.getRange(2, 1).setValue(JSON.stringify(orders || []));
+  return { ok: true, rows: (orders || []).length };
+}
+
+function getAppState(key) {
+  if (!key) throw new Error('Missing state key');
+  const sheet = getSheet('app_state');
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, HEADERS.app_state.length).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (String(data[i][0]) === String(key)) {
+      try { return JSON.parse(data[i][1] || 'null'); } catch(e) { return null; }
+    }
+  }
+  return null;
+}
+
+function saveAppState(key, payload) {
+  if (!key) throw new Error('Missing state key');
+  const sheet = getSheet('app_state');
+  let rowIdx = -1;
+  if (sheet.getLastRow() >= 2) {
+    const keys = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+    for (let i = 0; i < keys.length; i++) {
+      if (String(keys[i][0]) === String(key)) { rowIdx = i + 2; break; }
+    }
+  }
+  const row = [key, JSON.stringify(payload || null), new Date()];
+  if (rowIdx < 0) sheet.appendRow(row);
+  else sheet.getRange(rowIdx, 1, 1, row.length).setValues([row]);
+  return { ok: true, key };
+}
+
 function listProducts() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('מוצרים');

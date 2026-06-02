@@ -206,6 +206,15 @@ input[type="date"] { min-width:0; max-width:100%; }
 .btn-ghost:active { background:var(--borderHi); }
 .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px; box-shadow:var(--shadow); transition:border-color var(--t-fast),box-shadow var(--t-fast); }
 .card:hover { border-color:var(--borderHi); box-shadow:0 4px 18px rgba(0,0,0,0.5); }
+.sync-overview { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+.sync-tile { padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+.sync-tile-value { font-size:22px; font-weight:800; color:var(--text); line-height:1; }
+.sync-tile-label { margin-top:6px; font-size:11px; font-weight:700; color:var(--textDim); }
+@media (min-width:768px) {
+  .settings-grid { display:grid; grid-template-columns:minmax(360px,440px) 1fr; gap:18px; align-items:start; }
+  .sync-overview { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .sync-tile { min-height:92px; display:flex; flex-direction:column; justify-content:center; }
+}
 .pill { padding:5px 12px; border-radius:100px; border:1.5px solid var(--border); cursor:pointer; font-size:11.5px; font-weight:700; font-family:inherit; white-space:nowrap; background:transparent; color:var(--textDim); transition:all var(--t-fast); }
 .pill:hover:not(.active) { background:var(--accentSoft); color:var(--accent); border-color:rgba(110,198,58,0.3); }
 .pill.active { background:var(--accentSoft); color:var(--accent); border-color:rgba(110,198,58,0.4); }
@@ -371,9 +380,23 @@ const PENDING = JSON.parse(localStorage.getItem('tari_pending_v1')||'[]'); // pe
 // Persistent accountant flags — survives cloud sync (cloud may not store this field)
 // Map of expense-id → true; never overwritten by syncAll
 const ACC_FLAGS = JSON.parse(localStorage.getItem('tari_acc_flags_v1')||'{}');
-function saveAccFlags() { localStorage.setItem('tari_acc_flags_v1', JSON.stringify(ACC_FLAGS)); }
+function saveAccFlags(skipDirty) {
+  localStorage.setItem('tari_acc_flags_v1', JSON.stringify(ACC_FLAGS));
+  if (!skipDirty) markCoreStateDirty();
+}
 const DN_ORDER_LINKS = JSON.parse(localStorage.getItem('tari_dn_order_links_v1')||'{}');
-function saveDnOrderLinks() { localStorage.setItem('tari_dn_order_links_v1', JSON.stringify(DN_ORDER_LINKS)); }
+const APP_META_KEY = 'tari_app_meta_v1';
+let APP_META = (()=>{ try { return JSON.parse(localStorage.getItem(APP_META_KEY)||'{}'); } catch(e) { return {}; } })();
+function saveAppMeta() { localStorage.setItem(APP_META_KEY, JSON.stringify(APP_META)); }
+function markCoreStateDirty() {
+  APP_META.coreLocalModified = Date.now();
+  saveAppMeta();
+  scheduleAutoSync();
+}
+function saveDnOrderLinks(skipDirty) {
+  localStorage.setItem('tari_dn_order_links_v1', JSON.stringify(DN_ORDER_LINKS));
+  if (!skipDirty) markCoreStateDirty();
+}
 function mergeAccFlags(expenses) {
   // After every cloud pull: restore sentToAccountant from the local flags store
   (expenses||[]).forEach(e => {
@@ -382,8 +405,8 @@ function mergeAccFlags(expenses) {
     if (DN_ORDER_LINKS[e.id]) e.linkedOrderId = DN_ORDER_LINKS[e.id];
     else if (e.linkedOrderId) DN_ORDER_LINKS[e.id] = e.linkedOrderId;
   });
-  saveAccFlags();
-  saveDnOrderLinks();
+  saveAccFlags(true);
+  saveDnOrderLinks(true);
 }
 
 function persistLocal() {
@@ -401,6 +424,7 @@ function persistLocal() {
 }
 
 let SYNC_STATUS = 'local'; // local | syncing | ok | offline
+let _autoSyncTimer = null;
 function setSyncStatus(s) {
   SYNC_STATUS = s;
   const badge = document.getElementById('sync-badge');
@@ -412,6 +436,25 @@ function setSyncStatus(s) {
     ok: '<div style="width:6px;height:6px;border-radius:50%;background:currentColor"></div> מסונכרן',
     offline: '⚠ אופליין',
   }[s] || s;
+}
+
+function scheduleAutoSync() {
+  if (!CFG.webAppUrl) return;
+  if (typeof getUserRole === 'function' && getUserRole() === 'scanner') return;
+  clearTimeout(_autoSyncTimer);
+  _autoSyncTimer = setTimeout(function() {
+    syncAll({silent:true});
+  }, 1400);
+}
+
+function getOrdersDraftsForSync() {
+  try { return JSON.parse(localStorage.getItem('orders-all-drafts') || '{}'); } catch(e) { return {}; }
+}
+
+function saveOrdersDraftsFromSync(drafts) {
+  if (drafts && typeof drafts === 'object') {
+    localStorage.setItem('orders-all-drafts', JSON.stringify(drafts));
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -447,7 +490,151 @@ async function triggerTopSync() {
 
 let _syncLock = false; // prevent concurrent syncAll calls → duplicates
 
-async function syncAll() {
+function buildCoreCloudState() {
+  return {
+    _localModified: APP_META.coreLocalModified || 0,
+    suppliers: DB.suppliers || [],
+    supplierProfiles: supplierProfiles || [],
+    categories: CATS || [],
+    accFlags: ACC_FLAGS || {},
+    dnOrderLinks: DN_ORDER_LINKS || {},
+    users: typeof getDynamicUsers === 'function' ? getDynamicUsers() : [],
+  };
+}
+
+function applyCoreCloudState(cloud) {
+  if (!cloud || typeof cloud !== 'object') return;
+  const cloudMod = +cloud._localModified || 0;
+  const localMod = +APP_META.coreLocalModified || 0;
+  if (cloudMod < localMod && (DB.suppliers||[]).length) return;
+  if (Array.isArray(cloud.suppliers)) DB.suppliers = cloud.suppliers;
+  if (Array.isArray(cloud.supplierProfiles)) supplierProfiles = cloud.supplierProfiles;
+  if (Array.isArray(cloud.categories) && cloud.categories.length) CATS = cloud.categories;
+  if (cloud.accFlags && typeof cloud.accFlags === 'object') {
+    Object.keys(ACC_FLAGS).forEach(k => delete ACC_FLAGS[k]);
+    Object.assign(ACC_FLAGS, cloud.accFlags);
+  }
+  if (cloud.dnOrderLinks && typeof cloud.dnOrderLinks === 'object') {
+    Object.keys(DN_ORDER_LINKS).forEach(k => delete DN_ORDER_LINKS[k]);
+    Object.assign(DN_ORDER_LINKS, cloud.dnOrderLinks);
+  }
+  if (Array.isArray(cloud.users)) localStorage.setItem('tari_users_v1', JSON.stringify(cloud.users));
+  APP_META.coreLocalModified = cloudMod;
+  APP_META.coreLastSynced = Date.now();
+  saveAppMeta();
+  saveAccFlags(true);
+  saveSupplierProfiles(true);
+  saveCategories(true);
+  persistLocal();
+}
+
+function ensureExistingLocalStoresCanSync() {
+  const hasCustomCategories = !!localStorage.getItem('tari_cats_v1');
+  const hasCoreData =
+    (DB.suppliers || []).length ||
+    (supplierProfiles || []).length ||
+    hasCustomCategories ||
+    Object.keys(DN_ORDER_LINKS || {}).length ||
+    Object.keys(ACC_FLAGS || {}).length;
+  if (hasCoreData && !APP_META.coreLocalModified) {
+    APP_META.coreLocalModified = Date.now();
+    APP_META.coreLastSynced = 0;
+    saveAppMeta();
+  }
+}
+
+function buildPayablesCloudState() {
+  return {
+    ...pv,
+    _localModified: pv._localModified || 0,
+  };
+}
+
+function applyPayablesCloudState(cloud) {
+  if (!cloud || typeof cloud !== 'object') return;
+  const localImages = {};
+  (pv.debts||[]).forEach(d => { if (d.invoiceImage) localImages[d.id] = d.invoiceImage; });
+  pv = {...cloud};
+  if (!pv.taxInvoices) pv.taxInvoices = [];
+  if (!pv.debts) pv.debts = [];
+  if (!pv.cancelledDNIds) pv.cancelledDNIds = [];
+  (pv.debts||[]).forEach(d => { if (!d.invoiceImage && localImages[d.id]) d.invoiceImage = localImages[d.id]; });
+  pv._lastSynced = Date.now();
+  savePv(false);
+}
+
+function buildProductsCloudState() {
+  return {...pdb, _localModified: pdb._localModified || 0};
+}
+
+function applyProductsCloudState(cloud) {
+  if (!cloud || typeof cloud !== 'object') return;
+  pdb = {
+    products: Array.isArray(cloud.products) ? cloud.products : [],
+    pending: Array.isArray(cloud.pending) ? cloud.pending : [],
+    orderHistory: Array.isArray(cloud.orderHistory) ? cloud.orderHistory : [],
+    _localModified: +cloud._localModified || 0,
+    _lastSynced: Date.now()
+  };
+  savePdb(false);
+}
+
+function buildOrdersCloudState() {
+  return {...odb, drafts: getOrdersDraftsForSync(), _localModified: odb._localModified || 0};
+}
+
+function applyOrdersCloudState(cloud) {
+  if (!cloud || typeof cloud !== 'object') return;
+  const localImgMap = {};
+  (odb.activeOrders || []).forEach(o => { if (o.deliveryNoteImage) localImgMap[o.id] = o.deliveryNoteImage; });
+  odb = {
+    suppliers: Array.isArray(cloud.suppliers) ? cloud.suppliers : [],
+    history: Array.isArray(cloud.history) ? cloud.history : [],
+    activeOrders: Array.isArray(cloud.activeOrders) ? cloud.activeOrders.map(o => ({...o, deliveryNoteImage: localImgMap[o.id] || o.deliveryNoteImage || null})) : [],
+    _localModified: +cloud._localModified || 0,
+    _lastSynced: Date.now()
+  };
+  saveOrdersDraftsFromSync(cloud.drafts);
+  saveOdb(false);
+}
+
+async function syncCloudStateBlob(key, buildFn, applyFn, getLocalModified) {
+  let cloud = null;
+  try {
+    cloud = await cloudCall('get_app_state', {key});
+  } catch(e) {
+    const msg = (e.message || '').toLowerCase();
+    if (msg.includes('unknown action')) return false;
+    throw e;
+  }
+  const localMod = +getLocalModified() || 0;
+  const cloudMod = +(cloud && cloud._localModified) || 0;
+  if (localMod > cloudMod) {
+    await cloudCall('save_app_state', {key, payload: buildFn()});
+  } else if (cloud) {
+    applyFn(cloud);
+  } else if (localMod > 0) {
+    await cloudCall('save_app_state', {key, payload: buildFn()});
+  }
+  return true;
+}
+
+async function syncExtendedAppState() {
+  const results = await Promise.all([
+    syncCloudStateBlob('core', buildCoreCloudState, applyCoreCloudState, () => APP_META.coreLocalModified || 0),
+    syncCloudStateBlob('payables', buildPayablesCloudState, applyPayablesCloudState, () => pv._localModified || 0),
+    syncCloudStateBlob('products', buildProductsCloudState, applyProductsCloudState, () => pdb._localModified || 0),
+    syncCloudStateBlob('orders', buildOrdersCloudState, applyOrdersCloudState, () => odb._localModified || 0),
+  ].map(p => p.catch(e => {
+    const msg = (e.message || '').toLowerCase();
+    if (msg.includes('unknown action')) return false;
+    console.warn('extended sync failed:', e.message);
+    return false;
+  })));
+  return results.some(Boolean);
+}
+
+async function syncAll(opts) {
   if (!CFG.webAppUrl) { setSyncStatus('local'); return; }
   if (_syncLock) { console.log('syncAll: already running, skip'); return; }
   _syncLock = true;
@@ -472,9 +659,31 @@ async function syncAll() {
       localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
     }
 
+    const extendedSyncOk = await syncExtendedAppState();
+
+    if (!extendedSyncOk) {
+      if ((pdb._localModified || 0) > (pdb._lastSynced || 0)) {
+        await cloudCall('save_products', {payload: pdb.products || []});
+        await cloudCall('save_pending', {payload: pdb.pending || []});
+        pdb._lastSynced = Date.now();
+        savePdb(false);
+      }
+      if ((pv._localModified || 0) > (pv._lastSynced || 0)) {
+        await cloudCall('save_payables', {payload: buildPayablesCloudState()});
+        pv._lastSynced = Date.now();
+        savePv(false);
+      }
+      if ((odb._localModified || 0) > (odb._lastSynced || 0)) {
+        await cloudCall('save_suppliers', {payload: odb.suppliers || []});
+        try { await cloudCall('save_active_orders', {payload: odb.activeOrders || []}); } catch(e) {}
+        odb._lastSynced = Date.now();
+        saveOdb(false);
+      }
+    }
+
     // 2. Pull fresh data — individual failures are non-fatal (new GAS endpoints may not exist yet)
     const safe = fn => fn.catch(() => null);
-    const [exp, fix, ins, cred, wrk, chk, inc, adv] = await Promise.all([
+    const [exp, fix, ins, cred, wrk, chk, inc, adv, prod, pend, pay, osup, activeOrders] = await Promise.all([
       cloudCall('list_expenses', {}),
       cloudCall('list_fixed', {}),
       cloudCall('list_installments', {}),
@@ -483,6 +692,11 @@ async function syncAll() {
       safe(cloudCall('list_checks', {})),
       safe(cloudCall('list_income', {})),
       safe(cloudCall('list_advances', {})),
+      extendedSyncOk ? Promise.resolve(null) : safe(cloudCall('list_products', {})),
+      extendedSyncOk ? Promise.resolve(null) : safe(cloudCall('list_pending', {})),
+      extendedSyncOk ? Promise.resolve(null) : safe(cloudCall('list_payables', {})),
+      extendedSyncOk ? Promise.resolve(null) : safe(cloudCall('list_suppliers', {})),
+      extendedSyncOk ? Promise.resolve(null) : safe(cloudCall('list_active_orders', {})),
     ]);
     if ((exp||[]).length > 0 || DB.expenses.length === 0) {
       DB.expenses = dedup(exp || []); // dedup by id — removes cloud duplicates
@@ -500,6 +714,38 @@ async function syncAll() {
     if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) DB.checks = dedup(chk || []);
     if (inc !== null && ((inc||[]).length > 0 || DB.income.length === 0)) DB.income = dedup(inc || []);
     if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) DB.advances = dedup(adv || []);
+    if (!extendedSyncOk) {
+      if (prod !== null && ((prod||[]).length > 0 || pdb.products.length === 0)) {
+        pdb.products = dedup(prod || []);
+        pdb._lastSynced = Date.now();
+        savePdb(false);
+      } else if (pdb.products.length > 0 && prod !== null && (prod||[]).length === 0) {
+        await cloudCall('save_products', {payload: pdb.products});
+        pdb._lastSynced = Date.now();
+        savePdb(false);
+      }
+      if (pend !== null && ((pend||[]).length > 0 || pdb.pending.length === 0)) {
+        pdb.pending = dedup(pend || []);
+        pdb._lastSynced = Date.now();
+        savePdb(false);
+      }
+      if (pay !== null) applyPayablesCloudState(pay);
+      else if ((pv.debts||[]).length || (pv.taxInvoices||[]).length) {
+        try { await cloudCall('save_payables', {payload: buildPayablesCloudState()}); } catch(e) {}
+      }
+      if (osup !== null && ((osup||[]).length > 0 || odb.suppliers.length === 0)) {
+        odb.suppliers = osup || [];
+        odb._lastSynced = Date.now();
+        saveOdb(false);
+      }
+      if (activeOrders !== null && Array.isArray(activeOrders)) {
+        const localImgMap = {};
+        (odb.activeOrders || []).forEach(o => { if (o.deliveryNoteImage) localImgMap[o.id] = o.deliveryNoteImage; });
+        odb.activeOrders = activeOrders.map(o => ({...o, deliveryNoteImage: localImgMap[o.id] || o.deliveryNoteImage || null}));
+        odb._lastSynced = Date.now();
+        saveOdb(false);
+      }
+    }
     persistLocal();
     setSyncStatus('ok');
     render();
@@ -543,7 +789,10 @@ const CATS_DEFAULT = ["פירות וירקות","מוצרי חלב","פיצוח�
 let CATS = (()=>{ try { const s=localStorage.getItem('tari_cats_v1'); return s?JSON.parse(s):CATS_DEFAULT.slice(); } catch(e){ return CATS_DEFAULT.slice(); } })();
 const CAT_PALETTE = ["#84cc16","#f97316","#10b981","#eab308","#06b6d4","#3b82f6","#ec4899","#8b5cf6","#a78bfa","#64748b","#94a3b8"];
 function getCatColor(cat) { const i=CATS.indexOf(cat); return i>=0 ? CAT_PALETTE[i%CAT_PALETTE.length] : '#94a3b8'; }
-function saveCategories() { localStorage.setItem('tari_cats_v1', JSON.stringify(CATS)); }
+function saveCategories(skipDirty) {
+  localStorage.setItem('tari_cats_v1', JSON.stringify(CATS));
+  if (!skipDirty) markCoreStateDirty();
+}
 const DTYPES = ["חשבונית מס","חשבונית מס קבלה","תעודת משלוח","קבלה"];
 const FIXED_CATS = ["שכירות","חשמל","מים","ארנונה","אינטרנט","טלפון","ביטוח","הנהלת חשבונות","רישיונות","משכורות","שיווק","אבטחה","תחזוקה","אחר"];
 const FIXED_FREQ = ["חודשי","דו-חודשי","רבעוני","חצי שנתי","שנתי"];
@@ -762,6 +1011,7 @@ function addSupplier() {
     toast('ספק זה כבר קיים', 'error'); return;
   }
   DB.suppliers.push({ id: uid(), name, defaultCategory: catEl?.value || CATS[0], approved: true });
+  markCoreStateDirty();
   persistLocal();
   if (nameEl) nameEl.value = '';
   render();
@@ -770,13 +1020,14 @@ function addSupplier() {
 
 function deleteSupplier(id) {
   DB.suppliers = DB.suppliers.filter(s => s.id !== id);
+  markCoreStateDirty();
   persistLocal();
   render();
 }
 
 function updateSupplierCat(id, cat) {
   const s = DB.suppliers.find(x => x.id === id);
-  if (s) { s.defaultCategory = cat; persistLocal(); }
+  if (s) { s.defaultCategory = cat; markCoreStateDirty(); persistLocal(); }
 }
 
 function startEditSupplier(id) {
@@ -793,7 +1044,7 @@ function saveEditSupplier() {
     toast('ספק בשם זה כבר קיים', 'error'); return;
   }
   const s = DB.suppliers.find(x => x.id === id);
-  if (s) { s.name = newName; persistLocal(); }
+  if (s) { s.name = newName; markCoreStateDirty(); persistLocal(); }
   setState({ supplierEditId: null, supplierEditName: '' });
   toast('ספק עודכן ✓', 'success');
 }
@@ -850,7 +1101,7 @@ function seedSuppliersFromExpenses() {
     DB.suppliers.push({ id: uid(), name: name, defaultCategory: defaultCategory, approved: true });
     changed = true;
   });
-  if (changed) persistLocal();
+  if (changed) { markCoreStateDirty(); persistLocal(); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3595,9 +3846,20 @@ function renderSupplierManager() {
 }
 
 function renderSettings() {
+  const syncTiles = [
+    ['הוצאות', DB.expenses.length],
+    ['ספקים מאושרים', (DB.suppliers || []).length],
+    ['חובות ספקים', (pv.debts || []).length],
+    ['הזמנות פעילות', (odb.activeOrders || []).length],
+  ].map(([label,value]) => `
+    <div class="sync-tile">
+      <div class="sync-tile-value">${value}</div>
+      <div class="sync-tile-label">${label}</div>
+    </div>`).join('');
   return `
     <div style="padding:20px 20px 100px" class="fade-up">
       <h2 class="display" style="font-size:24px;margin:0 0 18px">הגדרות</h2>
+      <div class="sync-overview">${syncTiles}</div>
 
       <div style="padding:18px;border-radius:16px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
@@ -4032,6 +4294,7 @@ function getDynamicUsers() {
 }
 function saveDynamicUsers(users) {
   localStorage.setItem('tari_users_v1', JSON.stringify(users));
+  markCoreStateDirty();
 }
 
 function getStoredUser() {
@@ -4194,12 +4457,16 @@ function loadOdb() {
   if (!odb.suppliers) odb.suppliers = [];
   if (!odb.history) odb.history = [];
   if (!odb.activeOrders) odb.activeOrders = [];
-  if (!odb._localModified) odb._localModified = 0;
-  if (!odb._lastSynced) odb._lastSynced = odb._localModified || Date.now();
+  if (!odb._localModified) {
+    const hasData = odb.suppliers.length || odb.history.length || odb.activeOrders.length;
+    odb._localModified = hasData ? Date.now() : 0;
+  }
+  if (!odb._lastSynced) odb._lastSynced = odb._localModified ? 0 : Date.now();
 }
 function saveOdb(dirty) {
   if (dirty) odb._localModified = Date.now();
   localStorage.setItem(ORDERS_KEY, JSON.stringify(odb));
+  if (dirty) scheduleAutoSync();
 }
 loadOdb();
 
@@ -5633,10 +5900,16 @@ function loadPv() {
   if (!pv.taxInvoices) pv.taxInvoices = [];
   if (!pv.debts) pv.debts = [];
   if (!pv.cancelledDNIds) pv.cancelledDNIds = [];
+  if (!pv._localModified) {
+    const hasData = pv.taxInvoices.length || pv.debts.length || pv.cancelledDNIds.length;
+    pv._localModified = hasData ? Date.now() : 0;
+  }
+  if (!pv._lastSynced) pv._lastSynced = pv._localModified ? 0 : Date.now();
 }
 function savePv(dirty) {
   if (dirty) pv._localModified = Date.now();
   localStorage.setItem(PAYABLES_KEY, JSON.stringify(pv));
+  if (dirty) scheduleAutoSync();
 }
 loadPv();
 
@@ -5648,8 +5921,9 @@ function loadSupplierProfiles() {
   try { const s = localStorage.getItem(SUPPLIER_PROFILES_KEY); if (s) supplierProfiles = JSON.parse(s); } catch(e) { supplierProfiles = []; }
   if (!Array.isArray(supplierProfiles)) supplierProfiles = [];
 }
-function saveSupplierProfiles() {
+function saveSupplierProfiles(skipDirty) {
   localStorage.setItem(SUPPLIER_PROFILES_KEY, JSON.stringify(supplierProfiles));
+  if (!skipDirty) markCoreStateDirty();
 }
 function getOrCreateSupplierProfile(name) {
   const norm = pvSupplierNorm(name);
@@ -5692,10 +5966,16 @@ function loadPdb() {
   if (!pdb.products) pdb.products = [];
   if (!pdb.pending) pdb.pending = [];
   if (!pdb.orderHistory) pdb.orderHistory = [];
+  if (!pdb._localModified) {
+    const hasData = pdb.products.length || pdb.pending.length || pdb.orderHistory.length;
+    pdb._localModified = hasData ? Date.now() : 0;
+  }
+  if (!pdb._lastSynced) pdb._lastSynced = pdb._localModified ? 0 : Date.now();
 }
 function savePdb(dirty) {
   if (dirty) pdb._localModified = Date.now();
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(pdb));
+  if (dirty) scheduleAutoSync();
 }
 loadPdb();
 
@@ -7947,10 +8227,11 @@ function pvCancelDebt(debtId) {
 
 // ─── Initial render + sync ──────────────────────────────────────────────────
 initTheme();
+ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=65').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=66').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
