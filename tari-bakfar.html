@@ -372,13 +372,18 @@ const PENDING = JSON.parse(localStorage.getItem('tari_pending_v1')||'[]'); // pe
 // Map of expense-id → true; never overwritten by syncAll
 const ACC_FLAGS = JSON.parse(localStorage.getItem('tari_acc_flags_v1')||'{}');
 function saveAccFlags() { localStorage.setItem('tari_acc_flags_v1', JSON.stringify(ACC_FLAGS)); }
+const DN_ORDER_LINKS = JSON.parse(localStorage.getItem('tari_dn_order_links_v1')||'{}');
+function saveDnOrderLinks() { localStorage.setItem('tari_dn_order_links_v1', JSON.stringify(DN_ORDER_LINKS)); }
 function mergeAccFlags(expenses) {
   // After every cloud pull: restore sentToAccountant from the local flags store
   (expenses||[]).forEach(e => {
     if (ACC_FLAGS[e.id]) e.sentToAccountant = true;
     else if (e.sentToAccountant) ACC_FLAGS[e.id] = true; // cloud already has it → keep flag
+    if (DN_ORDER_LINKS[e.id]) e.linkedOrderId = DN_ORDER_LINKS[e.id];
+    else if (e.linkedOrderId) DN_ORDER_LINKS[e.id] = e.linkedOrderId;
   });
   saveAccFlags();
+  saveDnOrderLinks();
 }
 
 function persistLocal() {
@@ -1625,6 +1630,10 @@ function renderExpenseListBody(rows) {
                 <div><div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:3px">הערות</div><div style="font-size:13px;color:var(--text)">${esc(e.notes||'—')}</div></div>
               </div>
               ${e.image ? (typeof e.image==='string' && e.image.startsWith('http') ? `<a href="${e.image}" target="_blank" style="display:block;margin-bottom:12px;text-align:center;color:var(--accent);font-size:13px;text-decoration:none;padding:10px;border:1px solid var(--border);border-radius:8px">📷 צפה בתמונת החשבונית</a>` : `<div style="border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:12px"><img src="${e.image}" style="width:100%;max-height:200px;object-fit:contain;background:#000;display:block"></div>`) : ''}
+              ${e.document_type === 'תעודת משלוח' ? `<div style="margin-bottom:10px;padding:9px 10px;border:1px solid var(--infoSoft);border-radius:10px;background:var(--infoSoft);display:flex;align-items:center;gap:8px">
+                <div style="flex:1;min-width:0;font-size:12px;color:var(--info);font-weight:800">${e.linkedOrderId ? 'מקושרת להזמנה' : 'לא מקושרת להזמנה'}</div>
+                <button onclick="event.stopPropagation();ordersOpenLinkOrderForDN('${e.id}')" style="border:none;border-radius:8px;padding:6px 10px;background:var(--surface);color:var(--text);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">🔗 קשר להזמנה</button>
+              </div>` : ''}
               <div style="display:flex;gap:8px">
                 <button onclick="event.stopPropagation();pushExpenseToCloud('${e.id}')" style="flex:1;border:1px solid rgba(91,156,246,0.3);border-radius:10px;padding:10px;background:rgba(91,156,246,0.08);color:#5b9cf6;cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">💾 שמור</button>
                 <button onclick="openEditExpense('${e.id}')" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;background:transparent;color:var(--text);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px">✏️ ערוך</button>
@@ -4121,7 +4130,8 @@ async function pushActiveOrders() {
   try {
     const payload = (odb.activeOrders || []).map(o => ({
       id: o.id, supplierId: o.supplierId, supplierName: o.supplierName,
-      dateOrdered: o.dateOrdered, timestamp: o.timestamp, items: o.items
+      dateOrdered: o.dateOrdered, timestamp: o.timestamp, items: o.items,
+      deliveryNoteIds: o.deliveryNoteIds || []
     }));
     await ordersCloudCall('save_active_orders', { payload });
   } catch(e) { console.log('pushActiveOrders failed:', e.message); }
@@ -4132,8 +4142,12 @@ async function syncActiveOrders() {
     const cloud = await ordersCloudCall('list_active_orders', {});
     if (!cloud) return;
     const localImgMap = {};
-    (odb.activeOrders || []).forEach(o => { if (o.deliveryNoteImage) localImgMap[o.id] = o.deliveryNoteImage; });
-    odb.activeOrders = cloud.map(o => ({ ...o, deliveryNoteImage: localImgMap[o.id] || null }));
+    const localDnMap = {};
+    (odb.activeOrders || []).forEach(o => {
+      if (o.deliveryNoteImage) localImgMap[o.id] = o.deliveryNoteImage;
+      if (o.deliveryNoteIds) localDnMap[o.id] = o.deliveryNoteIds;
+    });
+    odb.activeOrders = cloud.map(o => ({ ...o, deliveryNoteImage: localImgMap[o.id] || null, deliveryNoteIds: localDnMap[o.id] || o.deliveryNoteIds || [] }));
     saveOdb();
     if (state.tab === 'orders') render();
   } catch(e) { console.log('syncActiveOrders failed:', e.message); }
@@ -4662,8 +4676,78 @@ function ordersMoveSupplierDown() {
 
 function ordersDeleteActiveOrder(id) {
   if (!confirm('למחוק הזמנה זו מהרשימה?')) return;
+  (DB.expenses||[]).forEach(e => {
+    if (e.linkedOrderId === id) {
+      delete e.linkedOrderId;
+      delete DN_ORDER_LINKS[e.id];
+    }
+  });
   odb.activeOrders = (odb.activeOrders || []).filter(o => o.id !== id);
+  persistLocal();
+  saveDnOrderLinks();
   saveOdb(); pushActiveOrders(); render();
+}
+
+function ordersGetDeliveryNoteById(id) {
+  return (DB.expenses||[]).find(e => e.id === id && e.document_type === 'תעודת משלוח');
+}
+
+function ordersGetLinkedDeliveryNotes(orderId) {
+  const order = (odb.activeOrders||[]).find(o => o.id === orderId);
+  const ids = new Set([...(order?.deliveryNoteIds||[])]);
+  (DB.expenses||[]).forEach(e => { if (e.linkedOrderId === orderId) ids.add(e.id); });
+  return [...ids].map(id => ordersGetDeliveryNoteById(id)).filter(Boolean);
+}
+
+function ordersGetDnCandidatesForOrder(orderId) {
+  const order = (odb.activeOrders||[]).find(o => o.id === orderId);
+  if (!order) return [];
+  const norm = pvSupplierNorm(order.supplierName || '');
+  return (DB.expenses||[]).filter(e =>
+    e.document_type === 'תעודת משלוח' &&
+    pvSupplierNorm(e.supplier || '') === norm
+  ).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+}
+
+function ordersOpenLinkDN(orderId) {
+  setState({ordersModal:'link-dn', ordersModalData:{orderId}});
+}
+
+function ordersOpenLinkOrderForDN(dnId) {
+  setState({ordersModal:'link-order-dn', ordersModalData:{dnId}});
+}
+
+function ordersLinkDeliveryNote(orderId, dnId) {
+  const order = (odb.activeOrders||[]).find(o => o.id === orderId);
+  const dn = ordersGetDeliveryNoteById(dnId);
+  if (!order || !dn) return;
+  (odb.activeOrders||[]).forEach(o => {
+    if (o.id !== orderId && o.deliveryNoteIds) o.deliveryNoteIds = o.deliveryNoteIds.filter(id => id !== dnId);
+  });
+  if (!order.deliveryNoteIds) order.deliveryNoteIds = [];
+  if (!order.deliveryNoteIds.includes(dnId)) order.deliveryNoteIds.push(dnId);
+  dn.linkedOrderId = orderId;
+  DN_ORDER_LINKS[dnId] = orderId;
+  saveDnOrderLinks();
+  persistLocal();
+  saveOdb(true);
+  pushActiveOrders();
+  setState({ordersModal:'', ordersModalData:null});
+  toast('תעודת משלוח קושרה להזמנה ✓', 'success');
+}
+
+function ordersUnlinkDeliveryNote(orderId, dnId) {
+  const order = (odb.activeOrders||[]).find(o => o.id === orderId);
+  const dn = ordersGetDeliveryNoteById(dnId);
+  if (order) order.deliveryNoteIds = (order.deliveryNoteIds||[]).filter(id => id !== dnId);
+  if (dn && dn.linkedOrderId === orderId) delete dn.linkedOrderId;
+  delete DN_ORDER_LINKS[dnId];
+  saveDnOrderLinks();
+  persistLocal();
+  saveOdb(true);
+  pushActiveOrders();
+  render();
+  toast('הקישור הוסר', 'success');
 }
 
 function ordersUploadDeliveryNote(event, orderId) {
@@ -5242,6 +5326,19 @@ function renderOrdersActiveView() {
         <div style="font-size:14px;color:var(--textDim);line-height:1.6">לאחר ייצוא הזמנה לווטסאפ<br>היא תופיע כאן עד לקבלתה</div>
       </div>` : orders.map((o, i) => {
         const itemsSummary = o.items.map(it => `${it.name}: ${it.qty} ${it.unit}`).join(' · ');
+        const linkedDns = ordersGetLinkedDeliveryNotes(o.id);
+        const linkedDnsHtml = linkedDns.length ? `
+          <div style="margin:0 16px 12px;padding:10px 12px;border:1px solid var(--infoSoft);border-radius:10px;background:var(--infoSoft)">
+            <div style="font-size:11px;font-weight:800;color:var(--info);margin-bottom:6px">תעודות משלוח מקושרות</div>
+            ${linkedDns.map(dn => `
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(37,99,235,0.12)">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12px;font-weight:700;color:var(--text)">${esc(dn.document_number||'ללא מספר')}</div>
+                  <div style="font-size:11px;color:var(--textDim)">${fmtDate(dn.date)} · ${fmtCurr(dn.total_amount)}</div>
+                </div>
+                <button onclick="ordersUnlinkDeliveryNote('${o.id}','${dn.id}')" style="border:none;border-radius:7px;padding:4px 8px;background:var(--surface);color:var(--textDim);font-size:11px;font-weight:700;font-family:inherit;cursor:pointer">נתק</button>
+              </div>`).join('')}
+          </div>` : '';
         return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);margin-bottom:12px;overflow:hidden" class="fade-up" style="animation-delay:${i*.05}s">
           <div style="padding:14px 16px 10px;display:flex;align-items:flex-start;gap:10px">
             <div style="font-size:20px;flex-shrink:0;margin-top:1px">🚚</div>
@@ -5252,12 +5349,14 @@ function renderOrdersActiveView() {
             <button onclick="ordersDeleteActiveOrder('${o.id}')" style="width:28px;height:28px;border:none;background:var(--dangerSoft);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--danger);flex-shrink:0">✕</button>
           </div>
           <div style="padding:0 16px 10px;font-size:12px;color:var(--textDim);line-height:1.7">${esc(itemsSummary)}</div>
+          ${linkedDnsHtml}
           ${o.deliveryNoteImage ? `<div style="margin:0 16px 12px;border-radius:10px;overflow:hidden;border:1px solid var(--border);max-height:180px"><img src="${o.deliveryNoteImage}" alt="תעודת משלוח" style="width:100%;max-height:180px;object-fit:contain;background:#000;display:block"></div>` : ''}
-          <div style="padding:10px 16px 14px;border-top:1px solid var(--border);display:flex;gap:8px">
+          <div style="padding:10px 16px 14px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <label style="flex:1;border:1px solid var(--border);border-radius:11px;padding:10px 8px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:var(--surfaceHi);color:var(--textDim);text-align:center;position:relative;overflow:hidden">
               ${o.deliveryNoteImage ? '📷 החלף תמונה' : '📷 תעודת משלוח'}
               <input type="file" accept="image/*" capture="environment" onchange="ordersUploadDeliveryNote(event,'${o.id}')" style="position:absolute;inset:0;opacity:0;cursor:pointer">
             </label>
+            <button onclick="ordersOpenLinkDN('${o.id}')" style="border:1px solid var(--border);border-radius:11px;padding:10px 8px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:var(--surfaceHi);color:var(--text)">🔗 קשר קיימת</button>
             <button onclick="ordersAddOrderToExpenses('${o.id}')" style="flex:1;border:none;border-radius:11px;padding:10px 8px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent),#52a428);color:#051201">➕ הוסף להוצאות</button>
           </div>
         </div>`;
@@ -5298,6 +5397,60 @@ function renderOrdersModals() {
         <button onclick="ordersOpenWhatsAppExport()" style="width:100%;border:none;border-radius:var(--r-md);padding:14px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;background:#25D366;color:#06240f;margin-bottom:10px">פתח בוואטסאפ</button>
         <button onclick="ordersCopyExport()" style="width:100%;border:none;border-radius:var(--r-md);padding:14px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent) 0%,#52a428 100%);color:#051201;margin-bottom:10px">📋 העתק טקסט</button>
         <button onclick="setState({ordersModal:''})" style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:13px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:transparent;color:var(--textDim)">המשך לערוך</button>
+      </div>
+    </div>`;
+  }
+
+  if (m === 'link-dn') {
+    const orderId = state.ordersModalData?.orderId;
+    const order = (odb.activeOrders||[]).find(o => o.id === orderId);
+    const dns = ordersGetDnCandidatesForOrder(orderId);
+    return `<div class="o-overlay" onclick="setState({ordersModal:'',ordersModalData:null})">
+      <div class="o-modal" onclick="event.stopPropagation()">
+        <div class="o-modal-handle"></div>
+        <h2 class="display" style="font-size:19px;margin:0 0 4px">קישור תעודת משלוח</h2>
+        <p style="font-size:13px;color:var(--textDim);margin:0 0 14px">${esc(order?.supplierName||'')}</p>
+        ${!dns.length ? `<div style="padding:18px;text-align:center;color:var(--textMuted);font-size:13px">אין תעודות משלוח קיימות לספק הזה</div>` : `
+          <div style="display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow-y:auto">
+            ${dns.map(dn => {
+              const linked = dn.linkedOrderId && dn.linkedOrderId !== orderId;
+              const already = dn.linkedOrderId === orderId || (order?.deliveryNoteIds||[]).includes(dn.id);
+              const linkedOrder = linked ? (odb.activeOrders||[]).find(o => o.id === dn.linkedOrderId) : null;
+              return `<button onclick="${already?'':`ordersLinkDeliveryNote('${orderId}','${dn.id}')`}" ${already?'disabled':''}
+                style="text-align:right;width:100%;border:1px solid ${already?'var(--accent)':'var(--border)'};border-radius:12px;padding:11px 13px;background:${already?'var(--accentSoft)':'var(--surfaceHi)'};color:var(--text);font-family:inherit;cursor:${already?'default':'pointer'}">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+                  <span style="font-size:13px;font-weight:800">${esc(dn.document_number||'ללא מספר')}</span>
+                  <span class="display" style="font-size:13px;font-weight:700">${fmtCurr(dn.total_amount)}</span>
+                </div>
+                <div style="font-size:11px;color:var(--textDim);margin-top:2px">${fmtDate(dn.date)}${already?' · כבר קשורה':linked?` · קשורה ל${esc(linkedOrder?.supplierName||'הזמנה אחרת')}`:''}</div>
+              </button>`;
+            }).join('')}
+          </div>`}
+        <button onclick="setState({ordersModal:'',ordersModalData:null})" style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:13px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:transparent;color:var(--textDim);margin-top:12px">סגור</button>
+      </div>
+    </div>`;
+  }
+
+  if (m === 'link-order-dn') {
+    const dnId = state.ordersModalData?.dnId;
+    const dn = ordersGetDeliveryNoteById(dnId);
+    const norm = pvSupplierNorm(dn?.supplier || '');
+    const orders = (odb.activeOrders||[]).filter(o => pvSupplierNorm(o.supplierName||'') === norm);
+    return `<div class="o-overlay" onclick="setState({ordersModal:'',ordersModalData:null})">
+      <div class="o-modal" onclick="event.stopPropagation()">
+        <div class="o-modal-handle"></div>
+        <h2 class="display" style="font-size:19px;margin:0 0 4px">קישור להזמנה</h2>
+        <p style="font-size:13px;color:var(--textDim);margin:0 0 14px">${esc(dn?.supplier||'')} · ${esc(dn?.document_number||'ללא מספר')}</p>
+        ${!orders.length ? `<div style="padding:18px;text-align:center;color:var(--textMuted);font-size:13px">אין הזמנות פתוחות לספק הזה</div>` : `
+          <div style="display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow-y:auto">
+            ${orders.map(o => `
+              <button onclick="ordersLinkDeliveryNote('${o.id}','${dnId}')"
+                style="text-align:right;width:100%;border:1px solid ${dn?.linkedOrderId===o.id?'var(--accent)':'var(--border)'};border-radius:12px;padding:11px 13px;background:${dn?.linkedOrderId===o.id?'var(--accentSoft)':'var(--surfaceHi)'};color:var(--text);font-family:inherit;cursor:pointer">
+                <div style="font-size:13px;font-weight:800">${esc(o.supplierName)}</div>
+                <div style="font-size:11px;color:var(--textDim);margin-top:2px">הוזמן ${esc(o.dateOrdered)} · ${(o.items||[]).length} פריטים</div>
+              </button>`).join('')}
+          </div>`}
+        <button onclick="setState({ordersModal:'',ordersModalData:null})" style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:13px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:transparent;color:var(--textDim);margin-top:12px">סגור</button>
       </div>
     </div>`;
   }
@@ -6674,12 +6827,14 @@ function _renderPayablesSupplierInner() {
       : allDNs.map(e => {
           const st = getDNStatus(e);
           const isOpen = st.label === 'פתוחה';
+          const linkedOrder = e.linkedOrderId ? (odb.activeOrders||[]).find(o => o.id === e.linkedOrderId) : null;
           return `<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)">
             <div style="flex:1;min-width:0">
               <div style="font-size:13px;font-weight:600;color:var(--text)">${fmtDate(e.date)} · ${esc(e.document_number||'ללא מספר')}</div>
-              <div style="font-size:11px;color:var(--textDim)">${fmtCurr(e.total_amount)}</div>
+              <div style="font-size:11px;color:var(--textDim)">${fmtCurr(e.total_amount)}${linkedOrder?' · קשורה להזמנה':''}</div>
             </div>
             <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:${st.bg};color:${st.color}">${st.label}</span>
+            <button onclick="ordersOpenLinkOrderForDN('${e.id}')" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--textDim);cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap">🔗</button>
             ${isOpen ? `<button onclick="setState({payablesModal:'link-dn',payablesModalData:{supplier:'${esc(sup)}'}})" style="font-size:11px;padding:4px 8px;border:none;border-radius:7px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap">שייך</button>` : ''}
             ${isOpen ? `<button onclick="pvCancelDN('${e.id}')" style="width:26px;height:26px;border:none;border-radius:7px;background:var(--dangerSoft);color:var(--danger);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>` : ''}
           </div>`;
@@ -7648,7 +7803,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=61').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=62').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
