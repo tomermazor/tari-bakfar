@@ -4183,6 +4183,29 @@ function ordersGetOrderedItems() {
   return items;
 }
 
+function ordersGetFullSummaryItems() {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return [];
+  const items = [];
+  sup.products.filter(p => p.active !== false).forEach(p => {
+    const st = state.ordersState[p.id] || (p.defaultUnit === 'both'
+      ? { unit:'both', carton:'0', units:'0', notes:'' }
+      : { qty:'0', unit:p.defaultUnit, notes:'' });
+    if (st.unit === 'both') {
+      items.push({ name: p.name, qty: String(parseInt(st.carton)||0), unit: 'קרטון', notes: st.notes || '' });
+      items.push({ name: p.name, qty: String(parseInt(st.units)||0), unit: 'יחידות', notes: st.notes || '' });
+    } else {
+      items.push({ name: p.name, qty: String(parseInt(st.qty)||0), unit: st.unit || p.defaultUnit || 'קרטון', notes: st.notes || '' });
+    }
+  });
+  Object.keys(state.ordersState||{}).filter(k => k.startsWith('manual_')).forEach(k => {
+    const st = state.ordersState[k];
+    if (!st || !st.isManual) return;
+    items.push({ name: st.name, qty: String(parseInt(st.qty)||0), unit: st.unit || 'קרטון', notes: st.notes || '' });
+  });
+  return items;
+}
+
 function ordersUpdateOrderCounter() {
   const el = document.getElementById('orders-counter');
   if (!el) return;
@@ -4366,6 +4389,17 @@ function ordersExportOrder() {
   const lines = orderedItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
   const text = `📋 הזמנה - ${sup.name}\n📅 ${dateStr}\n\n${lines.join('\n')}\n\nתודה!`;
   ordersOpenWhatsAppText(text);
+  setState({ ordersModal: 'export', ordersExportText: text });
+}
+
+function ordersSummaryOrder() {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  const summaryItems = ordersGetFullSummaryItems();
+  if (!summaryItems.length) { toast('אין מוצרים ברשימה', 'error'); return; }
+  const dateStr = fmtOrdersDate(new Date());
+  const lines = summaryItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
+  const text = `סיכום הזמנה מלא - ${sup.name}\n${dateStr}\n\n${lines.join('\n')}`;
   setState({ ordersModal: 'export', ordersExportText: text });
 }
 
@@ -5070,6 +5104,7 @@ function renderOrdersOrderView() {
       <div style="display:flex;gap:6px">
         <button onclick="ordersClearOrder()" style="border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;background:var(--surface);color:var(--text);flex-shrink:0">נקה</button>
         <button onclick="ordersSaveDraftAndGo()" style="border:1px solid rgba(240,170,36,0.4);border-radius:var(--r-md);padding:10px 11px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;background:rgba(240,170,36,0.1);color:var(--amber);flex-shrink:0;white-space:nowrap">💾 שמור</button>
+        <button onclick="ordersSummaryOrder()" style="border:1px solid var(--border);border-radius:var(--r-md);padding:10px 11px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;background:var(--surface);color:var(--text);flex-shrink:0;white-space:nowrap">סיכום</button>
         <button onclick="ordersExportOrder()" style="flex:1;border:none;border-radius:var(--r-md);padding:10px 12px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent) 0%,#52a428 100%);color:#051201">📤 לוואטסאפ</button>
         <button onclick="ordersConfirmOrderSent()" style="flex-shrink:0;border:none;border-radius:var(--r-md);padding:10px 12px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,#4fc46a 0%,#2f9e4a 100%);color:#fff;white-space:nowrap">✓ נשלח</button>
       </div>
@@ -7619,7 +7654,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=58').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=59').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
