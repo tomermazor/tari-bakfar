@@ -631,7 +631,7 @@ async function syncExtendedAppState() {
     console.warn('extended sync failed:', e.message);
     return false;
   })));
-  return results.some(Boolean);
+  return results.every(Boolean);
 }
 
 async function syncAll(opts) {
@@ -8231,7 +8231,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=66').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=67').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code

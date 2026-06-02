@@ -16,8 +16,8 @@ const SHEETS = {
   installments: 'תשלומים',
   suppliers: 'ספקים',
   products: 'מוצרים',
-  active_orders: 'הזמנות פעילות',
-  app_state: 'מצב מערכת',
+  active_orders: '_tari_active_orders',
+  app_state: '_tari_app_state',
   pending: 'ממתין לאישור'
 };
 
@@ -28,8 +28,8 @@ const HEADERS = {
   installments: ['id','שם','סכום כולל','מספר תשלומים','תשלומים ששולמו','תאריך התחלה','ספק','הערות','נוצר ב'],
   suppliers: ['supplier_id','supplier_name','product_id','product_name','default_unit'],
   products: ['id','name','category','sell_price','sell_price_updated','active','aliases','supplier_prices_json','created_at'],
-  active_orders: ['orders_json'],
-  app_state: ['key','json','updated_at'],
+  active_orders: ['key','chunk','json','updated_at'],
+  app_state: ['key','chunk','json','updated_at'],
   pending: ['id','name_on_invoice','supplier_name','qty','unit','price','date','suggested_match_id','skipped']
 };
 
@@ -323,48 +323,69 @@ function saveSuppliers(suppliers) {
 }
 
 // ─── מוצרים ──────────────────────────────────────────────────────────────────
+const STATE_CHUNK_SIZE = 45000;
+
+function readJsonState(sheetKey, key) {
+  const sheet = getSheet(sheetKey);
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  const width = Math.max(sheet.getLastColumn(), HEADERS[sheetKey].length);
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getValues();
+  const rows = data.filter(row => String(row[0]) === String(key));
+  if (!rows.length) return null;
+
+  let json;
+  const chunked = rows.some(row => row[2] !== '' && row[2] !== null && row[2] !== undefined);
+  if (chunked) {
+    json = rows
+      .sort((a, b) => (+a[1] || 0) - (+b[1] || 0))
+      .map(row => row[2] || '')
+      .join('');
+  } else {
+    // Backward compatibility with the old [key,json,updated_at] format.
+    json = rows[0][1] || 'null';
+  }
+  try { return JSON.parse(json || 'null'); } catch(e) { return null; }
+}
+
+function writeJsonState(sheetKey, key, payload) {
+  if (!key) throw new Error('Missing state key');
+  const sheet = getSheet(sheetKey);
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    const keys = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (let i = keys.length - 1; i >= 0; i--) {
+      if (String(keys[i][0]) === String(key)) sheet.deleteRow(i + 2);
+    }
+  }
+  const json = JSON.stringify(payload === undefined ? null : payload);
+  const chunks = [];
+  for (let i = 0; i < json.length; i += STATE_CHUNK_SIZE) {
+    chunks.push(json.slice(i, i + STATE_CHUNK_SIZE));
+  }
+  if (!chunks.length) chunks.push('null');
+  const now = new Date();
+  const rows = chunks.map((chunk, index) => [key, index, chunk, now]);
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, HEADERS[sheetKey].length).setValues(rows);
+  return { ok: true, key, chunks: rows.length };
+}
+
 function listActiveOrders() {
-  const sheet = getSheet('active_orders');
-  if (!sheet || sheet.getLastRow() < 2) return [];
-  const val = sheet.getRange(2, 1).getValue();
-  if (!val) return [];
-  try { return JSON.parse(val); } catch(e) { return []; }
+  return readJsonState('active_orders', 'active_orders') || [];
 }
 
 function saveActiveOrders(orders) {
-  const sheet = getSheet('active_orders');
-  if (sheet.getLastRow() < 2) sheet.appendRow(['']);
-  sheet.getRange(2, 1).setValue(JSON.stringify(orders || []));
-  return { ok: true, rows: (orders || []).length };
+  const result = writeJsonState('active_orders', 'active_orders', orders || []);
+  result.rows = (orders || []).length;
+  return result;
 }
 
 function getAppState(key) {
   if (!key) throw new Error('Missing state key');
-  const sheet = getSheet('app_state');
-  if (!sheet || sheet.getLastRow() < 2) return null;
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, HEADERS.app_state.length).getValues();
-  for (let i = 0; i < data.length; i++) {
-    if (String(data[i][0]) === String(key)) {
-      try { return JSON.parse(data[i][1] || 'null'); } catch(e) { return null; }
-    }
-  }
-  return null;
+  return readJsonState('app_state', key);
 }
 
 function saveAppState(key, payload) {
-  if (!key) throw new Error('Missing state key');
-  const sheet = getSheet('app_state');
-  let rowIdx = -1;
-  if (sheet.getLastRow() >= 2) {
-    const keys = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
-    for (let i = 0; i < keys.length; i++) {
-      if (String(keys[i][0]) === String(key)) { rowIdx = i + 2; break; }
-    }
-  }
-  const row = [key, JSON.stringify(payload || null), new Date()];
-  if (rowIdx < 0) sheet.appendRow(row);
-  else sheet.getRange(rowIdx, 1, 1, row.length).setValues([row]);
-  return { ok: true, key };
+  return writeJsonState('app_state', key, payload);
 }
 
 function listProducts() {
