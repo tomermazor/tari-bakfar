@@ -5949,6 +5949,50 @@ function pvMigratePaymentStatuses() {
   });
 }
 
+function pvReopenMistakenPaidCommitments() {
+  if (pv._reopenedMistakenPaidCommitmentsV1) return;
+  let changed = false;
+  const reopenedChecks = [];
+
+  (pv.debts||[]).forEach(d => {
+    if (d.status === 'cancelled' || d.paymentStatus === 'בוטל') return;
+    if (d.status === 'paid' || !pvIsOpenStatus(d.paymentStatus)) {
+      const lastPaymentDate = pvDateISO(d.paidDate || (d.payments||[]).slice(-1)[0]?.date || '');
+      if (lastPaymentDate && !pvDateISO(d.dueDate)) d.dueDate = lastPaymentDate;
+      d.status = 'open';
+      d.paymentStatus = pvIsCheckMethod(d.paymentMethod) ? 'ממתין לפירעון' : 'ממתין';
+      d.paidAmount = 0;
+      d.payments = [];
+      delete d.paidDate;
+      delete d.closedAt;
+      changed = true;
+    }
+  });
+
+  (DB.checks||[]).forEach(c => {
+    if (!c.cleared) return;
+    c.cleared = false;
+    delete c.clearedDate;
+    reopenedChecks.push(c);
+    changed = true;
+  });
+
+  pv._reopenedMistakenPaidCommitmentsV1 = true;
+  if (reopenedChecks.length) {
+    reopenedChecks.forEach(c => {
+      PENDING.push({action:'delete_check', payload:{id:c.id}});
+      PENDING.push({action:'add_check', payload:{payload:c}});
+    });
+    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+  }
+  if (changed) {
+    savePv(true);
+    persistLocal();
+  } else {
+    savePv(false);
+  }
+}
+
 function pvQuickMarkPaid(debtId) {
   const debt = pv.debts.find(d=>d.id===debtId);
   if (!debt) return;
@@ -6033,6 +6077,8 @@ function renderPaidPaymentsSection() {
 function renderPayablesDashboard() {
   const today = pvTodayISO();
   if (!DB.checks) DB.checks = [];
+  pvMigratePaymentStatuses();
+  pvReopenMistakenPaidCommitments();
   const activeDebts = pv.debts.filter(d => !['paid','cancelled'].includes(d.status) && pvIsOpenStatus(d.paymentStatus));
   const openChecks  = DB.checks.filter(c => !c.cleared);
   const linkedOpenDebtIds = new Set(openChecks.map(c => c.linkedDebtId).filter(Boolean));
@@ -6107,7 +6153,6 @@ function renderPayablesDashboard() {
     </div>` : '';
 
   // ── 4. Payment timeline ─────────────────────────────────────────────────
-  pvMigratePaymentStatuses();
   const pf = state.pvPaymentFilter || 'הכל';
 
   const payments = [];
@@ -7300,7 +7345,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=54').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=55').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
