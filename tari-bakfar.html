@@ -634,25 +634,13 @@ function toast(msg, type='info') {
 // SUPPLIER HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Returns the <datalist> element + an <input> wired to it.
+// Returns an approved-supplier combo input with a custom dropdown.
 // formStateRef  – e.g. 'state.scanForm'
 // fieldName     – e.g. 'supplier'
 // currentVal    – current value to pre-fill
 // categoryField – e.g. 'category' – auto-filled when a known supplier is chosen
 function supplierInput(formStateRef, fieldName, currentVal, categoryField) {
-  const listId = 'sup-dl-' + fieldName.replace('.','_');
-  const suppliers = getApprovedSuppliers();
-  const currentSupplier = findApprovedSupplier(currentVal);
-  const needsChoice = currentVal && !currentSupplier;
-  return `
-    <datalist id="${listId}">
-      ${suppliers.map(s=>`<option value="${esc(s.name)}">`).join('')}
-    </datalist>
-    <input class="input" list="${listId}" placeholder="בחר ספק מאושר..." value="${esc(currentVal)}"
-      style="${needsChoice?'border-color:var(--danger);box-shadow:0 0 0 3px rgba(220,98,98,0.12)':''}"
-      oninput="${formStateRef}.${fieldName}=this.value"
-      onchange="applySupplierDefaults(this.value,'${formStateRef}','${categoryField}')">
-    ${needsChoice ? `<div style="margin-top:6px;font-size:12px;color:var(--danger);font-weight:700">הספק לא מזוהה ככרטיס מאושר. בחר ספק מהרשימה.</div>` : ''}`;
+  return approvedSupplierInput(`${formStateRef}.${fieldName}`, currentVal, 'בחר ספק מאושר...', formStateRef, categoryField);
 }
 
 // Called onchange — fills category if supplier matches a known entry
@@ -661,10 +649,7 @@ function applySupplierDefaults(nameVal, formStateRef, categoryField) {
   const sup = findApprovedSupplier(nameVal);
   if (!sup || !sup.defaultCategory) return;
   try {
-    // Walk dotted path: 'state.scanForm' → window['state']['scanForm']
-    const parts = formStateRef.split('.');
-    let obj = window;
-    parts.forEach(p => { obj = obj[p]; });
+    const obj = Function('return ' + formStateRef)();
     if (obj && categoryField in obj) {
       obj[categoryField] = sup.defaultCategory;
       render();
@@ -697,18 +682,65 @@ function requireApprovedSupplier(name) {
   return sup;
 }
 
-function approvedSupplierInput(targetExpr, currentVal, placeholder) {
-  const listId = 'approved-sup-dl-' + Math.random().toString(36).slice(2);
+function approvedSupplierInput(targetExpr, currentVal, placeholder, formStateRef, categoryField) {
+  const uidPart = Math.random().toString(36).slice(2);
+  const inputId = 'approved-sup-input-' + uidPart;
+  const panelId = 'approved-sup-panel-' + uidPart;
   const needsChoice = currentVal && !findApprovedSupplier(currentVal);
+  const options = getApprovedSuppliers().map(s => {
+    const encoded = encodeURIComponent(s.name);
+    const cat = s.defaultCategory ? `<span style="font-size:10.5px;color:var(--textMuted);font-weight:600">${esc(s.defaultCategory)}</span>` : '';
+    return `<button type="button" data-supplier-option="${esc(s.name).toLowerCase()}" onclick="supplierComboChoose(decodeURIComponent('${encoded}'),'${targetExpr}','${inputId}','${panelId}','${formStateRef||''}','${categoryField||''}')"
+      style="width:100%;border:none;border-bottom:1px solid var(--border);background:transparent;color:var(--text);padding:11px 12px;text-align:right;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <span style="font-size:13.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</span>${cat}
+    </button>`;
+  }).join('');
   return `
-    <datalist id="${listId}">
-      ${getApprovedSuppliers().map(s=>`<option value="${esc(s.name)}">`).join('')}
-    </datalist>
-    <input class="input" list="${listId}" placeholder="${esc(placeholder || 'בחר ספק מאושר...')}" value="${esc(currentVal||'')}"
-      style="${needsChoice?'border-color:var(--danger);box-shadow:0 0 0 3px rgba(220,98,98,0.12)':''}"
-      oninput="${targetExpr}=this.value">
+    <div style="position:relative">
+      <input id="${inputId}" class="input" autocomplete="off" placeholder="${esc(placeholder || 'בחר ספק מאושר...')}" value="${esc(currentVal||'')}"
+        style="${needsChoice?'border-color:var(--danger);box-shadow:0 0 0 3px rgba(220,98,98,0.12)':''}"
+        onfocus="supplierComboUpdate(this,'${panelId}',true)"
+        oninput="${targetExpr}=this.value;supplierComboUpdate(this,'${panelId}',true)"
+        onkeydown="if(event.key==='Escape')supplierComboHide('${panelId}')">
+      <div id="${panelId}" data-supplier-panel
+        style="display:none;position:absolute;z-index:500;top:calc(100% + 6px);right:0;left:0;max-height:230px;overflow-y:auto;background:var(--surface);border:1px solid var(--borderHi);border-radius:12px;box-shadow:var(--shadow-lg);padding:0">
+        ${options || `<div style="padding:12px;color:var(--textMuted);font-size:13px;text-align:center">אין ספקים מאושרים</div>`}
+      </div>
+    </div>
     ${needsChoice ? `<div style="margin-top:6px;font-size:12px;color:var(--danger);font-weight:700">בחר ספק מכרטיס ספק מאושר.</div>` : ''}`;
 }
+
+function supplierComboUpdate(input, panelId, show) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  const q = supplierKey(input.value);
+  let visible = 0;
+  panel.querySelectorAll('[data-supplier-option]').forEach(function(btn) {
+    const hit = !q || supplierKey(btn.getAttribute('data-supplier-option')).includes(q);
+    btn.style.display = hit ? 'flex' : 'none';
+    if (hit) visible++;
+  });
+  panel.style.display = show && visible ? 'block' : 'none';
+}
+
+function supplierComboHide(panelId) {
+  const panel = document.getElementById(panelId);
+  if (panel) panel.style.display = 'none';
+}
+
+function supplierComboChoose(name, targetExpr, inputId, panelId, formStateRef, categoryField) {
+  try { Function('value', targetExpr + '=value')(name); } catch(e) {}
+  const input = document.getElementById(inputId);
+  if (input) input.value = name;
+  supplierComboHide(panelId);
+  if (formStateRef && categoryField) applySupplierDefaults(name, formStateRef, categoryField);
+}
+
+document.addEventListener('click', function(e) {
+  document.querySelectorAll('[data-supplier-panel]').forEach(function(panel) {
+    if (!panel.parentElement || !panel.parentElement.contains(e.target)) panel.style.display = 'none';
+  });
+});
 
 function migrateApprovedSuppliers() {
   if (!DB.suppliers) DB.suppliers = [];
@@ -7918,7 +7950,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=64').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=65').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
