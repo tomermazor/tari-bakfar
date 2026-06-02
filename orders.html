@@ -1105,11 +1105,11 @@ function exportOrder() {
 function summaryOrder() {
   const sup = findSupplier(currentSupplierId);
   if (!sup) return;
-  const summaryItems = getFullSummaryItems();
-  if (!summaryItems.length) { toast('אין מוצרים ברשימה', 'error'); return; }
+  const summaryItems = getOrderedItems();
+  if (!summaryItems.length) { toast('אין פריטים בהזמנה', 'error'); return; }
   const dateStr = fmtDate(new Date());
   const lines = summaryItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
-  const text = `סיכום הזמנה מלא - ${sup.name}\n${dateStr}\n\n${lines.join('\n')}`;
+  const text = `סיכום הזמנה - ${sup.name}\n${dateStr}\n\n${lines.join('\n')}`;
   document.getElementById('export-text').textContent = text;
   document.getElementById('modal-export').hidden = false;
 }

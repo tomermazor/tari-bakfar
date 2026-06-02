@@ -4183,29 +4183,6 @@ function ordersGetOrderedItems() {
   return items;
 }
 
-function ordersGetFullSummaryItems() {
-  const sup = findSupplierOdb(state.ordersSupplierId);
-  if (!sup) return [];
-  const items = [];
-  sup.products.filter(p => p.active !== false).forEach(p => {
-    const st = state.ordersState[p.id] || (p.defaultUnit === 'both'
-      ? { unit:'both', carton:'0', units:'0', notes:'' }
-      : { qty:'0', unit:p.defaultUnit, notes:'' });
-    if (st.unit === 'both') {
-      items.push({ name: p.name, qty: String(parseInt(st.carton)||0), unit: 'קרטון', notes: st.notes || '' });
-      items.push({ name: p.name, qty: String(parseInt(st.units)||0), unit: 'יחידות', notes: st.notes || '' });
-    } else {
-      items.push({ name: p.name, qty: String(parseInt(st.qty)||0), unit: st.unit || p.defaultUnit || 'קרטון', notes: st.notes || '' });
-    }
-  });
-  Object.keys(state.ordersState||{}).filter(k => k.startsWith('manual_')).forEach(k => {
-    const st = state.ordersState[k];
-    if (!st || !st.isManual) return;
-    items.push({ name: st.name, qty: String(parseInt(st.qty)||0), unit: st.unit || 'קרטון', notes: st.notes || '' });
-  });
-  return items;
-}
-
 function ordersUpdateOrderCounter() {
   const el = document.getElementById('orders-counter');
   if (!el) return;
@@ -4395,11 +4372,11 @@ function ordersExportOrder() {
 function ordersSummaryOrder() {
   const sup = findSupplierOdb(state.ordersSupplierId);
   if (!sup) return;
-  const summaryItems = ordersGetFullSummaryItems();
-  if (!summaryItems.length) { toast('אין מוצרים ברשימה', 'error'); return; }
+  const summaryItems = ordersGetOrderedItems();
+  if (!summaryItems.length) { toast('אין פריטים בהזמנה', 'error'); return; }
   const dateStr = fmtOrdersDate(new Date());
   const lines = summaryItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
-  const text = `סיכום הזמנה מלא - ${sup.name}\n${dateStr}\n\n${lines.join('\n')}`;
+  const text = `סיכום הזמנה - ${sup.name}\n${dateStr}\n\n${lines.join('\n')}`;
   setState({ ordersModal: 'export', ordersExportText: text });
 }
 
@@ -7654,7 +7631,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=59').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=60').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
