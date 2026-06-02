@@ -372,6 +372,7 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
     <h2 class="display">טקסט לוואטסאפ 📤</h2>
     <p class="hint">העתק ושלח. ההזמנה נשמרת — לחץ ✓ נשלחה רק אחרי שהספק קיבל.</p>
     <div class="export-text" id="export-text"></div>
+    <button class="btn-copy" onclick="openWhatsAppExport()" style="background:#25D366;color:#06240f">פתח בוואטסאפ</button>
     <button class="btn-copy" onclick="copyExport()">📋 העתק טקסט</button>
     <button class="btn-close-modal" onclick="closeModal('modal-export')">המשך לערוך</button>
   </div>
@@ -1071,9 +1072,20 @@ function exportOrder() {
   const lines = orderedItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
   const text = `📋 הזמנה - ${sup.name}\n📅 ${dateStr}\n\n${lines.join('\n')}\n\nתודה!`;
 
+  openWhatsAppText(text);
   // Just show the text — draft stays alive until user confirms "נשלחה"
   document.getElementById('export-text').textContent = text;
   document.getElementById('modal-export').hidden = false;
+}
+
+function openWhatsAppText(text) {
+  if (!text) return;
+  try {
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).catch(()=>{});
+  } catch(e) {}
+  const url = 'https://wa.me/?text=' + encodeURIComponent(text);
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win) window.location.href = url;
 }
 
 function confirmOrderSent() {
@@ -1117,6 +1129,12 @@ function copyExport() {
     window.getSelection().addRange(r);
     toast('סמן את הטקסט והעתק ידנית');
   });
+}
+
+function openWhatsAppExport() {
+  const text = document.getElementById('export-text').textContent;
+  if (!text) { toast('אין טקסט לשליחה', 'error'); return; }
+  openWhatsAppText(text);
 }
 
 // ─── MANAGE ────────────────────────────────────────────────────────────────
