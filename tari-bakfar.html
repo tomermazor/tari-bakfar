@@ -1395,7 +1395,11 @@ function enforceStateAccess() {
     state.viewCreditImage = null;
     return;
   }
-  if (!allowed.includes(state.tab)) state.tab = allowed[0] || 'scan';
+  if (typeof canAccessTab === 'function') {
+    if (!canAccessTab(state.tab)) state.tab = allowed[0] || 'scan';
+  } else if (!allowed.includes(state.tab)) {
+    state.tab = allowed[0] || 'scan';
+  }
 }
 function setState(patch) {
   const next = {...(patch || {})};
@@ -4541,6 +4545,7 @@ function canAccessTab(tabId) {
   const role = getUserRole();
   if (tabId === 'settings') return role === 'admin' || role === 'user';
   if (tabId === 'scan') return roleHasAllTabs(role) || getAllowedTabs().includes('scan');
+  if (tabId === 'add') return roleHasAllTabs(role);
   return getAllowedTabs().includes(tabId);
 }
 
@@ -8507,7 +8512,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=70').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=71').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
