@@ -157,6 +157,49 @@ input:-webkit-autofill { -webkit-box-shadow:0 0 0 40px var(--surface) inset; -we
   .desktop-quick-item:hover { background:var(--surfaceHi); }
   .desktop-side-panel { top:58px; bottom:0; left:0; width:min(420px,34vw); border-radius:0; border-left:none; overflow:auto; padding:18px; }
   .desktop-panel-close { width:34px; height:34px; border:none; border-radius:10px; background:var(--surfaceHi); color:var(--textDim); cursor:pointer; font-size:18px; }
+  .desktop-page { padding:24px 28px 30px !important; max-width:100% !important; min-height:100%; }
+  .desktop-page-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:18px; }
+  .desktop-title { margin:0; color:var(--text); font-size:28px; line-height:1.05; }
+  .desktop-subtitle { margin-top:6px; color:var(--textDim); font-size:13px; font-weight:600; }
+  .desktop-kpi-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
+  .desktop-kpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:15px; min-height:104px; box-shadow:var(--shadow-sm); }
+  .desktop-kpi-label { color:var(--textDim); font-size:11px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+  .desktop-kpi-value { margin-top:9px; color:var(--text); font-size:26px; line-height:1; font-weight:800; }
+  .desktop-kpi-sub { margin-top:7px; color:var(--textMuted); font-size:11px; font-weight:700; }
+  .desktop-work-grid { display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:16px; align-items:start; }
+  .desktop-section { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:var(--shadow-sm); }
+  .desktop-section-pad { padding:16px; }
+  .desktop-section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border); }
+  .desktop-section-title { color:var(--text); font-size:14px; font-weight:900; }
+  .desktop-muted { color:var(--textDim); font-size:12px; font-weight:700; }
+  .desktop-table-wrap { overflow:auto; max-height:calc(100vh - 310px); }
+  .desktop-table { width:100%; border-collapse:separate; border-spacing:0; min-width:760px; }
+  .desktop-table th { position:sticky; top:0; z-index:1; padding:10px 14px; background:var(--surfaceHi); color:var(--textDim); border-bottom:1px solid var(--border); font-size:11px; font-weight:900; text-align:right; white-space:nowrap; }
+  .desktop-table td { padding:11px 14px; border-bottom:1px solid var(--border); color:var(--text); font-size:13px; vertical-align:middle; }
+  .desktop-table tr:hover td { background:var(--surfaceHi); }
+  .desktop-row-selected td { background:var(--accentSoft) !important; }
+  .desktop-status { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:900; white-space:nowrap; }
+  .desktop-status.ok { background:var(--accentSoft); color:var(--accent); }
+  .desktop-status.warn { background:var(--amberSoft); color:var(--amber); }
+  .desktop-status.info { background:var(--infoSoft); color:var(--info); }
+  .desktop-status.danger { background:var(--dangerSoft); color:var(--danger); }
+  .desktop-status.neutral { background:var(--surfaceHi); color:var(--textDim); border:1px solid var(--border); }
+  .desktop-filterbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 16px; border-bottom:1px solid var(--border); background:var(--surface); }
+  .desktop-filterbar .input { height:38px; max-width:260px; padding:8px 12px; font-size:13px; border-radius:9px; }
+  .desktop-mini-btn { border:1px solid var(--border); background:var(--surface); color:var(--textDim); border-radius:9px; padding:7px 10px; font-family:inherit; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; }
+  .desktop-mini-btn:hover { background:var(--surfaceHi); color:var(--text); }
+  .desktop-mini-btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .desktop-drawer { position:sticky; top:16px; max-height:calc(100vh - 126px); overflow:auto; background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-sm); }
+  .desktop-drawer-empty { padding:34px 18px; text-align:center; color:var(--textDim); font-size:13px; }
+  .desktop-empty { padding:46px 20px; text-align:center; color:var(--textDim); }
+  .desktop-empty-icon { font-size:34px; opacity:.75; margin-bottom:8px; }
+  .desktop-skeleton { position:relative; overflow:hidden; background:var(--surfaceHi); border-radius:9px; min-height:14px; }
+  .desktop-skeleton::after { content:""; position:absolute; inset:0; transform:translateX(100%); background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent); animation:desktopSkeleton 1.4s infinite; }
+  @keyframes desktopSkeleton { to { transform:translateX(-100%); } }
+  @media (max-width:1500px) {
+    .desktop-kpi-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .desktop-work-grid { grid-template-columns:minmax(0,1fr) 330px; }
+  }
 }
 
 .app-switcher { display:flex; gap:4px; padding:5px 8px; padding-top:calc(5px + env(safe-area-inset-top,0px)); background:rgba(7,9,10,0.97); backdrop-filter:blur(24px); border-bottom:1px solid var(--border); flex-shrink:0; }
@@ -1704,7 +1747,136 @@ function updateHeader() {
 // ═══════════════════════════════════════════════════════════════════════════
 const isSameDay = (date, target) => { const p=parseD(date); return p&&p.toDateString()===target.toDateString(); };
 
+function isDesktopMode() {
+  return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(min-width: 768px)').matches;
+}
+
+function desktopEmpty(icon, title, sub) {
+  return `<div class="desktop-empty"><div class="desktop-empty-icon">${icon}</div><div style="font-weight:900;color:var(--text);margin-bottom:3px">${title}</div><div>${sub||''}</div></div>`;
+}
+
+function desktopKpi(label, value, sub, tone) {
+  const color = tone === 'danger' ? 'var(--danger)' : tone === 'warn' ? 'var(--amber)' : tone === 'info' ? 'var(--info)' : 'var(--accent)';
+  return `<div class="desktop-kpi">
+    <div class="desktop-kpi-label">${label}</div>
+    <div class="desktop-kpi-value" style="color:${color}">${value}</div>
+    <div class="desktop-kpi-sub">${sub||''}</div>
+  </div>`;
+}
+
+function desktopStatus(label, tone) {
+  return `<span class="desktop-status ${tone||'neutral'}">${label}</span>`;
+}
+
+function desktopPageHead(title, subtitle, actions) {
+  return `<div class="desktop-page-head">
+    <div><h1 class="display desktop-title">${title}</h1><div class="desktop-subtitle">${subtitle||''}</div></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${actions||''}</div>
+  </div>`;
+}
+
+function desktopPaymentStatusText(item) {
+  const method = item.method || '';
+  const status = item.paymentStatus || '';
+  if (item.checkId || method.includes("צ'ק") || status.includes('פירעון')) return ['צ׳ק ממתין', 'warn'];
+  if (method.includes('העברה')) return ['העברה לתשלום', 'info'];
+  if (method.includes('מזומן')) return ['מזומן לתשלום', 'warn'];
+  if (status.includes('שולם')) return ['שולם', 'ok'];
+  return [status || 'ממתין לתשלום', item.isOverdue ? 'danger' : 'neutral'];
+}
+
+function desktopPaymentsData() {
+  const today = pvTodayISO();
+  const activeDebts = ((pv && pv.debts) || []).filter(d => !['paid','cancelled'].includes(d.status) && (typeof pvIsOpenStatus !== 'function' || pvIsOpenStatus(d.paymentStatus)));
+  const openChecks = (DB.checks || []).filter(c => !c.cleared);
+  const linkedOpenDebtIds = new Set(openChecks.map(c => c.linkedDebtId).filter(Boolean));
+  const payments = [];
+  activeDebts.forEach(d => {
+    if (linkedOpenDebtIds.has(d.id)) return;
+    const amount = (+d.amount || 0) - (+d.paidAmount || 0);
+    payments.push({
+      id: d.id, type: 'debt', date: pvDateISO(d.dueDate || d.date), supplier: d.supplierName || '',
+      amount, method: d.paymentMethod || '', paymentStatus: d.paymentStatus || 'ממתין לתשלום',
+      invoiceNumber: d.invoiceNumber || '', isOverdue: pvDateISO(d.dueDate || d.date) < today
+    });
+  });
+  openChecks.forEach(c => {
+    const date = pvDateISO(c.clearDate);
+    payments.push({
+      id: c.id, type: 'check', date, supplier: c.supplier || '', amount: +c.amount || 0,
+      method: "צ'ק", paymentStatus: 'ממתין לפירעון', checkNumber: c.checkNum || '',
+      isOverdue: date && date < today
+    });
+  });
+  return payments.sort((a,b) => {
+    if (!a.date && !b.date) return 0;
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+    return a.date.localeCompare(b.date);
+  });
+}
+
+function renderDesktopDashboard() {
+  const todaySales = (DB.income || []).filter(e=>isToday(e.date)).reduce((s,e)=>s+(+e.amount||0),0);
+  const weekSales = (DB.income || []).filter(e=>isWeek(e.date)).reduce((s,e)=>s+(+e.amount||0),0);
+  const activeOrders = (odb.activeOrders || []);
+  const payments = desktopPaymentsData();
+  const dueSoon = payments.filter(p => p.date && !p.isOverdue && pvDateInDays(p.date, 7));
+  const overdue = payments.filter(p => p.isOverdue);
+  const openExpenses = (DB.expenses || []).filter(e => ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type) && !e.sentToAccountant);
+  const productsNeedingCare = (pdb.products || []).filter(p => p.active !== false && (p.sellPrice == null || !(p.supplierPrices||[]).some(sp=>sp.buyPrice>0) || (calcMargin(p) != null && calcMargin(p) < 15)));
+  const action = (txt, onclick, primary) => `<button class="desktop-mini-btn ${primary?'primary':''}" onclick="${onclick}">${txt}</button>`;
+  const orderRows = activeOrders.slice(0,8).map(o => {
+    const sup = (typeof ordersGetSupplierName === 'function') ? ordersGetSupplierName(o.supplierId) : (o.supplierName || '');
+    return `<tr onclick="setState({tab:'orders',ordersView:'active',ordersDesktopOrderId:'${o.id}'})" style="cursor:pointer">
+      <td><b>${esc(sup || 'הזמנה')}</b><div class="desktop-muted">${fmtDate(o.dateOrdered || o.createdAt || o.timestamp)}</div></td>
+      <td>${(o.items||[]).length}</td>
+      <td>${desktopStatus(o.deliveryNoteIds && o.deliveryNoteIds.length ? 'קושרה תעודה' : 'פתוחה', o.deliveryNoteIds && o.deliveryNoteIds.length ? 'ok' : 'warn')}</td>
+    </tr>`;
+  }).join('');
+  const paymentRows = payments.slice(0,8).map(p => {
+    const [txt,tone] = desktopPaymentStatusText(p);
+    return `<tr onclick="setState({tab:'payables',payablesView:'dashboard',payablesDebtId:'${p.type==='debt'?p.id:''}',desktopPanel:''})" style="cursor:pointer">
+      <td><b>${esc(p.supplier || 'ספק')}</b><div class="desktop-muted">${p.invoiceNumber?('#'+esc(p.invoiceNumber)):p.checkNumber?('צ׳ק '+esc(p.checkNumber)):''}</div></td>
+      <td>${fmtDate(p.date)}</td>
+      <td>${desktopStatus(txt, tone)}</td>
+      <td style="text-align:left"><b>${fmtCurr(p.amount)}</b></td>
+    </tr>`;
+  }).join('');
+  return `<div class="desktop-page fade-up">
+    ${desktopPageHead('דשבורד ניהולי', 'תמונת מצב יומית לעסק, תשלומים, הזמנות ומלאי', action('סרוק חשבונית',"setState({tab:'scan'})",true)+action('הזמנה חדשה',"setState({tab:'orders'})")+action('התראות',"setState({desktopPanel:'alerts'})"))}
+    <div class="desktop-kpi-grid">
+      ${desktopKpi('מכירות היום', fmtCurr(todaySales), 'השבוע: '+fmtCurr(weekSales), 'ok')}
+      ${desktopKpi('הזמנות פתוחות', activeOrders.length, 'לטיפול ולתיעוד', 'info')}
+      ${desktopKpi('הוצאות פתוחות', openExpenses.length, 'חשבוניות להנהלת חשבונות', openExpenses.length?'warn':'ok')}
+      ${desktopKpi('תשלומים קרובים', fmtCurr(dueSoon.reduce((s,p)=>s+p.amount,0)), dueSoon.length+' בשבוע הקרוב', 'warn')}
+      ${desktopKpi('מוצרים לטיפול', productsNeedingCare.length, 'מחיר חסר או רווחיות נמוכה', productsNeedingCare.length?'danger':'ok')}
+    </div>
+    <div class="desktop-work-grid">
+      <div style="display:grid;gap:16px">
+        <section class="desktop-section">
+          <div class="desktop-section-head"><div class="desktop-section-title">תשלומים קרובים וחובות</div><button class="desktop-mini-btn" onclick="setState({tab:'payables'})">פתח ספקים</button></div>
+          <div class="desktop-table-wrap">${paymentRows ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>תאריך</th><th>סטטוס</th><th style="text-align:left">סכום</th></tr></thead><tbody>${paymentRows}</tbody></table>` : desktopEmpty('✅','אין תשלומים דחופים','אין חובות או צ׳קים פתוחים להצגה')}</div>
+        </section>
+        <section class="desktop-section">
+          <div class="desktop-section-head"><div class="desktop-section-title">הזמנות פתוחות</div><button class="desktop-mini-btn" onclick="setState({tab:'orders',ordersView:'active'})">כל ההזמנות</button></div>
+          <div class="desktop-table-wrap">${orderRows ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>פריטים</th><th>סטטוס</th></tr></thead><tbody>${orderRows}</tbody></table>` : desktopEmpty('🚚','אין הזמנות פתוחות','כשייפתחו הזמנות הן יופיעו כאן')}</div>
+        </section>
+      </div>
+      <aside class="desktop-drawer">
+        <div class="desktop-section-head"><div class="desktop-section-title">דחוף לטיפול</div></div>
+        <div class="desktop-section-pad">
+          ${overdue.length ? `<div style="margin-bottom:12px">${desktopStatus(overdue.length+' תשלומים באיחור','danger')}</div>` : `<div style="margin-bottom:12px">${desktopStatus('אין איחורים','ok')}</div>`}
+          ${(openExpenses.slice(0,5).map(e=>`<div style="padding:10px 0;border-bottom:1px solid var(--border)"><b>${esc(e.supplier||'')}</b><div class="desktop-muted">${fmtDate(e.date)} · ${fmtCurr(e.total_amount)}</div></div>`).join('')) || '<div class="desktop-muted">אין חשבוניות שממתינות להעברה.</div>'}
+        </div>
+      </aside>
+    </div>
+  </div>`;
+}
+
 function renderDashboard() {
+  if (isDesktopMode()) return renderDesktopDashboard();
   const now = new Date();
   const h = now.getHours();
   const DAY_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
@@ -2262,7 +2434,80 @@ function renderExpenseListBody(rows) {
   return banner + groupsHtml;
 }
 
+function renderDesktopExpenseDrawer(item) {
+  if (!item) return `<aside class="desktop-drawer">${desktopEmpty('🧾','בחר הוצאה','לחיצה על שורה תפתח כאן את פרטי המסמך והפעולות')}</aside>`;
+  const needsAcc = ['חשבונית מס','חשבונית מס קבלה'].includes(item.document_type);
+  return `<aside class="desktop-drawer">
+    <div class="desktop-section-head">
+      <div><div class="desktop-section-title">${esc(item.supplier || 'הוצאה')}</div><div class="desktop-muted">${fmtDate(item.date)} · ${esc(item.document_type||'מסמך')}</div></div>
+      <button class="desktop-mini-btn" onclick="setState({listOpen:null})">סגור</button>
+    </div>
+    <div class="desktop-section-pad">
+      <div class="desktop-kpi" style="margin-bottom:12px"><div class="desktop-kpi-label">סכום כולל</div><div class="desktop-kpi-value">${fmtCurr(item.total_amount)}</div><div class="desktop-kpi-sub">מע״מ: ${fmtCurr(item.vat_amount||0)}</div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div><div class="desktop-muted">מספר מסמך</div><b>${esc(item.document_number || '—')}</b></div>
+        <div><div class="desktop-muted">קטגוריה</div><b>${esc(item.category || '—')}</b></div>
+        <div><div class="desktop-muted">לפני מע״מ</div><b>${fmtCurr(item.amount_before_vat||0)}</b></div>
+        <div><div class="desktop-muted">סטטוס</div>${needsAcc ? desktopStatus(item.sentToAccountant?'הועברה להנה״ח':'ממתינה להנה״ח', item.sentToAccountant?'ok':'warn') : desktopStatus('רגיל','neutral')}</div>
+      </div>
+      ${item.notes?`<div style="padding:11px;border-radius:10px;background:var(--surfaceHi);margin-bottom:12px"><div class="desktop-muted">הערות</div>${esc(item.notes)}</div>`:''}
+      ${item.image?`<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px"><img src="${item.image}" style="width:100%;max-height:220px;object-fit:contain;background:#000;display:block"></div>`:''}
+      <div style="display:grid;gap:8px">
+        ${needsAcc?`<button class="desktop-mini-btn primary" onclick="toggleSentToAccountant('${item.id}')">${item.sentToAccountant?'בטל סימון הנה״ח':'סמן הועבר להנה״ח'}</button>`:''}
+        <button class="desktop-mini-btn" onclick="openEditExpense('${item.id}')">ערוך הוצאה</button>
+        <button class="desktop-mini-btn" onclick="pushExpenseToCloud('${item.id}')">סנכרן לענן</button>
+        <button class="desktop-mini-btn" style="color:var(--danger);border-color:rgba(220,38,38,.25)" onclick="deleteExpense('${item.id}')">מחק</button>
+      </div>
+    </div>
+  </aside>`;
+}
+
+function renderDesktopList() {
+  const rows = filterExpenseRows();
+  const selected = rows.find(e => e.id === state.listOpen) || DB.expenses.find(e => e.id === state.listOpen);
+  const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
+  const monthTotal = DB.expenses.filter(e=>isMonth(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
+  const pendingAcc = DB.expenses.filter(e=>['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)&&!e.sentToAccountant).length;
+  const periods = ['הכל','היום','שבוע','חודש'];
+  const cats = ['הכל', ...CATS];
+  const statusFor = e => {
+    if (['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)) return e.sentToAccountant ? desktopStatus('הועברה','ok') : desktopStatus('ממתינה','warn');
+    if (e.document_type === 'תעודת משלוח') return desktopStatus(e.linkedOrderId?'קושרה':'תעודה', e.linkedOrderId?'ok':'info');
+    return desktopStatus(e.document_type || 'מסמך','neutral');
+  };
+  const tableRows = rows.map(e => `<tr class="${state.listOpen===e.id?'desktop-row-selected':''}" onclick="setState({listOpen:'${e.id}'})" style="cursor:pointer">
+    <td><b>${esc(e.supplier||'ספק לא ידוע')}</b><div class="desktop-muted">#${esc(e.document_number||'—')}</div></td>
+    <td>${fmtDate(e.date)}</td>
+    <td>${esc(e.category||'')}</td>
+    <td>${statusFor(e)}</td>
+    <td style="text-align:left"><b>${fmtCurr(e.total_amount)}</b></td>
+    <td><button class="desktop-mini-btn" onclick="event.stopPropagation();openEditExpense('${e.id}')">ערוך</button></td>
+  </tr>`).join('');
+  return `<div class="desktop-page fade-up">
+    ${desktopPageHead('הוצאות ותשלומים', 'ניהול מסמכים, חשבוניות ותעודות משלוח בתצוגת עבודה רחבה', `<button class="desktop-mini-btn primary" onclick="setState({tab:'scan'})">+ צילום הוצאה</button><button class="desktop-mini-btn" onclick="openSupplierManager()">ספקים מאושרים</button>`)}
+    <div class="desktop-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+      ${desktopKpi('החודש', fmtCurr(monthTotal), DB.expenses.filter(e=>isMonth(e.date)).length+' רשומות')}
+      ${desktopKpi('בסינון', fmtCurr(total), rows.length+' רשומות', 'info')}
+      ${desktopKpi('להנהלת חשבונות', pendingAcc, 'חשבוניות ממתינות', pendingAcc?'warn':'ok')}
+      ${desktopKpi('מסמכים בענן', CFG.webAppUrl?'פעיל':'מקומי', CFG.webAppUrl?'סנכרון מחובר':'אין כתובת Web App', CFG.webAppUrl?'ok':'warn')}
+    </div>
+    <div class="desktop-work-grid">
+      <section class="desktop-section">
+        <div class="desktop-filterbar">
+          <input id="list-search-inp" class="input" placeholder="חיפוש ספק / מספר מסמך / הערה" value="${esc(state.listSearch)}" oninput="setListSearch(this.value,this.selectionStart)">
+          <select class="input" onchange="setState({listPer:this.value})">${periods.map(p=>`<option value="${p}" ${state.listPer===p?'selected':''}>${p}</option>`).join('')}</select>
+          <select class="input" onchange="setState({listCat:this.value})">${cats.map(c=>`<option value="${esc(c)}" ${state.listCat===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
+          <button class="desktop-mini-btn" onclick="setState({listSearch:'',listPer:'הכל',listCat:'הכל'})">נקה פילטרים</button>
+        </div>
+        <div class="desktop-table-wrap">${rows.length ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>תאריך</th><th>קטגוריה</th><th>סטטוס</th><th style="text-align:left">סכום</th><th>פעולה</th></tr></thead><tbody>${tableRows}</tbody></table>` : desktopEmpty('📭','אין תוצאות','שנה פילטר או הוסף הוצאה חדשה')}</div>
+      </section>
+      ${renderDesktopExpenseDrawer(selected)}
+    </div>
+  </div>`;
+}
+
 function renderList() {
+  if (isDesktopMode()) return renderDesktopList();
   const rows = filterExpenseRows();
   const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
   const monthTotal = DB.expenses.filter(e=>isMonth(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
@@ -5658,7 +5903,87 @@ function fmtOrdersDate(d) {
 }
 
 // ── Render functions ───────────────────────────────────────────────────────
+function renderDesktopOrdersDrawer(supplier, activeOrder) {
+  if (activeOrder) {
+    const supName = (typeof ordersGetSupplierName === 'function') ? ordersGetSupplierName(activeOrder.supplierId) : activeOrder.supplierName;
+    const items = activeOrder.items || [];
+    return `<aside class="desktop-drawer">
+      <div class="desktop-section-head">
+        <div><div class="desktop-section-title">${esc(supName||'הזמנה')}</div><div class="desktop-muted">${fmtDate(activeOrder.dateOrdered || activeOrder.timestamp)}</div></div>
+        <button class="desktop-mini-btn" onclick="setState({ordersDesktopOrderId:''})">סגור</button>
+      </div>
+      <div class="desktop-section-pad">
+        <div style="margin-bottom:12px">${desktopStatus(activeOrder.deliveryNoteIds&&activeOrder.deliveryNoteIds.length?'קושרה תעודת משלוח':'ממתינה לתעודה', activeOrder.deliveryNoteIds&&activeOrder.deliveryNoteIds.length?'ok':'warn')}</div>
+        <div class="desktop-section-title" style="margin-bottom:8px">מוצרים בהזמנה</div>
+        ${items.map(i=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><span>${esc(i.name||'')}</span><b>${esc(i.qty||i.quantity||'')} ${esc(i.unit||'')}</b></div>`).join('') || '<div class="desktop-muted">אין פריטים בהזמנה.</div>'}
+        <button class="desktop-mini-btn primary" style="width:100%;margin-top:12px" onclick="setState({ordersView:'active'})">פתח מסך טיפול</button>
+      </div>
+    </aside>`;
+  }
+  if (!supplier) return `<aside class="desktop-drawer">${desktopEmpty('🚚','בחר ספק או הזמנה','פרטי הזמנה, מוצרים ותעודות משלוח יופיעו כאן')}</aside>`;
+  const draft = ordersHasDraftFor(supplier.id);
+  return `<aside class="desktop-drawer">
+    <div class="desktop-section-head">
+      <div><div class="desktop-section-title">${esc(supplier.name)}</div><div class="desktop-muted">${supplier.products.length} מוצרים</div></div>
+      <button class="desktop-mini-btn" onclick="setState({ordersDesktopSupplierId:''})">סגור</button>
+    </div>
+    <div class="desktop-section-pad">
+      <div style="margin-bottom:12px">${desktopStatus(draft?'יש טיוטה':'מוכן להזמנה', draft?'warn':'ok')}</div>
+      <button class="desktop-mini-btn primary" style="width:100%;margin-bottom:8px" onclick="ordersOpenOrder('${supplier.id}')">פתח הזמנה</button>
+      <button class="desktop-mini-btn" style="width:100%;margin-bottom:12px" onclick="ordersOpenManage('${supplier.id}','home')">נהל מוצרים</button>
+      <div class="desktop-section-title" style="margin-bottom:8px">מוצרים פעילים</div>
+      ${supplier.products.filter(p=>p.active!==false).slice(0,12).map(p=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><span>${esc(p.name)}</span><span class="desktop-muted">${esc(p.defaultUnit||'')}</span></div>`).join('') || '<div class="desktop-muted">אין מוצרים פעילים.</div>'}
+    </div>
+  </aside>`;
+}
+
+function renderDesktopOrders() {
+  const suppliers = odb.suppliers || [];
+  const activeOrders = odb.activeOrders || [];
+  const selectedOrder = activeOrders.find(o=>o.id===state.ordersDesktopOrderId);
+  const selectedSupplier = suppliers.find(s=>s.id===state.ordersDesktopSupplierId) || suppliers[0] || null;
+  const q = (state.ordersSearch || '').trim().toLowerCase();
+  const filteredSuppliers = q ? suppliers.filter(s => [s.name, ...(s.products||[]).map(p=>p.name)].join(' ').toLowerCase().includes(q)) : suppliers;
+  const supplierRows = filteredSuppliers.map(s => `<tr class="${!selectedOrder && selectedSupplier && selectedSupplier.id===s.id?'desktop-row-selected':''}" onclick="setState({ordersDesktopSupplierId:'${s.id}',ordersDesktopOrderId:''})" style="cursor:pointer">
+    <td><b>${esc(s.name)}</b><div class="desktop-muted">${s.products.length} מוצרים</div></td>
+    <td>${ordersHasDraftFor(s.id)?desktopStatus('טיוטה','warn'):desktopStatus('מוכן','ok')}</td>
+    <td><button class="desktop-mini-btn primary" onclick="event.stopPropagation();ordersOpenOrder('${s.id}')">הזמן</button></td>
+  </tr>`).join('');
+  const activeRows = activeOrders.map(o => {
+    const sup = (typeof ordersGetSupplierName === 'function') ? ordersGetSupplierName(o.supplierId) : (o.supplierName || '');
+    return `<tr class="${selectedOrder&&selectedOrder.id===o.id?'desktop-row-selected':''}" onclick="setState({ordersDesktopOrderId:'${o.id}',ordersDesktopSupplierId:''})" style="cursor:pointer">
+      <td><b>${esc(sup||'הזמנה')}</b><div class="desktop-muted">${fmtDate(o.dateOrdered || o.timestamp)}</div></td>
+      <td>${(o.items||[]).length}</td>
+      <td>${desktopStatus(o.deliveryNoteIds&&o.deliveryNoteIds.length?'קושרה תעודה':'פתוחה', o.deliveryNoteIds&&o.deliveryNoteIds.length?'ok':'warn')}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="desktop-page fade-up">
+    ${desktopPageHead('הזמנות', 'עבודה מהירה מול ספקים, טיוטות והזמנות פתוחות', `<button class="desktop-mini-btn primary" onclick="setState({ordersModal:'add-supplier'})">+ ספק להזמנות</button><button class="desktop-mini-btn" onclick="setState({ordersView:'history'})">היסטוריה</button>`)}
+    <div class="desktop-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+      ${desktopKpi('ספקים להזמנות', suppliers.length, 'כרטיסי הזמנה')}
+      ${desktopKpi('הזמנות פתוחות', activeOrders.length, 'בתהליך', activeOrders.length?'warn':'ok')}
+      ${desktopKpi('טיוטות', suppliers.filter(s=>ordersHasDraftFor(s.id)).length, 'הזמנות שמורות', 'info')}
+      ${desktopKpi('מוצרים פעילים', suppliers.reduce((n,s)=>n+s.products.filter(p=>p.active!==false).length,0), 'בכל הספקים')}
+    </div>
+    <div class="desktop-work-grid">
+      <div style="display:grid;gap:16px">
+        <section class="desktop-section">
+          <div class="desktop-filterbar"><input class="input" placeholder="חיפוש ספק או מוצר" value="${esc(state.ordersSearch||'')}" oninput="state.ordersSearch=this.value;render()"></div>
+          <div class="desktop-section-head"><div class="desktop-section-title">ספקים להזמנה</div></div>
+          <div class="desktop-table-wrap">${supplierRows ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>סטטוס</th><th>פעולה</th></tr></thead><tbody>${supplierRows}</tbody></table>` : desktopEmpty('📦','אין ספקים','הוסף ספק ראשון להזמנות')}</div>
+        </section>
+        <section class="desktop-section">
+          <div class="desktop-section-head"><div class="desktop-section-title">הזמנות פתוחות</div><button class="desktop-mini-btn" onclick="setState({ordersView:'active'})">טיפול</button></div>
+          <div class="desktop-table-wrap">${activeRows ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>פריטים</th><th>סטטוס</th></tr></thead><tbody>${activeRows}</tbody></table>` : desktopEmpty('✅','אין הזמנות פתוחות','הכול נקי כרגע')}</div>
+        </section>
+      </div>
+      ${renderDesktopOrdersDrawer(selectedSupplier, selectedOrder)}
+    </div>
+  </div>`;
+}
+
 function renderOrdersTab() {
+  if (isDesktopMode() && !['order','manage'].includes(state.ordersView)) return renderDesktopOrders();
   switch(state.ordersView) {
     case 'order':   return renderOrdersOrderView();
     case 'manage':  return renderOrdersManageView();
@@ -6344,7 +6669,89 @@ function bulkProductsDelete() {
 }
 
 // ── renderProductsTab ─────────────────────────────────────────────────────────
+function renderDesktopProductDrawer(p) {
+  if (!p) return `<aside class="desktop-drawer">${desktopEmpty('🏷️','בחר מוצר','לחיצה על מוצר תפתח כאן מחירים, ספקים ורווחיות')}</aside>`;
+  const prices = (p.supplierPrices||[]).filter(sp=>sp.buyPrice>0);
+  const bestBuy = prices.length ? Math.min(...prices.map(sp=>sp.buyPrice)) : null;
+  const lastSupplier = prices.length ? prices[prices.length-1].supplierName : '';
+  const margin = calcMargin(p);
+  return `<aside class="desktop-drawer">
+    <div class="desktop-section-head">
+      <div><div class="desktop-section-title">${esc(p.name||'מוצר')}</div><div class="desktop-muted">${esc(p.category||'ללא קטגוריה')}</div></div>
+      <button class="desktop-mini-btn" onclick="setState({productsView:'list',productsDetailId:''})">סגור</button>
+    </div>
+    <div class="desktop-section-pad">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        ${desktopKpi('קנייה אחרונה', bestBuy!=null?fmtCurr(bestBuy):'—', lastSupplier || 'אין ספק')}
+        ${desktopKpi('מחיר מכירה', p.sellPrice!=null?fmtCurr(p.sellPrice):'—', 'לחץ לעדכון')}
+        ${desktopKpi('רווח גולמי', margin!=null?margin+'%':'—', margin!=null?'מחושב מול קנייה':'חסר מחיר', margin!=null&&margin<15?'danger':'ok')}
+        ${desktopKpi('סטטוס', p.active===false?'לא פעיל':'פעיל', 'בקטלוג ההזמנות', p.active===false?'warn':'ok')}
+      </div>
+      <button class="desktop-mini-btn primary" style="width:100%;margin-bottom:8px" onclick="editProductName('${p.id}')">שנה שם מוצר</button>
+      <button class="desktop-mini-btn" style="width:100%;margin-bottom:8px" onclick="editSellPrice('${p.id}')">עדכן מחיר מכירה</button>
+      <button class="desktop-mini-btn" style="width:100%;margin-bottom:8px" onclick="setState({productsModal:'add-supplier-price',productsModalData:{productId:'${p.id}'}})">הוסף מחיר ספק</button>
+      <div style="margin-top:14px">
+        <div class="desktop-section-title" style="margin-bottom:8px">מחירי ספקים</div>
+        ${(p.supplierPrices||[]).map(sp=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+          <span><b>${esc(sp.supplierName||'ספק')}</b><div class="desktop-muted">${sp.updatedAt?fmtDate(sp.updatedAt):''}</div></span>
+          <span><b>${sp.buyPrice?fmtCurr(sp.buyPrice):'—'}</b></span>
+        </div>`).join('') || '<div class="desktop-muted">אין מחירי ספקים למוצר.</div>'}
+      </div>
+    </div>
+  </aside>`;
+}
+
+function renderDesktopProducts() {
+  const rows = filterProductsList();
+  const selected = pdb.products.find(p => p.id === state.productsDetailId) || rows[0] || null;
+  const missingBuy = (pdb.products||[]).filter(p=>p.active!==false && !(p.supplierPrices||[]).some(sp=>sp.buyPrice>0)).length;
+  const missingSell = (pdb.products||[]).filter(p=>p.active!==false && p.sellPrice == null).length;
+  const lowMargin = (pdb.products||[]).filter(p=>p.active!==false && calcMargin(p)!=null && calcMargin(p)<15).length;
+  const cats = ['הכל', ...getProductCategories(), 'ללא קטגוריה'];
+  const rowHtml = rows.map(p => {
+    const prices = (p.supplierPrices||[]).filter(sp=>sp.buyPrice>0);
+    const bestBuy = prices.length ? Math.min(...prices.map(sp=>sp.buyPrice)) : null;
+    const lastSupplier = prices.length ? prices[prices.length-1].supplierName : '';
+    const m = calcMargin(p);
+    const tone = p.active===false?'neutral':m==null?'warn':m<15?'danger':'ok';
+    return `<tr class="${state.productsDetailId===p.id?'desktop-row-selected':''}" onclick="setState({productsView:'list',productsDetailId:'${p.id}'})" style="cursor:pointer">
+      <td><b>${esc(p.name||'')}</b><div class="desktop-muted">${esc(p.category||'ללא קטגוריה')}</div></td>
+      <td>${bestBuy!=null?fmtCurr(bestBuy):desktopStatus('חסר','warn')}</td>
+      <td>${p.sellPrice!=null?fmtCurr(p.sellPrice):desktopStatus('חסר','warn')}</td>
+      <td>${desktopStatus(m!=null?m+'%':'לא מחושב', tone)}</td>
+      <td>${esc(lastSupplier||'—')}</td>
+      <td>${desktopStatus(p.active===false?'לא פעיל':'פעיל', p.active===false?'neutral':'ok')}</td>
+      <td><button class="desktop-mini-btn" onclick="event.stopPropagation();setState({productsView:'detail',productsDetailId:'${p.id}'})">ערוך</button></td>
+    </tr>`;
+  }).join('');
+  return `<div class="desktop-page fade-up">
+    ${desktopPageHead('מוצרים ומלאי', 'מחירי קנייה, מכירה, רווחיות והמלצות לטיפול', `<button class="desktop-mini-btn primary" onclick="setState({productsModal:'add'})">+ מוצר</button><button class="desktop-mini-btn" onclick="toggleProductsSelectMode()">בחירה מרובה</button>`)}
+    <div class="desktop-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+      ${desktopKpi('מוצרים פעילים', (pdb.products||[]).filter(p=>p.active!==false).length, 'בקטלוג')}
+      ${desktopKpi('חסר מחיר קנייה', missingBuy, 'דורש עדכון', missingBuy?'warn':'ok')}
+      ${desktopKpi('חסר מחיר מכירה', missingSell, 'לא ניתן לחשב רווח', missingSell?'warn':'ok')}
+      ${desktopKpi('רווחיות נמוכה', lowMargin, 'מתחת ל-15%', lowMargin?'danger':'ok')}
+    </div>
+    <div class="desktop-work-grid">
+      <section class="desktop-section">
+        <div class="desktop-filterbar">
+          <input class="input" type="search" placeholder="חיפוש מוצר" value="${esc(state.productsSearch||'')}" oninput="state.productsSearch=this.value;render()">
+          <select class="input" onchange="setState({productsCategory:this.value,productsBulkMode:false,productsBulkSelected:[]})">${cats.map(c=>`<option value="${esc(c)}" ${(state.productsCategory||'הכל')===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
+          <select class="input" onchange="setState({productsSort:this.value})">
+            <option value="name" ${state.productsSort==='name'?'selected':''}>מיון א-ב</option>
+            <option value="margin" ${state.productsSort==='margin'?'selected':''}>רווחיות</option>
+            <option value="recent" ${state.productsSort==='recent'?'selected':''}>עודכן לאחרונה</option>
+          </select>
+        </div>
+        <div class="desktop-table-wrap">${rows.length ? `<table class="desktop-table"><thead><tr><th>מוצר</th><th>קנייה אחרונה</th><th>מכירה</th><th>רווח</th><th>ספק אחרון</th><th>סטטוס</th><th>פעולה</th></tr></thead><tbody>${rowHtml}</tbody></table>` : desktopEmpty('🏷️','אין מוצרים','הוסף מוצר ראשון או שנה פילטר')}</div>
+      </section>
+      ${renderDesktopProductDrawer(selected)}
+    </div>
+  </div>`;
+}
+
 function renderProductsTab() {
+  if (isDesktopMode()) return renderDesktopProducts();
   if (state.productsView === 'detail' && state.productsDetailId) return renderProductDetail();
   return renderProductsList();
 }
@@ -7965,7 +8372,84 @@ function renderPayablesReconcile() {
 }
 
 // ── Main renderPayables entry ────────────────────────────────────────────────
+function renderDesktopPayablesDrawer(item) {
+  if (!item) return `<aside class="desktop-drawer">${desktopEmpty('🏭','בחר תשלום או ספק','הפרטים והפעולות ייפתחו כאן בלי לעזוב את הרשימה')}</aside>`;
+  const pair = desktopPaymentStatusText(item);
+  const debt = item.type === 'debt' ? (pv.debts||[]).find(d=>d.id===item.id) : null;
+  return `<aside class="desktop-drawer">
+    <div class="desktop-section-head">
+      <div><div class="desktop-section-title">${esc(item.supplier||'ספק')}</div><div class="desktop-muted">${fmtDate(item.date)} · ${fmtCurr(item.amount)}</div></div>
+      <button class="desktop-mini-btn" onclick="setState({payablesDebtId:'',payablesDesktopPaymentId:''})">סגור</button>
+    </div>
+    <div class="desktop-section-pad">
+      <div style="margin-bottom:12px">${desktopStatus(pair[0],pair[1])}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div><div class="desktop-muted">אמצעי תשלום</div><b>${esc(item.method||'—')}</b></div>
+        <div><div class="desktop-muted">מספר</div><b>${esc(item.invoiceNumber||item.checkNumber||'—')}</b></div>
+        <div><div class="desktop-muted">תאריך פירעון</div><b>${fmtDate(item.date)}</b></div>
+        <div><div class="desktop-muted">סכום</div><b>${fmtCurr(item.amount)}</b></div>
+      </div>
+      <div style="display:grid;gap:8px">
+        ${debt?`<button class="desktop-mini-btn primary" onclick="setState({payablesView:'debt',payablesDebtId:'${item.id}'})">פתח תנועה מלאה</button>`:''}
+        ${debt?`<button class="desktop-mini-btn" onclick="pvOpenEditDebt('${item.id}')">ערוך תנועה</button>`:''}
+        ${debt?`<button class="desktop-mini-btn" onclick="pvOpenConfirm('${item.id}','debt')">סמן שולם</button>`:''}
+        <button class="desktop-mini-btn" onclick="setState({payablesView:'supplier',payablesSupplier:'${esc(item.supplier||'')}'})">פתח כרטיס ספק</button>
+      </div>
+    </div>
+  </aside>`;
+}
+
+function renderDesktopPayables() {
+  pvMigratePaymentStatuses();
+  pvReopenMistakenPaidCommitments();
+  const payments = desktopPaymentsData();
+  const selectedId = state.payablesDebtId || state.payablesDesktopPaymentId;
+  const selected = payments.find(p => p.id === selectedId) || payments[0] || null;
+  const pf = state.pvPaymentFilter || 'הכל';
+  const q = (state.payablesSearch || '').trim().toLowerCase();
+  let rows = payments;
+  if (pf === "צ'קים") rows = rows.filter(p => p.method.includes("צ'ק") || p.checkNumber);
+  else if (pf === 'העברות') rows = rows.filter(p => p.method.includes('העברה'));
+  else if (pf === 'מזומן') rows = rows.filter(p => p.method.includes('מזומן'));
+  else if (pf === 'באיחור') rows = rows.filter(p => p.isOverdue);
+  else if (pf === 'השבוע') rows = rows.filter(p => p.date && pvDateInDays(p.date,7));
+  if (q) rows = rows.filter(p => [p.supplier,p.invoiceNumber,p.checkNumber,p.method].join(' ').toLowerCase().includes(q));
+  const filters = ['הכל',"צ'קים",'העברות','מזומן','באיחור','השבוע'];
+  const openSupplierNames = [...new Set(payments.map(p=>p.supplier).filter(Boolean))];
+  const rowsHtml = rows.map(p => {
+    const pair = desktopPaymentStatusText(p);
+    return `<tr class="${selected && selected.id===p.id?'desktop-row-selected':''}" onclick="setState({payablesDesktopPaymentId:'${p.id}',payablesDebtId:'${p.type==='debt'?p.id:''}'})" style="cursor:pointer">
+      <td><b>${esc(p.supplier||'ספק')}</b><div class="desktop-muted">${p.invoiceNumber?'#'+esc(p.invoiceNumber):p.checkNumber?'צ׳ק '+esc(p.checkNumber):''}</div></td>
+      <td>${fmtDate(p.date)}</td>
+      <td>${esc(p.method||'—')}</td>
+      <td>${desktopStatus(pair[0],pair[1])}</td>
+      <td style="text-align:left"><b>${fmtCurr(p.amount)}</b></td>
+      <td><button class="desktop-mini-btn" onclick="event.stopPropagation();setState({payablesDesktopPaymentId:'${p.id}',payablesDebtId:'${p.type==='debt'?p.id:''}'})">פתח</button></td>
+    </tr>`;
+  }).join('');
+  return `<div class="desktop-page fade-up">
+    ${desktopPageHead('ספקים והתחייבויות', 'תזרים ספקים כרונולוגי, צ׳קים עתידיים ותשלומים לביצוע', `<button class="desktop-mini-btn primary" onclick="setState({payablesModal:'add-direct',payablesModalData:{}})">+ התחייבות</button><button class="desktop-mini-btn" onclick="setState({payablesView:'supplierBook'})">ספר ספקים</button>`)}
+    <div class="desktop-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+      ${desktopKpi('חוב פתוח', fmtCurr(payments.reduce((s,p)=>s+p.amount,0)), payments.length+' תשלומים')}
+      ${desktopKpi('השבוע', fmtCurr(payments.filter(p=>p.date&&pvDateInDays(p.date,7)).reduce((s,p)=>s+p.amount,0)), 'לתשלום בקרוב', 'warn')}
+      ${desktopKpi('באיחור', payments.filter(p=>p.isOverdue).length, 'דורש טיפול', payments.some(p=>p.isOverdue)?'danger':'ok')}
+      ${desktopKpi('ספקים פתוחים', openSupplierNames.length, 'כרטיסים עם פעילות', 'info')}
+    </div>
+    <div class="desktop-work-grid">
+      <section class="desktop-section">
+        <div class="desktop-filterbar">
+          <input class="input" placeholder="חיפוש ספק / צ׳ק / חשבונית" value="${esc(state.payablesSearch||'')}" oninput="state.payablesSearch=this.value;render()">
+          ${filters.map(f=>`<button class="desktop-mini-btn ${pf===f?'primary':''}" onclick="setState({pvPaymentFilter:'${f}'})">${f}</button>`).join('')}
+        </div>
+        <div class="desktop-table-wrap">${rows.length ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>תאריך</th><th>אמצעי</th><th>סטטוס</th><th style="text-align:left">סכום</th><th>פעולה</th></tr></thead><tbody>${rowsHtml}</tbody></table>` : desktopEmpty('✅','אין תשלומים להצגה','הכול מסודר לפי הפילטר הנוכחי')}</div>
+      </section>
+      ${renderDesktopPayablesDrawer(selected)}
+    </div>
+  </div>`;
+}
+
 function renderPayables() {
+  if (isDesktopMode()) return renderDesktopPayables();
   if (state.payablesView === 'supplier') return renderPayablesSupplier();
   if (state.payablesView === 'debt') return renderPayablesDebt();
   if (state.payablesView === 'reconcile') return renderPayablesReconcile();
@@ -8512,7 +8996,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=71').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=72').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
