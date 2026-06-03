@@ -902,7 +902,10 @@ async function syncAll(opts) {
     }
     if (wrk !== null && ((wrk||[]).length > 0 || DB.workers.length === 0)) DB.workers = dedup(wrk || []);
     if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) DB.checks = dedup(chk || []);
-    if (inc !== null && ((inc||[]).length > 0 || DB.income.length === 0)) DB.income = dedup(inc || []);
+    if (inc !== null && ((inc||[]).length > 0 || DB.income.length === 0)) {
+      const hasUnsyncedLocalIncome = (APP_META.dataLocalModified || 0) > (APP_META.dataLastSynced || 0);
+      DB.income = hasUnsyncedLocalIncome ? dedup([...(DB.income || []), ...(inc || [])]) : dedup(inc || []);
+    }
     if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) DB.advances = dedup(adv || []);
     if (!extendedSyncOk) {
       if (prod !== null && ((prod||[]).length > 0 || pdb.products.length === 0)) {
@@ -4235,6 +4238,7 @@ function addIncome() {
   const date = f.date || defaultDate;
   const item = { id: uid(), date, type: f.type, amount: +f.amount, notes: f.notes || '' };
   DB.income.unshift(item);
+  markDataStateDirty();
   persistLocal();
   state.incomeForm = { type: f.type, amount: '', date: null, notes: '' };
   render();
@@ -9188,7 +9192,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=75').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=76').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
