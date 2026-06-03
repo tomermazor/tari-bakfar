@@ -93,6 +93,12 @@ input:-webkit-autofill { -webkit-box-shadow:0 0 0 40px var(--surface) inset; -we
   .nav button.active .nav-icon-wrap { background:transparent !important; box-shadow:none !important; transform:none !important; color:#fff; }
   .nav-icon-wrap { width:22px; height:22px; border-radius:5px; background:transparent !important; box-shadow:none !important; transform:none !important; flex-shrink:0; }
   .nav button span { font-size:14px; font-weight:600; white-space:nowrap; display:block; letter-spacing:0; }
+  .sidebar-nav-group { padding:8px 8px 4px; border-bottom:1px solid rgba(148,163,184,0.14); }
+  .sidebar-nav-group:last-of-type { border-bottom:none; }
+  .sidebar-group-label { padding:8px 12px 5px; color:var(--textMuted); font-size:10px; font-weight:900; letter-spacing:0.08em; text-transform:uppercase; }
+  .sidebar-footer button:hover { background:var(--surfaceHi) !important; color:var(--text) !important; }
+  .sidebar-sync-card { margin:10px 12px 0; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:var(--surfaceHi); color:var(--textDim); font-size:11px; line-height:1.45; }
+  .sidebar-sync-card strong { display:block; color:var(--text); font-size:12px; margin-bottom:2px; }
   /* ── Sidebar FAB ─────────────────────────────────────────────────── */
   .nav-fab-slot { position:static; order:-1; flex:0 0 auto; width:100%; padding:16px 12px 8px; }
   .nav-fab { position:static; width:100%; height:48px; border-radius:12px; border:none; justify-content:flex-start; flex-direction:row; padding:0 16px; gap:12px; font-size:14px; font-weight:700; font-family:inherit; letter-spacing:0; }
@@ -189,6 +195,7 @@ input:-webkit-autofill { -webkit-box-shadow:0 0 0 40px var(--surface) inset; -we
   .desktop-mini-btn { border:1px solid var(--border); background:var(--surface); color:var(--textDim); border-radius:9px; padding:7px 10px; font-family:inherit; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; }
   .desktop-mini-btn:hover { background:var(--surfaceHi); color:var(--text); }
   .desktop-mini-btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .desktop-mini-btn.danger { color:var(--danger); border-color:rgba(220,38,38,.25); }
   .desktop-drawer { position:sticky; top:16px; max-height:calc(100vh - 126px); overflow:auto; background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-sm); }
   .desktop-drawer-empty { padding:34px 18px; text-align:center; color:var(--textDim); font-size:13px; }
   .desktop-empty { padding:46px 20px; text-align:center; color:var(--textDim); }
@@ -496,6 +503,11 @@ function markCoreStateDirty() {
   saveAppMeta();
   scheduleAutoSync();
 }
+function markDataStateDirty() {
+  APP_META.dataLocalModified = Date.now();
+  saveAppMeta();
+  scheduleAutoSync();
+}
 function saveDnOrderLinks(skipDirty) {
   localStorage.setItem('tari_dn_order_links_v1', JSON.stringify(DN_ORDER_LINKS));
   if (!skipDirty) markCoreStateDirty();
@@ -609,6 +621,43 @@ function buildCoreCloudState() {
   };
 }
 
+function buildDataCloudState() {
+  return {
+    _localModified: APP_META.dataLocalModified || 0,
+    expenses: DB.expenses || [],
+    fixed: DB.fixed || [],
+    installments: DB.installments || [],
+    income: DB.income || [],
+    credits: DB.credits || [],
+    workers: DB.workers || [],
+    advances: DB.advances || [],
+    checks: DB.checks || [],
+  };
+}
+
+function applyDataCloudState(cloud) {
+  if (!cloud || typeof cloud !== 'object') return;
+  const localExpenseImages = {};
+  const localCreditImages = {};
+  (DB.expenses||[]).forEach(e => { if (e.image) localExpenseImages[e.id] = e.image; });
+  (DB.credits||[]).forEach(c => { if (c.image) localCreditImages[c.id] = c.image; });
+  if (Array.isArray(cloud.expenses)) {
+    DB.expenses = dedup(cloud.expenses).map(e => (!e.image && localExpenseImages[e.id]) ? {...e, image: localExpenseImages[e.id]} : e);
+    mergeAccFlags(DB.expenses);
+  }
+  if (Array.isArray(cloud.fixed)) DB.fixed = dedup(cloud.fixed);
+  if (Array.isArray(cloud.installments)) DB.installments = dedup(cloud.installments);
+  if (Array.isArray(cloud.income)) DB.income = dedup(cloud.income);
+  if (Array.isArray(cloud.credits)) DB.credits = dedup(cloud.credits).map(c => (!c.image && localCreditImages[c.id]) ? {...c, image: localCreditImages[c.id]} : c);
+  if (Array.isArray(cloud.workers)) DB.workers = dedup(cloud.workers);
+  if (Array.isArray(cloud.advances)) DB.advances = dedup(cloud.advances);
+  if (Array.isArray(cloud.checks)) DB.checks = dedup(cloud.checks);
+  APP_META.dataLocalModified = +cloud._localModified || 0;
+  APP_META.dataLastSynced = Date.now();
+  saveAppMeta();
+  persistLocal();
+}
+
 function applyCoreCloudState(cloud) {
   if (!cloud || typeof cloud !== 'object') return;
   const cloudMod = +cloud._localModified || 0;
@@ -646,6 +695,20 @@ function ensureExistingLocalStoresCanSync() {
   if (hasCoreData && !APP_META.coreLocalModified) {
     APP_META.coreLocalModified = Date.now();
     APP_META.coreLastSynced = 0;
+    saveAppMeta();
+  }
+  const hasBusinessData =
+    (DB.expenses || []).length ||
+    (DB.fixed || []).length ||
+    (DB.installments || []).length ||
+    (DB.income || []).length ||
+    (DB.credits || []).length ||
+    (DB.workers || []).length ||
+    (DB.advances || []).length ||
+    (DB.checks || []).length;
+  if (hasBusinessData && !APP_META.dataLocalModified) {
+    APP_META.dataLocalModified = Date.now();
+    APP_META.dataLastSynced = 0;
     saveAppMeta();
   }
 }
@@ -726,19 +789,23 @@ async function syncCloudStateBlob(key, buildFn, applyFn, getLocalModified) {
   return true;
 }
 
+let LAST_EXTENDED_SYNC = {};
 async function syncExtendedAppState() {
-  const results = await Promise.all([
-    syncCloudStateBlob('core', buildCoreCloudState, applyCoreCloudState, () => APP_META.coreLocalModified || 0),
-    syncCloudStateBlob('payables', buildPayablesCloudState, applyPayablesCloudState, () => pv._localModified || 0),
-    syncCloudStateBlob('products', buildProductsCloudState, applyProductsCloudState, () => pdb._localModified || 0),
-    syncCloudStateBlob('orders', buildOrdersCloudState, applyOrdersCloudState, () => odb._localModified || 0),
-  ].map(p => p.catch(e => {
+  const tasks = [
+    ['core', syncCloudStateBlob('core', buildCoreCloudState, applyCoreCloudState, () => APP_META.coreLocalModified || 0)],
+    ['data', syncCloudStateBlob('data', buildDataCloudState, applyDataCloudState, () => APP_META.dataLocalModified || 0)],
+    ['payables', syncCloudStateBlob('payables', buildPayablesCloudState, applyPayablesCloudState, () => pv._localModified || 0)],
+    ['products', syncCloudStateBlob('products', buildProductsCloudState, applyProductsCloudState, () => pdb._localModified || 0)],
+    ['orders', syncCloudStateBlob('orders', buildOrdersCloudState, applyOrdersCloudState, () => odb._localModified || 0)],
+  ];
+  const results = await Promise.all(tasks.map(([key, promise]) => promise.then(ok => [key, !!ok]).catch(e => {
     const msg = (e.message || '').toLowerCase();
-    if (msg.includes('unknown action')) return false;
+    if (msg.includes('unknown action')) return [key, false];
     console.warn('extended sync failed:', e.message);
-    return false;
+    return [key, false];
   })));
-  return results.every(Boolean);
+  LAST_EXTENDED_SYNC = Object.fromEntries(results);
+  return results.every(([, ok]) => ok);
 }
 
 async function syncAll(opts) {
@@ -774,18 +841,18 @@ async function syncAll(opts) {
     }
 
     if (!extendedSyncOk) {
-      if ((pdb._localModified || 0) > (pdb._lastSynced || 0)) {
+      if (!LAST_EXTENDED_SYNC.products && (pdb._localModified || 0) > (pdb._lastSynced || 0)) {
         await cloudCall('save_products', {payload: pdb.products || []});
         await cloudCall('save_pending', {payload: pdb.pending || []});
         pdb._lastSynced = Date.now();
         savePdb(false);
       }
-      if ((pv._localModified || 0) > (pv._lastSynced || 0)) {
+      if (!LAST_EXTENDED_SYNC.payables && (pv._localModified || 0) > (pv._lastSynced || 0)) {
         await cloudCall('save_payables', {payload: buildPayablesCloudState()});
         pv._lastSynced = Date.now();
         savePv(false);
       }
-      if ((odb._localModified || 0) > (odb._lastSynced || 0)) {
+      if (!LAST_EXTENDED_SYNC.orders && (odb._localModified || 0) > (odb._lastSynced || 0)) {
         await cloudCall('save_suppliers', {payload: odb.suppliers || []});
         try { await cloudCall('save_active_orders', {payload: odb.activeOrders || []}); } catch(e) {}
         odb._lastSynced = Date.now();
@@ -796,26 +863,26 @@ async function syncAll(opts) {
     // 2. Pull fresh data — individual failures are non-fatal (new GAS endpoints may not exist yet)
     const safe = fn => fn.catch(() => null);
     const [exp, fix, ins, cred, wrk, chk, inc, adv, prod, pend, pay, osup, activeOrders] = await Promise.all([
-      cloudCall('list_expenses', {}),
-      cloudCall('list_fixed', {}),
-      cloudCall('list_installments', {}),
-      safe(cloudCall('list_credits', {})),
-      safe(cloudCall('list_workers', {})),
-      safe(cloudCall('list_checks', {})),
-      safe(cloudCall('list_income', {})),
-      safe(cloudCall('list_advances', {})),
-      extendedSyncOk ? Promise.resolve(null) : safe(cloudCall('list_products', {})),
-      extendedSyncOk ? Promise.resolve(null) : safe(cloudCall('list_pending', {})),
-      extendedSyncOk ? Promise.resolve(null) : safe(cloudCall('list_payables', {})),
-      extendedSyncOk ? Promise.resolve(null) : safe(cloudCall('list_suppliers', {})),
-      extendedSyncOk ? Promise.resolve(null) : safe(cloudCall('list_active_orders', {})),
+      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : cloudCall('list_expenses', {}),
+      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : cloudCall('list_fixed', {}),
+      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : cloudCall('list_installments', {}),
+      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : safe(cloudCall('list_credits', {})),
+      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : safe(cloudCall('list_workers', {})),
+      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : safe(cloudCall('list_checks', {})),
+      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : safe(cloudCall('list_income', {})),
+      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : safe(cloudCall('list_advances', {})),
+      LAST_EXTENDED_SYNC.products ? Promise.resolve(null) : safe(cloudCall('list_products', {})),
+      LAST_EXTENDED_SYNC.products ? Promise.resolve(null) : safe(cloudCall('list_pending', {})),
+      LAST_EXTENDED_SYNC.payables ? Promise.resolve(null) : safe(cloudCall('list_payables', {})),
+      LAST_EXTENDED_SYNC.orders ? Promise.resolve(null) : safe(cloudCall('list_suppliers', {})),
+      LAST_EXTENDED_SYNC.orders ? Promise.resolve(null) : safe(cloudCall('list_active_orders', {})),
     ]);
-    if ((exp||[]).length > 0 || DB.expenses.length === 0) {
+    if (exp !== null && ((exp||[]).length > 0 || DB.expenses.length === 0)) {
       DB.expenses = dedup(exp || []); // dedup by id — removes cloud duplicates
       mergeAccFlags(DB.expenses);
     }
-    if ((fix||[]).length > 0 || DB.fixed.length === 0) DB.fixed = dedup(fix || []);
-    if ((ins||[]).length > 0 || DB.installments.length === 0) DB.installments = dedup(ins || []);
+    if (fix !== null && ((fix||[]).length > 0 || DB.fixed.length === 0)) DB.fixed = dedup(fix || []);
+    if (ins !== null && ((ins||[]).length > 0 || DB.installments.length === 0)) DB.installments = dedup(ins || []);
     // Credits: merge cloud (authoritative) with local images (stored locally only)
     if (cred !== null && ((cred||[]).length > 0 || DB.credits.length === 0)) {
       const localImgMap = {};
@@ -873,7 +940,10 @@ async function syncAll(opts) {
 
 async function queueAndSync(action, payload, optimisticLocal) {
   // 1. Apply optimistically to local DB
-  if (optimisticLocal) optimisticLocal();
+  if (optimisticLocal) {
+    optimisticLocal();
+    markDataStateDirty();
+  }
   persistLocal();
   render();
 
@@ -1376,6 +1446,7 @@ let state = {
   incomeForm: {type: 'מכירות אונליין', amount: '', date: null, notes: ''},
   incomeWeekOffset: 0, // 0=current week, -1=last week, -2=2 weeks ago …
   creditForm: {supplier: '', amount: '', reason: '', image: null},
+  creditOpenId: null,
   workerAdding: false, workerForm: null,
   advanceInputs: {},
   viewCreditImage: null,
@@ -1665,6 +1736,7 @@ function renderNav() {
   const mid = Math.ceil(tabs.length / 2);
   const left  = tabs.slice(0, mid);
   const right = tabs.slice(mid);
+  const desktopMode = isDesktopMode();
 
   const tabBtn = t => `
     <button class="${state.tab===t.id?'active':''}" onclick="setState({tab:'${t.id}'})">
@@ -1693,6 +1765,22 @@ function renderNav() {
     </div>`;
 
   // Sidebar footer: orders link + settings (desktop only)
+  const desktopGroups = [
+    ['ראשי', ['dashboard']],
+    ['עבודה יומית', ['orders','payables','list','products']],
+    ['כספים ובקרה', ['income','installments','credits','reports']],
+    ['ניהול', ['fixed']]
+  ];
+  const groupedIds = new Set(desktopGroups.flatMap(([, ids]) => ids));
+  const desktopGroupedNav = desktopGroups.map(([label, ids]) => {
+    const groupTabs = ids.map(id => tabs.find(t => t.id === id)).filter(Boolean);
+    if (!groupTabs.length) return '';
+    return `<div class="sidebar-nav-group"><div class="sidebar-group-label">${label}</div>${groupTabs.map(tabBtn).join('')}</div>`;
+  }).join('') + tabs.filter(t => !groupedIds.has(t.id)).map(tabBtn).join('');
+  const mobileNav = left.map(tabBtn).join('') + right.map(tabBtn).join('');
+  const syncText = LAST_EXTENDED_SYNC.data ? 'סנכרון מלא פעיל לכל הטאבים' : 'סנכרון ענן רגיל';
+  const desktopSyncCard = desktopMode ? `<div class="sidebar-sync-card"><strong>מצב מערכת</strong>${syncText}</div>` : '';
+
   const footer = `
     <div class="sidebar-footer" style="display:none;flex-direction:column;gap:2px;margin-top:auto;padding:8px 8px 12px;border-top:1px solid var(--border)">
       <button onclick="setState({tab:'orders'})" style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;border:none;background:transparent;color:var(--textDim);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;width:100%;text-align:right;transition:background var(--t-fast)" onmouseenter="this.style.background='var(--surfaceHi)'" onmouseleave="this.style.background='transparent'">
@@ -1706,7 +1794,7 @@ function renderNav() {
     </div>`;
 
   const navEl = document.getElementById('nav');
-  navEl.innerHTML = brand + fab + left.map(tabBtn).join('') + right.map(tabBtn).join('') + footer;
+  navEl.innerHTML = brand + fab + (desktopMode ? desktopGroupedNav : mobileNav) + desktopSyncCard + footer;
   [...navEl.querySelectorAll('button')].forEach(btn => {
     const handler = btn.getAttribute('onclick') || '';
     if (handler.includes("tab:'settings'") && !canAccessTab('settings')) btn.remove();
@@ -2702,6 +2790,7 @@ async function toggleSentToAccountant(id) {
   if (e.sentToAccountant) ACC_FLAGS[id] = true;
   else delete ACC_FLAGS[id];
   saveAccFlags();
+  markDataStateDirty();
   persistLocal();
   render();
   toast(e.sentToAccountant ? '✓ סומן כהועבר להנה"ח' : 'הסימון בוטל', e.sentToAccountant ? 'success' : 'info');
@@ -3733,7 +3822,97 @@ async function shareCreditImage() {
 // ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — CREDITS
 // ═══════════════════════════════════════════════════════════════════════════
+function renderDesktopCredits() {
+  const rows = (DB.credits || []).slice().sort((a,b) => (parseD(a.date)?.getTime()||0) - (parseD(b.date)?.getTime()||0));
+  const total = rows.reduce((s,c) => s + (+c.amount || 0), 0);
+  const withImages = rows.filter(c => c.image).length;
+  const selected = rows.find(c => c.id === state.creditOpenId) || rows[0] || null;
+  const drawer = selected ? `
+    <aside class="desktop-drawer">
+      <div class="desktop-drawer-head">
+        <div>
+          <div class="desktop-muted">כרטיס זיכוי</div>
+          <h3>${esc(selected.supplier || 'ספק')}</h3>
+        </div>
+        <button class="desktop-mini-btn" onclick="setState({creditOpenId:null})">סגור</button>
+      </div>
+      <div class="desktop-detail-grid">
+        <div><div class="desktop-muted">סכום</div><strong>${fmtCurr(selected.amount)}</strong></div>
+        <div><div class="desktop-muted">תאריך</div><strong>${fmtDate(selected.date)}</strong></div>
+        <div style="grid-column:1/-1"><div class="desktop-muted">סיבה</div><strong>${esc(selected.reason || '-')}</strong></div>
+      </div>
+      ${selected.image ? `<button class="desktop-mini-btn primary" style="width:100%;justify-content:center;margin-top:12px" onclick="openCreditImage('${selected.id}')">פתח צילום</button>` : `<div class="desktop-empty" style="margin-top:12px;padding:18px">אין צילום מצורף לזיכוי הזה</div>`}
+      <button class="desktop-mini-btn danger" style="width:100%;justify-content:center;margin-top:8px" onclick="deleteCreditRequest('${selected.id}')">מחק בקשת זיכוי</button>
+    </aside>` : '';
+  return `
+    <div class="desktop-view">
+      <div class="desktop-page-head">
+        <div>
+          <div class="desktop-breadcrumb">כספים / זיכויים</div>
+          <h1>זיכויים</h1>
+          <p>רשימת בקשות זיכוי פתוחות מסונכרנת בין הטלפון והמחשב.</p>
+        </div>
+        <button class="desktop-action-btn" onclick="document.getElementById('credit-desktop-supplier')?.focus()">+ בקשת זיכוי</button>
+      </div>
+      <div class="desktop-kpi-grid">
+        ${desktopKpi('פתוחים', rows.length, 'בקשות זיכוי', 'warn')}
+        ${desktopKpi('סכום זיכויים', fmtCurr(total), 'ממתין מספקים', 'warn')}
+        ${desktopKpi('עם צילום', withImages, 'אסמכתאות מקומיות', 'info')}
+      </div>
+      <div class="desktop-split">
+        <section class="desktop-panel">
+          <div class="desktop-panel-title">
+            <div>
+              <h2>בקשת זיכוי חדשה</h2>
+              <p>בחירה מספק מאושר, סכום וסיבה.</p>
+            </div>
+          </div>
+          <div class="desktop-form-grid">
+            <label class="desktop-field"><span>ספק</span>${approvedSupplierInput('state.creditForm.supplier', state.creditForm.supplier||'', 'בחר ספק מאושר...').replace('class="input"', 'class="input" id="credit-desktop-supplier"')}</label>
+            <label class="desktop-field"><span>סכום</span><input class="input" type="number" inputmode="decimal" value="${esc(state.creditForm.amount || '')}" oninput="state.creditForm.amount=this.value"></label>
+            <label class="desktop-field" style="grid-column:1/-1"><span>סיבה</span><input class="input" value="${esc(state.creditForm.reason || '')}" oninput="state.creditForm.reason=this.value" placeholder="חוסר בסחורה, סחורה פגומה..."></label>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="desktop-mini-btn" onclick="pickCreditImage()">צרף צילום</button>
+            <button class="desktop-mini-btn primary" onclick="addCredit()">שמור בקשה</button>
+          </div>
+        </section>
+        <section class="desktop-panel desktop-table-panel">
+          <div class="desktop-panel-title">
+            <div>
+              <h2>זיכויים פתוחים</h2>
+              <p>${rows.length} רשומות</p>
+            </div>
+          </div>
+          ${rows.length ? `
+            <div class="desktop-table-wrap">
+              <table class="desktop-table">
+                <thead><tr><th>תאריך</th><th>ספק</th><th>סכום</th><th>סיבה</th><th>צילום</th><th>פעולות</th></tr></thead>
+                <tbody>
+                  ${rows.map(c => `
+                    <tr onclick="setState({creditOpenId:'${c.id}'})">
+                      <td>${fmtDate(c.date)}</td>
+                      <td><strong>${esc(c.supplier || '-')}</strong></td>
+                      <td><strong style="color:var(--amber)">${fmtCurr(c.amount)}</strong></td>
+                      <td>${esc(c.reason || '-')}</td>
+                      <td>${c.image ? desktopStatus('יש צילום','ok') : desktopStatus('ללא','neutral')}</td>
+                      <td>
+                        <button class="desktop-mini-btn" onclick="event.stopPropagation();receiveCredit('${c.id}')">התקבל</button>
+                        ${c.image ? `<button class="desktop-mini-btn" onclick="event.stopPropagation();openCreditImage('${c.id}')">צילום</button>` : ''}
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>` : desktopEmpty('🧾','אין זיכויים פתוחים','כשנוסיף בקשת זיכוי היא תופיע כאן.')}
+        </section>
+        ${drawer}
+      </div>
+    </div>`;
+}
+
 function renderCredits() {
+  if (isDesktopMode()) return renderDesktopCredits();
   const pending = DB.credits || [];
   const totalPending = pending.reduce((s,c) => s+(+c.amount||0), 0);
   const cf = state.creditForm;
@@ -8996,7 +9175,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=72').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=73').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code

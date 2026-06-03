@@ -18,6 +18,7 @@ const SHEETS = {
   advances:     'מפרעות',
   checks:       'צ\'קים',
   income:       'הכנסות',
+  appState:     'App State',
 };
 
 // ─── כותרות עמודות ────────────────────────────────────────────────────────────
@@ -30,6 +31,7 @@ const HEADERS = {
   advances:     ['id','workerId','workerName','סכום','תאריך','חודש'],
   checks:       ['id','ספק','סכום','מספר צ\'ק','תאריך הנפקה','תאריך פירעון','הערה','מומש','נוצר ב'],
   income:       ['id','תאריך','סוג','סכום','הערות'],
+  appState:     ['key','chunk','payload','updatedAt'],
 };
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
@@ -87,6 +89,8 @@ function doPost(e) {
       case 'delete_income':      result = deleteRow('income', data.id); break;
 
       // ── כלי עזר ────────────────────────────────────────────────────────────
+      case 'get_app_state':      result = getAppState(data.key); break;
+      case 'save_app_state':     result = saveAppState(data.key, data.payload); break;
       case 'upload_image':       result = uploadImage(data.base64, data.mime, data.filename); break;
       case 'ping':               result = { ok: true, time: new Date().toISOString() }; break;
 
@@ -106,6 +110,42 @@ function doGet(e) {
 
 function jsonResponse(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getAppState(key) {
+  if (!key) throw new Error('Missing app state key');
+  const sheet = getSheet('appState');
+  const values = sheet.getDataRange().getValues();
+  const chunks = [];
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(key)) {
+      chunks.push({index: +values[i][1] || 0, payload: String(values[i][2] || '')});
+    }
+  }
+  if (!chunks.length) return null;
+  chunks.sort((a,b) => a.index - b.index);
+  const raw = chunks.map(c => c.payload).join('');
+  return raw ? JSON.parse(raw) : null;
+}
+
+function saveAppState(key, payload) {
+  if (!key) throw new Error('Missing app state key');
+  const sheet = getSheet('appState');
+  const raw = JSON.stringify(payload || null);
+  const updatedAt = new Date().toISOString();
+  for (let row = sheet.getLastRow(); row >= 2; row--) {
+    if (String(sheet.getRange(row, 1).getValue()) === String(key)) {
+      sheet.deleteRow(row);
+    }
+  }
+  const chunkSize = 45000;
+  const rows = [];
+  for (let i = 0; i < raw.length; i += chunkSize) {
+    rows.push([key, rows.length, raw.slice(i, i + chunkSize), updatedAt]);
+  }
+  if (!rows.length) rows.push([key, 0, '', updatedAt]);
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, HEADERS.appState.length).setValues(rows);
+  return {key, chunks: rows.length, updatedAt};
 }
 
 // ─── יצירת גיליונות ───────────────────────────────────────────────────────────
