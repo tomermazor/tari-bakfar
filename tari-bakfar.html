@@ -492,10 +492,13 @@ function setSyncStatus(s) {
 
 function scheduleAutoSync() {
   if (!CFG.webAppUrl) return;
-  if (typeof getUserRole === 'function' && getUserRole() === 'scanner') return;
+  const fullSync = typeof canRunFullSync === 'function' && canRunFullSync();
+  const ordersSync = typeof canRunOrdersSync === 'function' && canRunOrdersSync();
+  if (!fullSync && !ordersSync) return;
   clearTimeout(_autoSyncTimer);
   _autoSyncTimer = setTimeout(function() {
-    syncAll({silent:true});
+    if (fullSync) syncAll({silent:true});
+    if (ordersSync) { syncOrders(); syncActiveOrders(); }
   }, 1400);
 }
 
@@ -1399,6 +1402,7 @@ function clearListSearch() {
 // ICONS & TABS
 // ═══════════════════════════════════════════════════════════════════════════
 function desktopSetGlobalSearch(value) {
+  if (typeof canRunFullSync === 'function' && !canRunFullSync()) return;
   state.desktopGlobalSearch = value || '';
   const shell = document.getElementById('desktop-shell-container');
   if (shell) shell.innerHTML = renderDesktopShell();
@@ -1505,6 +1509,7 @@ function renderDesktopSidePanel() {
 }
 
 function renderDesktopShell() {
+  if (typeof canRunFullSync === 'function' && !canRunFullSync()) return '';
   return renderDesktopSearchPopover() + renderDesktopQuickMenu() + renderDesktopSidePanel();
 }
 
@@ -1523,6 +1528,7 @@ function updateDesktopHeader() {
 document.addEventListener('keydown', function(e) {
   const tag = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
   const typing = ['input','textarea','select'].includes(tag);
+  if (typeof canRunFullSync === 'function' && !canRunFullSync()) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault();
     document.getElementById('desktop-global-search-input')?.focus();
@@ -1581,7 +1587,7 @@ function renderNav() {
 
   const scanIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`;
 
-  const fab = (getUserRole() !== 'scanner') ? `
+  const fab = (canAccessTab('scan')) ? `
     <div class="nav-fab-slot">
       <button class="nav-fab${state.tab==='scan'?' active':''}" onclick="setState({tab:'scan'})" title="סרוק חשבונית">
         ${scanIcon}
@@ -1612,7 +1618,13 @@ function renderNav() {
       </button>
     </div>`;
 
-  document.getElementById('nav').innerHTML = brand + fab + left.map(tabBtn).join('') + right.map(tabBtn).join('') + footer;
+  const navEl = document.getElementById('nav');
+  navEl.innerHTML = brand + fab + left.map(tabBtn).join('') + right.map(tabBtn).join('') + footer;
+  [...navEl.querySelectorAll('button')].forEach(btn => {
+    const handler = btn.getAttribute('onclick') || '';
+    if (handler.includes("tab:'settings'") && !canAccessTab('settings')) btn.remove();
+    if (handler.includes("tab:'orders'") && !canAccessTab('orders')) btn.remove();
+  });
 }
 
 function updateHeader() {
@@ -4161,8 +4173,9 @@ function renderSettings() {
         <div style="margin-bottom:12px">
           ${getDynamicUsers().map((u,i) => {
             const rd = ROLE_DEFS[u.role] || ROLE_DEFS.user;
-            const cycle = ['user','scanner','admin'];
-            const nextRole = cycle[(cycle.indexOf(u.role>=0?u.role:'user')+1)%cycle.length];
+            const cycle = ['user','orders','scanner','admin'];
+            const curRoleIdx = cycle.indexOf(u.role) >= 0 ? cycle.indexOf(u.role) : 0;
+            const nextRole = cycle[(curRoleIdx + 1) % cycle.length];
             const nextRd = ROLE_DEFS[nextRole]||ROLE_DEFS.user;
             const isMaster = ALLOWED_EMAILS[0].trim().toLowerCase()===u.email;
             return `
@@ -4185,7 +4198,8 @@ function renderSettings() {
         <div style="display:flex;gap:8px;align-items:stretch">
           <input class="input" id="new-user-email" placeholder="כתובת Gmail..." style="flex:1;padding:10px 12px;font-size:13px" onkeydown="if(event.key==='Enter')addUser()">
           <select id="new-user-role" class="input" style="flex:0 0 auto;padding:10px 8px;padding-left:30px;font-size:13px">
-            <option value="user">👤 משתמש</option>
+            <option value="user" selected>👤 משתמש</option>
+            <option value="orders">🚚 הזמנות בלבד</option>
             <option value="scanner">📷 סורק</option>
             <option value="admin">👑 מנהל</option>
           </select>
@@ -4360,10 +4374,16 @@ function applyRoleUI() {
   const role = getUserRole();
   // Settings button: only admin/user
   const settingsBtn = document.getElementById('settings-sw-btn');
-  if (settingsBtn) settingsBtn.style.display = (role === 'scanner') ? 'none' : '';
+  if (settingsBtn) settingsBtn.style.display = (role === 'admin' || role === 'user') ? '' : 'none';
   // Sync button: only admin/user
   const syncBtn = document.getElementById('sync-top-btn');
-  if (syncBtn) syncBtn.style.display = (role === 'scanner') ? 'none' : '';
+  if (syncBtn) syncBtn.style.display = (role === 'admin' || role === 'user') ? '' : 'none';
+  document.querySelectorAll('.desktop-toolbar-actions').forEach(el => {
+    el.style.display = (role === 'admin' || role === 'user') ? '' : 'none';
+  });
+  document.querySelectorAll('.desktop-global-search').forEach(el => {
+    el.style.display = (role === 'admin' || role === 'user') ? '' : 'none';
+  });
 }
 
 function render() {
@@ -4417,6 +4437,7 @@ function render() {
   updateDesktopHeader();
   const desktopShell = document.getElementById('desktop-shell-container');
   if (desktopShell) desktopShell.innerHTML = renderDesktopShell();
+  applyRoleUI();
   // Auto-focus supplier edit input if in edit mode
   if (state.supplierEditId) {
     const el = document.getElementById('sup-edit-inp');
@@ -4452,6 +4473,7 @@ const ALLOWED_EMAILS = [
 
 // ── Role definitions ──────────────────────────────────────────────────────
 const ROLE_DEFS = {
+  orders:  { label: 'הזמנות בלבד', icon: '🚚', color: 'var(--info)', desc: 'גישה לטאב ההזמנות בלבד', tabs: ['orders'] },
   admin:   { label: 'מנהל',  icon: '👑', color: 'var(--accent)',  desc: 'גישה מלאה + ניהול משתמשים' },
   user:    { label: 'משתמש', icon: '👤', color: 'var(--textDim)', desc: 'גישה מלאה לכל הטאבים' },
   scanner: { label: 'סורק',  icon: '📷', color: 'var(--amber)',   desc: 'סריקת הוצאות בלבד', tabs: ['scan'] },
@@ -4470,10 +4492,13 @@ function getAllowedTabs() {
   const def = ROLE_DEFS[getUserRole()];
   return def?.tabs || TABS.map(t => t.id); // null/missing = all tabs
 }
+function roleHasAllTabs(role) {
+  return !ROLE_DEFS[role || getUserRole()]?.tabs;
+}
 function canAccessTab(tabId) {
-  if (tabId === 'settings') return getUserRole() !== 'scanner';
-  if (tabId === 'dashboard') return true;
-  if (tabId === 'scan') return true; // accessible via FAB for all roles
+  const role = getUserRole();
+  if (tabId === 'settings') return role === 'admin' || role === 'user';
+  if (tabId === 'scan') return roleHasAllTabs(role) || getAllowedTabs().includes('scan');
   return getAllowedTabs().includes(tabId);
 }
 
@@ -4505,6 +4530,13 @@ function isAllowed(email) {
   return users.some(u => u.email === e) || ALLOWED_EMAILS.some(a => a.trim().toLowerCase() === e);
 }
 function isAdmin() { return getUserRole() === 'admin'; }
+function canRunFullSync() {
+  const role = getUserRole();
+  return role === 'admin' || role === 'user';
+}
+function canRunOrdersSync() {
+  return canRunFullSync() || getUserRole() === 'orders';
+}
 function addUser() {
   const emailEl = document.getElementById('new-user-email');
   const roleEl = document.getElementById('new-user-role');
@@ -4614,10 +4646,13 @@ function initApp() {
   applyRoleUI();
   render();
   setSyncStatus(CFG.webAppUrl ? 'syncing' : 'local');
-  if (CFG.webAppUrl && getUserRole() !== 'scanner') syncAll();
-  if (CFG.webAppUrl && getUserRole() !== 'scanner') { syncOrders(); syncActiveOrders(); }
+  if (CFG.webAppUrl && canRunFullSync()) syncAll();
+  if (CFG.webAppUrl && canRunOrdersSync()) { syncOrders(); syncActiveOrders(); }
   document.addEventListener('visibilitychange', function(){
-    if (!document.hidden && CFG.webAppUrl && getUserRole() !== 'scanner') { syncAll(); syncOrders(); syncActiveOrders(); }
+    if (!document.hidden && CFG.webAppUrl) {
+      if (canRunFullSync()) syncAll();
+      if (canRunOrdersSync()) { syncOrders(); syncActiveOrders(); }
+    }
   });
 }
 
@@ -8430,7 +8465,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=68').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=69').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
