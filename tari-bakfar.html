@@ -345,6 +345,14 @@ input[type="date"] { min-width:0; max-width:100%; }
 .login-title { font-size:30px; font-weight:800; font-family:'Frank Ruhl Libre',serif; margin-bottom:4px; text-align:center; }
 .login-sub { font-size:14px; color:var(--textDim); margin-bottom:28px; text-align:center; }
 .login-err { color:var(--danger); font-size:13px; text-align:center; margin-top:14px; min-height:20px; font-weight:600; }
+body.role-orders-only .header,
+body.role-orders-only .desktop-global-search,
+body.role-orders-only .desktop-toolbar-actions,
+body.role-orders-only #sync-top-btn,
+body.role-orders-only #settings-sw-btn,
+body.role-orders-only #theme-btn { display:none !important; }
+body.role-orders-only .app-switcher { justify-content:space-between; }
+body.role-orders-only .nav button:not(.active) { display:none !important; }
 </style>
 </head>
 <body>
@@ -537,6 +545,7 @@ async function cloudCall(action, payload) {
 }
 
 async function triggerTopSync() {
+  if (typeof canRunFullSync === 'function' && !canRunFullSync()) return;
   const btn = document.getElementById('sync-top-btn');
   if (btn) btn.classList.add('spinning');
   await syncAll();
@@ -561,6 +570,7 @@ function applyCoreCloudState(cloud) {
   if (!cloud || typeof cloud !== 'object') return;
   const cloudMod = +cloud._localModified || 0;
   const localMod = +APP_META.coreLocalModified || 0;
+  if (Array.isArray(cloud.users)) localStorage.setItem('tari_users_v1', JSON.stringify(cloud.users));
   if (cloudMod < localMod && (DB.suppliers||[]).length) return;
   if (Array.isArray(cloud.suppliers)) DB.suppliers = cloud.suppliers;
   if (Array.isArray(cloud.supplierProfiles)) supplierProfiles = cloud.supplierProfiles;
@@ -573,7 +583,6 @@ function applyCoreCloudState(cloud) {
     Object.keys(DN_ORDER_LINKS).forEach(k => delete DN_ORDER_LINKS[k]);
     Object.assign(DN_ORDER_LINKS, cloud.dnOrderLinks);
   }
-  if (Array.isArray(cloud.users)) localStorage.setItem('tari_users_v1', JSON.stringify(cloud.users));
   APP_META.coreLocalModified = cloudMod;
   APP_META.coreLastSynced = Date.now();
   saveAppMeta();
@@ -715,6 +724,11 @@ async function syncAll(opts) {
     }
 
     const extendedSyncOk = await syncExtendedAppState();
+    if (getUserRole() === 'orders') {
+      setSyncStatus('ok');
+      render();
+      return;
+    }
 
     if (!extendedSyncOk) {
       if ((pdb._localModified || 0) > (pdb._lastSynced || 0)) {
@@ -1365,7 +1379,33 @@ let state = {
   desktopPanel: '',
   desktopPanelData: null,
 };
-function setState(patch) { Object.assign(state, patch); render(); }
+function enforceStateAccess() {
+  if (typeof getUserRole !== 'function' || typeof getAllowedTabs !== 'function') return;
+  const role = getUserRole();
+  const allowed = getAllowedTabs();
+  if (role === 'orders') {
+    state.tab = 'orders';
+    state.desktopGlobalSearch = '';
+    state.desktopQuickOpen = false;
+    state.desktopPanel = '';
+    state.desktopPanelData = null;
+    state.editId = null;
+    state.payablesModal = '';
+    state.productsModal = '';
+    state.viewCreditImage = null;
+    return;
+  }
+  if (!allowed.includes(state.tab)) state.tab = allowed[0] || 'scan';
+}
+function setState(patch) {
+  const next = {...(patch || {})};
+  if (next.tab && typeof canAccessTab === 'function' && !canAccessTab(next.tab)) {
+    next.tab = (typeof getAllowedTabs === 'function' ? getAllowedTabs()[0] : '') || 'orders';
+  }
+  Object.assign(state, next);
+  enforceStateAccess();
+  render();
+}
 
 // Surgical search update — only updates list body + meta, never touches the input itself
 let _searchTimer = null;
@@ -4372,6 +4412,7 @@ function importJSON(input) {
 // ═══════════════════════════════════════════════════════════════════════════
 function applyRoleUI() {
   const role = getUserRole();
+  document.body.classList.toggle('role-orders-only', role === 'orders');
   // Settings button: only admin/user
   const settingsBtn = document.getElementById('settings-sw-btn');
   if (settingsBtn) settingsBtn.style.display = (role === 'admin' || role === 'user') ? '' : 'none';
@@ -4387,6 +4428,7 @@ function applyRoleUI() {
 }
 
 function render() {
+  enforceStateAccess();
   // Guard: redirect to first allowed tab if current is not permitted
   if (!canAccessTab(state.tab)) {
     state.tab = getAllowedTabs()[0] || 'scan';
@@ -8465,7 +8507,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=69').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=70').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
