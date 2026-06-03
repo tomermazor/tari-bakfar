@@ -540,6 +540,7 @@ function persistLocal() {
 
 let SYNC_STATUS = 'local'; // local | syncing | ok | offline
 let _autoSyncTimer = null;
+let _liveSyncTimer = null;
 function setSyncStatus(s) {
   SYNC_STATUS = s;
   const badge = document.getElementById('sync-badge');
@@ -562,7 +563,17 @@ function scheduleAutoSync() {
   _autoSyncTimer = setTimeout(function() {
     if (fullSync) syncAll({silent:true});
     if (ordersSync) { syncOrders(); syncActiveOrders(); }
-  }, 1400);
+  }, 650);
+}
+
+function startLiveSyncLoop() {
+  if (_liveSyncTimer) clearInterval(_liveSyncTimer);
+  if (!CFG.webAppUrl) return;
+  _liveSyncTimer = setInterval(function() {
+    if (document.hidden || !CFG.webAppUrl) return;
+    if (typeof canRunFullSync === 'function' && canRunFullSync()) syncAll({silent:true});
+    if (typeof canRunOrdersSync === 'function' && canRunOrdersSync()) { syncOrders(); syncActiveOrders(); }
+  }, 20000);
 }
 
 function getOrdersDraftsForSync() {
@@ -4699,6 +4710,7 @@ function saveWebApp() {
   CFG.webAppUrl = val;
   localStorage.setItem('tari_webapp_url', val);
   toast('נשמר', 'success');
+  startLiveSyncLoop();
   if (val) syncAll();
   else render();
 }
@@ -5117,6 +5129,7 @@ function initApp() {
   applyRoleUI();
   render();
   setSyncStatus(CFG.webAppUrl ? 'syncing' : 'local');
+  startLiveSyncLoop();
   if (CFG.webAppUrl && canRunFullSync()) syncAll();
   if (CFG.webAppUrl && canRunOrdersSync()) { syncOrders(); syncActiveOrders(); }
   document.addEventListener('visibilitychange', function(){
@@ -9175,7 +9188,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=74').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=75').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
