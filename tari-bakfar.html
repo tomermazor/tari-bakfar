@@ -541,6 +541,8 @@ function persistLocal() {
 let SYNC_STATUS = 'local'; // local | syncing | ok | offline
 let _autoSyncTimer = null;
 let _liveSyncTimer = null;
+let _productsSearchTimer = null;
+let _productsSearchFocusId = '';
 function setSyncStatus(s) {
   SYNC_STATUS = s;
   const badge = document.getElementById('sync-badge');
@@ -574,6 +576,27 @@ function startLiveSyncLoop() {
     if (typeof canRunFullSync === 'function' && canRunFullSync()) syncAll({silent:true});
     if (typeof canRunOrdersSync === 'function' && canRunOrdersSync()) { syncOrders(); syncActiveOrders(); }
   }, 20000);
+}
+
+function setProductsSearch(value, inputId) {
+  state.productsSearch = value || '';
+  _productsSearchFocusId = inputId || '';
+  clearTimeout(_productsSearchTimer);
+  _productsSearchTimer = setTimeout(function() {
+    render();
+    restoreProductsSearchFocus();
+  }, 160);
+}
+
+function restoreProductsSearchFocus() {
+  if (!_productsSearchFocusId) return;
+  setTimeout(function() {
+    const el = document.getElementById(_productsSearchFocusId);
+    if (!el) return;
+    el.focus({preventScroll:true});
+    const end = el.value.length;
+    try { el.setSelectionRange(end, end); } catch(e) {}
+  }, 0);
 }
 
 function getOrdersDraftsForSync() {
@@ -7357,7 +7380,7 @@ function renderDesktopProducts() {
     <div class="desktop-work-grid">
       <section class="desktop-section">
         <div class="desktop-filterbar">
-          <input class="input" type="search" placeholder="חיפוש מוצר" value="${esc(state.productsSearch||'')}" oninput="state.productsSearch=this.value;render()">
+          <input class="input" id="product-desktop-search" type="search" placeholder="חיפוש מוצר" value="${esc(state.productsSearch||'')}" oninput="setProductsSearch(this.value,'product-desktop-search')">
           <select class="input" onchange="setState({productsCategory:this.value,productsBulkMode:false,productsBulkSelected:[]})">${cats.map(c=>`<option value="${esc(c)}" ${(state.productsCategory||'הכל')===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
           <select class="input" onchange="setState({productsSort:this.value})">
             <option value="name" ${state.productsSort==='name'?'selected':''}>מיון א-ב</option>
@@ -7454,7 +7477,7 @@ function renderProductCommandCenter() {
         <button onclick="setState({productsModal:'add'})" style="width:44px;height:44px;border:none;border-radius:14px;background:var(--accent);color:#061307;font-size:24px;font-weight:900;box-shadow:var(--shadow-accent)">+</button>
       </div>
       <div style="position:relative">
-        <input class="input" type="search" placeholder="חיפוש מוצר, כינוי או ברקוד..." value="${esc(state.productsSearch||'')}" oninput="state.productsSearch=this.value;render()" style="padding-right:38px;height:46px;border-radius:16px">
+        <input class="input" id="product-command-search" type="search" placeholder="חיפוש מוצר, כינוי או ברקוד..." value="${esc(state.productsSearch||'')}" oninput="setProductsSearch(this.value,'product-command-search')" style="padding-right:38px;height:46px;border-radius:16px">
         <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--textMuted)">🔎</span>
       </div>
     </div>
@@ -7636,7 +7659,7 @@ function renderProductsList() {
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
       <div style="position:relative;flex:1">
         <input class="input" id="prod-search-inp" type="search" placeholder="חיפוש מוצר..." value="${esc(state.productsSearch||'')}"
-          oninput="state.productsSearch=this.value;render()" style="padding-right:36px">
+          oninput="setProductsSearch(this.value,'prod-search-inp')" style="padding-right:36px">
         <svg style="position:absolute;top:50%;right:12px;transform:translateY(-50%);pointer-events:none" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--textDim)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </div>
       <button onclick="toggleProductsSelectMode()" style="padding:8px 12px;border:1.5px solid ${state.productsBulkMode?'var(--accent)':'var(--border)'};border-radius:var(--r-md);background:${state.productsBulkMode?'var(--accentSoft)':'transparent'};color:${state.productsBulkMode?'var(--accent)':'var(--textDim)'};font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;flex-shrink:0">✓ בחר</button>
@@ -10028,7 +10051,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=82').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=83').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
