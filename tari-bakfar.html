@@ -710,13 +710,13 @@ function applyDataCloudState(cloud) {
   (DB.expenses||[]).forEach(e => { if (e.image) localExpenseImages[e.id] = e.image; });
   (DB.credits||[]).forEach(c => { if (c.image) localCreditImages[c.id] = c.image; });
   if (Array.isArray(cloud.expenses)) {
-    DB.expenses = dedup(withStableIds(cloud.expenses, 'expense')).map(e => (!e.image && localExpenseImages[e.id]) ? {...e, image: localExpenseImages[e.id]} : e);
+    DB.expenses = dedup([...(DB.expenses || []), ...withStableIds(cloud.expenses, 'expense')]).map(e => (!e.image && localExpenseImages[e.id]) ? {...e, image: localExpenseImages[e.id]} : e);
     mergeAccFlags(DB.expenses);
   }
   if (Array.isArray(cloud.fixed)) DB.fixed = dedup(cloud.fixed);
   if (Array.isArray(cloud.installments)) DB.installments = dedup(cloud.installments);
-  if (Array.isArray(cloud.income)) DB.income = dedup(withStableIds(cloud.income, 'income'));
-  if (Array.isArray(cloud.credits)) DB.credits = dedup(withStableIds(cloud.credits, 'credit')).map(c => (!c.image && localCreditImages[c.id]) ? {...c, image: localCreditImages[c.id]} : c);
+  if (Array.isArray(cloud.income)) DB.income = dedup([...(DB.income || []), ...withStableIds(cloud.income, 'income')]);
+  if (Array.isArray(cloud.credits)) DB.credits = dedup([...(DB.credits || []), ...withStableIds(cloud.credits, 'credit')]).map(c => (!c.image && localCreditImages[c.id]) ? {...c, image: localCreditImages[c.id]} : c);
   if (Array.isArray(cloud.workers)) DB.workers = dedup(cloud.workers);
   if (Array.isArray(cloud.advances)) DB.advances = dedup(cloud.advances);
   if (Array.isArray(cloud.checks)) DB.checks = dedup(cloud.checks);
@@ -906,6 +906,9 @@ async function syncAll(opts) {
       try {
         if (op.action === 'add_expense' && op.payload && op.payload.payload) {
           await pushExpenseAdd(op.payload.payload);
+        } else if (op.action === 'add_income' && op.payload && op.payload.payload) {
+          await cloudCall(op.action, op.payload);
+          await pushDataAppStateIfDirty();
         } else {
           await cloudCall(op.action, op.payload);
         }
@@ -4356,6 +4359,8 @@ function renderIncome() {
       </div>
       ${!isCurrentWeek ? `<button onclick="changeIncomeWeek(${-offset})" style="width:100%;margin-bottom:10px;padding:8px;border:1px solid rgba(110,198,58,0.28);border-radius:10px;background:var(--accentSoft);color:var(--accent);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">↩ חזור לשבוע הנוכחי</button>` : ''}
 
+      <button onclick="syncAllIncomeToCloud()" style="width:100%;margin-bottom:10px;padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--textDim);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">סנכרן הכנסות לענן</button>
+
       <!-- P&L card -->
       <div style="padding:15px 16px;margin-bottom:14px;border-radius:16px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
         <div style="position:absolute;top:-25px;right:-25px;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,rgba(110,198,58,0.09),transparent 70%)"></div>
@@ -4429,7 +4434,7 @@ function renderIncome() {
     </div>`;
 }
 
-function addIncome() {
+async function addIncome() {
   const f = state.incomeForm;
   if (!f.amount) { toast('הזן סכום', 'error'); return; }
   const defaultDate = isoToHe(weekOffsetDefaultDate(state.incomeWeekOffset||0));
@@ -4443,11 +4448,36 @@ function addIncome() {
   toast('הכנסה נשמרה ✓', 'success');
   if (CFG.webAppUrl) {
     setSyncStatus('syncing');
-    cloudCall('add_income', {payload: item}).then(()=>setSyncStatus('ok')).catch(()=>{
+    cloudCall('add_income', {payload: item}).then(async ()=>{
+      await pushDataAppStateIfDirty();
+      setSyncStatus('ok');
+    }).catch(()=>{
       PENDING.push({action:'add_income', payload:{payload: item}});
       localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
       setSyncStatus('offline');
     });
+  }
+}
+
+async function syncAllIncomeToCloud() {
+  if (!CFG.webAppUrl) { toast('אין חיבור לענן', 'error'); return; }
+  const rows = dedup(withStableIds(DB.income || [], 'income'));
+  if (!rows.length) { toast('אין הכנסות מקומיות לסנכרון', 'info'); return; }
+  setSyncStatus('syncing');
+  try {
+    for (const item of rows) await cloudCall('add_income', {payload:item});
+    DB.income = rows;
+    markDataStateDirty();
+    persistLocal();
+    await pushDataAppStateIfDirty();
+    setSyncStatus('ok');
+    toast(`סונכרנו ${rows.length} הכנסות`, 'success');
+    render();
+  } catch(e) {
+    rows.forEach(item => PENDING.push({action:'add_income', payload:{payload:item}}));
+    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    setSyncStatus('offline');
+    toast('ההכנסות יעלו בסנכרון הבא', 'info');
   }
 }
 
@@ -10210,7 +10240,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=88').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=89').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
