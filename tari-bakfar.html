@@ -949,14 +949,14 @@ async function syncAll(opts) {
     // 2. Pull fresh data — individual failures are non-fatal (new GAS endpoints may not exist yet)
     const safe = fn => fn.catch(() => null);
     const [exp, fix, ins, cred, wrk, chk, inc, adv, prod, pend, pay, osup, activeOrders] = await Promise.all([
-      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : cloudCall('list_expenses', {}),
-      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : cloudCall('list_fixed', {}),
-      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : cloudCall('list_installments', {}),
-      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : safe(cloudCall('list_credits', {})),
-      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : safe(cloudCall('list_workers', {})),
-      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : safe(cloudCall('list_checks', {})),
-      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : safe(cloudCall('list_income', {})),
-      LAST_EXTENDED_SYNC.data ? Promise.resolve(null) : safe(cloudCall('list_advances', {})),
+      safe(cloudCall('list_expenses', {})),
+      safe(cloudCall('list_fixed', {})),
+      safe(cloudCall('list_installments', {})),
+      safe(cloudCall('list_credits', {})),
+      safe(cloudCall('list_workers', {})),
+      safe(cloudCall('list_checks', {})),
+      safe(cloudCall('list_income', {})),
+      safe(cloudCall('list_advances', {})),
       LAST_EXTENDED_SYNC.products ? Promise.resolve(null) : safe(cloudCall('list_products', {})),
       LAST_EXTENDED_SYNC.products ? Promise.resolve(null) : safe(cloudCall('list_pending', {})),
       LAST_EXTENDED_SYNC.payables ? Promise.resolve(null) : safe(cloudCall('list_payables', {})),
@@ -964,27 +964,26 @@ async function syncAll(opts) {
       LAST_EXTENDED_SYNC.orders ? Promise.resolve(null) : safe(cloudCall('list_active_orders', {})),
     ]);
     if (exp !== null && ((exp||[]).length > 0 || DB.expenses.length === 0)) {
-      DB.expenses = dedup(exp || []); // dedup by id — removes cloud duplicates
+      DB.expenses = dedup([...(DB.expenses || []), ...(exp || [])]); // merge legacy rows back into stale app_state
       mergeAccFlags(DB.expenses);
       if ((exp || []).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
-    if (fix !== null && ((fix||[]).length > 0 || DB.fixed.length === 0)) { DB.fixed = dedup(fix || []); if ((fix||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
-    if (ins !== null && ((ins||[]).length > 0 || DB.installments.length === 0)) { DB.installments = dedup(ins || []); if ((ins||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (fix !== null && ((fix||[]).length > 0 || DB.fixed.length === 0)) { DB.fixed = dedup([...(DB.fixed || []), ...(fix || [])]); if ((fix||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (ins !== null && ((ins||[]).length > 0 || DB.installments.length === 0)) { DB.installments = dedup([...(DB.installments || []), ...(ins || [])]); if ((ins||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     // Credits: merge cloud (authoritative) with local images (stored locally only)
     if (cred !== null && ((cred||[]).length > 0 || DB.credits.length === 0)) {
       const localImgMap = {};
       DB.credits.forEach(c => { if (c.image) localImgMap[c.id] = c.image; });
-      DB.credits = dedup(cred || []).map(c => localImgMap[c.id] ? {...c, image: localImgMap[c.id]} : c);
+      DB.credits = dedup([...(DB.credits || []), ...(cred || [])]).map(c => localImgMap[c.id] ? {...c, image: localImgMap[c.id]} : c);
       if ((cred || []).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
-    if (wrk !== null && ((wrk||[]).length > 0 || DB.workers.length === 0)) { DB.workers = dedup(wrk || []); if ((wrk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
-    if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) { DB.checks = dedup(chk || []); if ((chk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (wrk !== null && ((wrk||[]).length > 0 || DB.workers.length === 0)) { DB.workers = dedup([...(DB.workers || []), ...(wrk || [])]); if ((wrk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) { DB.checks = dedup([...(DB.checks || []), ...(chk || [])]); if ((chk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     if (inc !== null && ((inc||[]).length > 0 || DB.income.length === 0)) {
-      const hasUnsyncedLocalIncome = (APP_META.dataLocalModified || 0) > (APP_META.dataLastSynced || 0);
-      DB.income = hasUnsyncedLocalIncome ? dedup([...(DB.income || []), ...(inc || [])]) : dedup(inc || []);
+      DB.income = dedup([...(DB.income || []), ...(inc || [])]);
       if ((inc || []).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
-    if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) { DB.advances = dedup(adv || []); if ((adv||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) { DB.advances = dedup([...(DB.advances || []), ...(adv || [])]); if ((adv||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     if (!extendedSyncOk) {
       if (prod !== null && ((prod||[]).length > 0 || pdb.products.length === 0)) {
         pdb.products = dedup(prod || []);
@@ -10109,7 +10108,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=84').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=85').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
