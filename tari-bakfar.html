@@ -7435,6 +7435,7 @@ function renderProductCommandCenter() {
       <div style="display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none">
         <b style="font-size:12px;color:var(--accent);white-space:nowrap">${selectedCount} נבחרו</b>
         <button onclick="bulkSelectAllProducts()" style="border:1px solid var(--border);border-radius:10px;background:var(--surfaceHi);color:var(--text);padding:8px 10px;font-size:12px;font-weight:850;font-family:inherit;white-space:nowrap">בחר הכל</button>
+        <button onclick="setState({productsModal:'bulk-cat',productsModalData:{}})" ${selectedCount?'':'disabled'} style="border:1px solid var(--border);border-radius:10px;background:${selectedCount?'var(--surfaceHi)':'var(--surface)'};color:${selectedCount?'var(--accent)':'var(--textMuted)'};padding:8px 10px;font-size:12px;font-weight:950;font-family:inherit;white-space:nowrap">קטגוריה</button>
         <button onclick="setState({productsModal:'bulk-edit',productsModalData:{}})" ${selectedCount?'':'disabled'} style="border:none;border-radius:10px;background:${selectedCount?'var(--accent)':'var(--surfaceHi)'};color:${selectedCount?'#061307':'var(--textMuted)'};padding:8px 12px;font-size:12px;font-weight:950;font-family:inherit;white-space:nowrap">ערוך באלק</button>
         <button onclick="bulkProductsSetActive(true)" ${selectedCount?'':'disabled'} style="border:1px solid var(--border);border-radius:10px;background:transparent;color:var(--accent);padding:8px 10px;font-size:12px;font-weight:850;font-family:inherit;white-space:nowrap">הפעל</button>
         <button onclick="bulkProductsSetActive(false)" ${selectedCount?'':'disabled'} style="border:1px solid var(--border);border-radius:10px;background:transparent;color:var(--textDim);padding:8px 10px;font-size:12px;font-weight:850;font-family:inherit;white-space:nowrap">השבת</button>
@@ -8108,6 +8109,7 @@ function renderProductsModalBulkCat() {
   const catBtns = cats.map(c=>`<button onclick="bulkProductsSetCategory('${esc(c)}')" style="padding:7px 14px;border:1.5px solid var(--border);border-radius:8px;background:var(--surfaceHi);color:var(--text);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">${esc(c)}</button>`).join('');
   const body = `
     <div style="font-size:12px;color:var(--textDim);margin-bottom:12px">${cnt} מוצרים נבחרו</div>
+    <div style="font-size:11px;color:var(--textMuted);margin-bottom:10px">בחירה כאן תעדכן לכל המוצרים שנבחרו קטגוריה מתוך הקטגוריות המאושרות במסך ההוצאות.</div>
     ${cats.length>0?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">${catBtns}</div>`:''}
     <div class="field"><label class="label">קטגוריה מורשית</label><select class="input" id="bulk-cat-inp"><option value="">בחר קטגוריה...</option>${cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>`;
   return productsModalWrap(`הגדרת קטגוריה ל-${cnt} מוצרים`, body, 'הגדר', 'confirmBulkCat()', `setState({productsModal:'',productsModalData:null})`);
@@ -10026,7 +10028,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=81').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=82').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
