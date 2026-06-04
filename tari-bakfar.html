@@ -904,7 +904,11 @@ async function syncAll(opts) {
     while (PENDING.length > 0) {
       const op = PENDING[0];
       try {
-        await cloudCall(op.action, op.payload);
+        if (op.action === 'add_expense' && op.payload && op.payload.payload) {
+          await pushExpenseAdd(op.payload.payload);
+        } else {
+          await cloudCall(op.action, op.payload);
+        }
       } catch(opErr) {
         const msg = (opErr.message || '').toLowerCase();
         // Skip: row deleted, GAS doesn't support action yet (old GAS), or action never existed
@@ -1057,6 +1061,7 @@ async function queueAndSync(action, payload, optimisticLocal) {
   setSyncStatus('syncing');
   try {
     await cloudCall(action, payload);
+    await pushDataAppStateIfDirty();
     setSyncStatus('ok');
   } catch(e) {
     console.error('Push failed:', e);
@@ -1064,6 +1069,39 @@ async function queueAndSync(action, payload, optimisticLocal) {
     PENDING.push({action, payload});
     localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
     setSyncStatus('offline');
+  }
+}
+
+function stripInlineExpenseImage(item) {
+  if (!item || !(typeof item.image === 'string') || !item.image.startsWith('data:')) return item;
+  return {...item, image:''};
+}
+
+function queueExpenseAdd(item) {
+  PENDING.push({action:'add_expense', payload:{payload: stripInlineExpenseImage(item)}});
+  localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+}
+
+async function pushExpenseAdd(item) {
+  try {
+    await cloudCall('add_expense', {payload: item});
+  } catch (err) {
+    const slim = stripInlineExpenseImage(item);
+    if (slim === item) throw err;
+    await cloudCall('add_expense', {payload: slim});
+  }
+  await pushDataAppStateIfDirty();
+}
+
+async function pushDataAppStateIfDirty() {
+  if (!CFG.webAppUrl || dataStateCount(DB) === 0) return;
+  if ((APP_META.dataLocalModified || 0) <= (APP_META.dataLastSynced || 0)) return;
+  try {
+    await cloudCall('save_app_state', {key:'data', payload:buildDataCloudState()});
+    APP_META.dataLastSynced = Date.now();
+    saveAppMeta();
+  } catch(e) {
+    console.warn('could not push data app_state:', e.message);
   }
 }
 
@@ -2550,6 +2588,7 @@ async function saveScanResult() {
   DB.expenses.unshift(localItem);
   pvAutoCreateDebtFromExpense(localItem);
   processInvoiceLineItems(localItem);
+  markDataStateDirty();
   persistLocal();
 
   // If batch mode: load next file instead of navigating away
@@ -2569,12 +2608,11 @@ async function saveScanResult() {
   if (!CFG.webAppUrl) return;
   setSyncStatus('syncing');
   try {
-    await cloudCall('add_expense', {payload: item});
+    await pushExpenseAdd(item);
     setSyncStatus('ok');
   } catch(e) {
     console.error('sync scan:', e);
-    PENDING.push({action:'add_expense', payload:{payload: item}});
-    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    queueExpenseAdd(item);
     setSyncStatus('offline');
   }
 }
@@ -2930,6 +2968,7 @@ async function saveEditExpense() {
   };
   // ── Synchronous: apply locally + close modal in the SAME JS tick ──
   DB.expenses = DB.expenses.map(e => e.id === editId ? updated : e);
+  markDataStateDirty();
   persistLocal();
   setState({editId: null, editForm: null, listOpen: null}); // modal gone before first await
   toast('עודכן ✓', 'success');
@@ -2938,13 +2977,12 @@ async function saveEditExpense() {
   setSyncStatus('syncing');
   try {
     await cloudCall('delete_expense', {id: editId});
-    await cloudCall('add_expense', {payload: updated});
+    await pushExpenseAdd(updated);
     setSyncStatus('ok');
   } catch(e) {
     console.error('sync edit:', e);
     PENDING.push({action:'delete_expense', payload:{id: editId}});
-    PENDING.push({action:'add_expense', payload:{payload: updated}});
-    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    queueExpenseAdd(updated);
     setSyncStatus('offline');
   }
 }
@@ -2973,12 +3011,11 @@ async function toggleSentToAccountant(id) {
   setSyncStatus('syncing');
   try {
     await cloudCall('delete_expense', {id});
-    await cloudCall('add_expense', {payload: e});
+    await pushExpenseAdd(e);
     setSyncStatus('ok');
   } catch(err) {
     PENDING.push({action:'delete_expense', payload:{id}});
-    PENDING.push({action:'add_expense', payload:{payload: e}});
-    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    queueExpenseAdd(e);
     setSyncStatus('offline');
   }
 }
@@ -2990,13 +3027,13 @@ async function pushExpenseToCloud(id) {
   setSyncStatus('syncing');
   try {
     await cloudCall('delete_expense', {id});
-    await cloudCall('add_expense', {payload: e});
+    markDataStateDirty();
+    await pushExpenseAdd(e);
     setSyncStatus('ok');
     toast('נשמר בענן ✓', 'success');
   } catch(err) {
     PENDING.push({action:'delete_expense', payload:{id}});
-    PENDING.push({action:'add_expense', payload:{payload: e}});
-    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    queueExpenseAdd(e);
     setSyncStatus('offline');
     toast('ישמר בהמשך', 'info');
   }
@@ -10173,7 +10210,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=87').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=88').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
