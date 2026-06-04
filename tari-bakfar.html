@@ -710,13 +710,13 @@ function applyDataCloudState(cloud) {
   (DB.expenses||[]).forEach(e => { if (e.image) localExpenseImages[e.id] = e.image; });
   (DB.credits||[]).forEach(c => { if (c.image) localCreditImages[c.id] = c.image; });
   if (Array.isArray(cloud.expenses)) {
-    DB.expenses = dedup(cloud.expenses).map(e => (!e.image && localExpenseImages[e.id]) ? {...e, image: localExpenseImages[e.id]} : e);
+    DB.expenses = dedup(withStableIds(cloud.expenses, 'expense')).map(e => (!e.image && localExpenseImages[e.id]) ? {...e, image: localExpenseImages[e.id]} : e);
     mergeAccFlags(DB.expenses);
   }
   if (Array.isArray(cloud.fixed)) DB.fixed = dedup(cloud.fixed);
   if (Array.isArray(cloud.installments)) DB.installments = dedup(cloud.installments);
-  if (Array.isArray(cloud.income)) DB.income = dedup(cloud.income);
-  if (Array.isArray(cloud.credits)) DB.credits = dedup(cloud.credits).map(c => (!c.image && localCreditImages[c.id]) ? {...c, image: localCreditImages[c.id]} : c);
+  if (Array.isArray(cloud.income)) DB.income = dedup(withStableIds(cloud.income, 'income'));
+  if (Array.isArray(cloud.credits)) DB.credits = dedup(withStableIds(cloud.credits, 'credit')).map(c => (!c.image && localCreditImages[c.id]) ? {...c, image: localCreditImages[c.id]} : c);
   if (Array.isArray(cloud.workers)) DB.workers = dedup(cloud.workers);
   if (Array.isArray(cloud.advances)) DB.advances = dedup(cloud.advances);
   if (Array.isArray(cloud.checks)) DB.checks = dedup(cloud.checks);
@@ -964,24 +964,27 @@ async function syncAll(opts) {
       LAST_EXTENDED_SYNC.orders ? Promise.resolve(null) : safe(cloudCall('list_active_orders', {})),
     ]);
     if (exp !== null && ((exp||[]).length > 0 || DB.expenses.length === 0)) {
-      DB.expenses = dedup([...(DB.expenses || []), ...(exp || [])]); // merge legacy rows back into stale app_state
+      const expRows = withStableIds(exp || [], 'expense');
+      DB.expenses = dedup([...(DB.expenses || []), ...expRows]); // merge legacy rows back into stale app_state
       mergeAccFlags(DB.expenses);
-      if ((exp || []).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
+      if (expRows.length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
     if (fix !== null && ((fix||[]).length > 0 || DB.fixed.length === 0)) { DB.fixed = dedup([...(DB.fixed || []), ...(fix || [])]); if ((fix||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     if (ins !== null && ((ins||[]).length > 0 || DB.installments.length === 0)) { DB.installments = dedup([...(DB.installments || []), ...(ins || [])]); if ((ins||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     // Credits: merge cloud (authoritative) with local images (stored locally only)
     if (cred !== null && ((cred||[]).length > 0 || DB.credits.length === 0)) {
+      const credRows = withStableIds(cred || [], 'credit');
       const localImgMap = {};
       DB.credits.forEach(c => { if (c.image) localImgMap[c.id] = c.image; });
-      DB.credits = dedup([...(DB.credits || []), ...(cred || [])]).map(c => localImgMap[c.id] ? {...c, image: localImgMap[c.id]} : c);
-      if ((cred || []).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
+      DB.credits = dedup([...(DB.credits || []), ...credRows]).map(c => localImgMap[c.id] ? {...c, image: localImgMap[c.id]} : c);
+      if (credRows.length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
     if (wrk !== null && ((wrk||[]).length > 0 || DB.workers.length === 0)) { DB.workers = dedup([...(DB.workers || []), ...(wrk || [])]); if ((wrk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) { DB.checks = dedup([...(DB.checks || []), ...(chk || [])]); if ((chk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     if (inc !== null && ((inc||[]).length > 0 || DB.income.length === 0)) {
-      DB.income = dedup([...(DB.income || []), ...(inc || [])]);
-      if ((inc || []).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
+      const incRows = withStableIds(inc || [], 'income');
+      DB.income = dedup([...(DB.income || []), ...incRows]);
+      if (incRows.length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
     if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) { DB.advances = dedup([...(DB.advances || []), ...(adv || [])]); if ((adv||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     if (!extendedSyncOk) {
@@ -1090,23 +1093,45 @@ const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
 // heToISO(d)  → "2026-05-27"   (any stored/ISO → input value)
 // isoToHe(d)  → "27/05/2026"   (input value / ISO → stored format)
 // fmtDate(d)  → "27/05/2026"   (display — handles ALL formats)
-const todayStr = () => { const d=new Date(); return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); };
-const todayISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const BUSINESS_TZ = 'Asia/Jerusalem';
+function businessDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {timeZone: BUSINESS_TZ, year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(date);
+  const get = type => parts.find(p => p.type === type)?.value;
+  return {year:get('year'), month:get('month'), day:get('day')};
+}
+const todayISO = () => { const d=businessDateParts(); return `${d.year}-${d.month}-${d.day}`; };
+const todayStr = () => isoToHe(todayISO());
 const isoToHe = iso => { if(!iso) return todayStr(); const s=String(iso).slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return fmtDate(iso); const [y,m,day]=s.split('-'); return `${day}/${m}/${y}`; };
 const heToISO = d => { if(!d) return todayISO(); const s=String(d); if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10); const p=s.split(/[\/\.]/); return p.length===3?`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`:todayISO(); };
 function fmtDate(d) { if(!d) return ''; const s=String(d); if(s.includes('T')||/^\d{4}-\d{2}-\d{2}$/.test(s)) return isoToHe(s); return s.replace(/\./g,'/'); }
 
 const fmt = n => Number(n||0).toLocaleString("he-IL",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtCurr = n => "₪" + fmt(n);
-const parseD = d => { try { const s=String(d); if(s.includes('T')||/^\d{4}-\d{2}-\d{2}/.test(s)) return new Date(s); return new Date(s.split(/[\/\.]/).reverse().join('-')); } catch { return null; } };
-const isToday = d => { const p=parseD(d); const n=new Date(); return p && p.toDateString()===n.toDateString(); };
-const isWeek = d => { const p=parseD(d); if(!p) return false; const sun=new Date(); sun.setDate(sun.getDate()-sun.getDay()); sun.setHours(0,0,0,0); return p>=sun && p<=new Date(); };
-const isMonth = d => { const p=parseD(d); const n=new Date(); return p && p.getMonth()===n.getMonth() && p.getFullYear()===n.getFullYear(); };
-const isYear  = d => { const p=parseD(d); return p && p.getFullYear()===new Date().getFullYear(); };
+const parseD = d => {
+  try {
+    if(!d) return null;
+    const s=String(d).trim();
+    let y,m,day;
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      [y,m,day] = s.slice(0,10).split('-');
+    } else {
+      const p=s.split(/[\/\.]/);
+      if (p.length !== 3) return null;
+      [day,m,y] = p;
+    }
+    return new Date(+y, +m - 1, +day);
+  } catch { return null; }
+};
+const localDayStart = d => d ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : null;
+const businessTodayDate = () => parseD(todayISO());
+const isToday = d => { const p=parseD(d); return !!(p && toISO(p) === todayISO()); };
+const isWeek = d => isInWeekOffset(d, 0);
+const isMonth = d => { const p=parseD(d); const n=businessTodayDate(); return p && n && p.getMonth()===n.getMonth() && p.getFullYear()===n.getFullYear(); };
+const isYear  = d => { const p=parseD(d); const n=businessTodayDate(); return p && n && p.getFullYear()===n.getFullYear(); };
 
 // Week-offset helpers (offset: 0=current, -1=last week, etc.)
 function getWeekBounds(offset) {
-  const now = new Date();
+  const now = businessTodayDate() || new Date();
   const sun = new Date(now);
   sun.setDate(now.getDate() - now.getDay() + (offset||0)*7);
   sun.setHours(0,0,0,0);
@@ -1139,10 +1164,29 @@ const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'
 function dedup(arr) {
   const seen = new Set();
   return (arr || []).filter(item => {
-    if (!item || !item.id) return false;
-    if (seen.has(item.id)) return false;
-    seen.add(item.id);
+    if (!item) return false;
+    const id = String(item.id || '').trim();
+    const key = id ? `id:${id}` : `row:${JSON.stringify(item)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
+  });
+}
+
+function withStableIds(arr, prefix) {
+  return (arr || []).map((item, index) => {
+    if (!item || String(item.id || '').trim()) return item;
+    const raw = [
+      prefix,
+      heToISO(item.date || item['תאריך'] || ''),
+      item.supplier || item['ספק'] || item.type || item['סוג'] || '',
+      item.total_amount || item.amount || item['סכום'] || '',
+      item.document_number || item.reason || item.notes || item['סיבה'] || item['הערות'] || '',
+      index
+    ].join('|');
+    let hash = 0;
+    for (let i=0; i<raw.length; i++) hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+    return {...item, id:`${prefix}_${Math.abs(hash).toString(36)}`};
   });
 }
 
@@ -1941,7 +1985,11 @@ function updateHeader() {
 // ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
-const isSameDay = (date, target) => { const p=parseD(date); return p&&p.toDateString()===target.toDateString(); };
+const isSameDay = (date, target) => {
+  const p = parseD(date);
+  const t = localDayStart(target);
+  return !!(p && t && localDayStart(p).getTime() === t.getTime());
+};
 
 function isDesktopMode() {
   return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(min-width: 768px)').matches;
@@ -2544,8 +2592,11 @@ function renderExpenseListBody(rows) {
   }
 
   const DAYS_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-  const todayMs = new Date().setHours(0,0,0,0);
-  const yesterMs = todayMs - 86400000;
+  const todayDate = businessTodayDate() || new Date();
+  const todayMs = localDayStart(todayDate).getTime();
+  const yesterDate = new Date(todayDate);
+  yesterDate.setDate(yesterDate.getDate() - 1);
+  const yesterMs = localDayStart(yesterDate).getTime();
   const groupMap = new Map();
   rows.forEach(e => {
     const key = fmtDate(e.date) || '—';
@@ -2556,7 +2607,7 @@ function renderExpenseListBody(rows) {
 
   const groupsHtml = groups.map((g, gi) => {
     const d = g.date;
-    const dMs = d ? d.setHours(0,0,0,0) : null;
+    const dMs = d ? localDayStart(d).getTime() : null;
     const isToday2 = dMs === todayMs;
     const isYester = dMs === yesterMs;
     const dayLabel = isToday2 ? 'היום' : isYester ? 'אתמול' : d ? `יום ${DAYS_HE[d.getDay()]}` : '';
@@ -10108,7 +10159,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=85').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=86').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
