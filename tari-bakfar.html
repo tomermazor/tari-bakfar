@@ -4468,7 +4468,10 @@ function deleteCat(idx) {
   const name = CATS[idx];
   if (!name || name === 'אחר') return;
   const inUse = DB.expenses.filter(e => e.category === name).length;
-  if (inUse > 0 && !confirm(`הקטגוריה "${name}" בשימוש ב-${inUse} הוצאות.\nלמחוק בכל זאת?`)) return;
+  const inUseProducts = (pdb.products || []).filter(p => p.category === name).length;
+  if ((inUse > 0 || inUseProducts > 0) && !confirm(`הקטגוריה "${name}" בשימוש ב-${inUse} הוצאות ו-${inUseProducts} מוצרים.\nלמחוק בכל זאת? המוצרים יעברו ל"ללא קטגוריה".`)) return;
+  (pdb.products || []).forEach(p => { if (p.category === name) p.category = ''; });
+  if (inUseProducts > 0) savePdb(true);
   CATS.splice(idx, 1);
   saveCategories();
   render();
@@ -4482,6 +4485,9 @@ function renameCat(idx) {
   const n = newName.trim();
   if (CATS.includes(n)) { toast('שם כבר קיים', 'error'); return; }
   DB.expenses.forEach(e => { if (e.category === name) e.category = n; });
+  let productsChanged = false;
+  (pdb.products || []).forEach(p => { if (p.category === name) { p.category = n; productsChanged = true; } });
+  if (productsChanged) savePdb(true);
   persistLocal();
   CATS[idx] = n;
   saveCategories();
@@ -6852,13 +6858,24 @@ function filterProductsList() {
   return list;
 }
 function getProductCategories() {
-  const cats = new Set();
-  pdb.products.forEach(p => { if (p.category && p.category.trim()) cats.add(p.category.trim()); });
-  return [...cats].sort(sortProductCategories);
+  return getApprovedProductCategories();
 }
 
+function getApprovedProductCategories() {
+  return (Array.isArray(CATS) ? CATS : []).map(c => String(c || '').trim()).filter(Boolean).sort(sortProductCategories);
+}
+function normalizeProductCategoryValue(cat) {
+  const val = String(cat || '').trim();
+  if (!val) return '';
+  return getApprovedProductCategories().find(c => c === val) || '';
+}
+function requireApprovedProductCategory(cat) {
+  const approved = normalizeProductCategoryValue(cat);
+  if (!approved) toast('בחר קטגוריה מורשית מרשימת ההוצאות', 'error');
+  return approved;
+}
 function productCategoryLabel(p) {
-  return (p?.category && p.category.trim()) ? p.category.trim() : 'ללא קטגוריה';
+  return normalizeProductCategoryValue(p?.category) || 'ללא קטגוריה';
 }
 function productCategoryRank(cat) {
   const c = String(cat || '').trim();
@@ -7673,6 +7690,7 @@ function renderProductLivingProfile() {
   };
   const field = (label, html) => `<label style="display:block;margin-bottom:10px"><span style="display:block;font-size:11px;color:var(--textDim);font-weight:850;margin-bottom:5px">${label}</span>${html}</label>`;
   const input = (fieldName, value, type='text') => `<input class="input" type="${type}" value="${esc(value||'')}" onchange="updateProductField('${p.id}','${fieldName}',this.value)">`;
+  const categorySelect = `<select class="input" onchange="updateProductField('${p.id}','category',this.value)"><option value="">בחר קטגוריה מורשית...</option>${getApprovedProductCategories().map(c=>`<option value="${esc(c)}" ${normalizeProductCategoryValue(p.category)===c?'selected':''}>${esc(c)}</option>`).join('')}</select>`;
   const updateChannels = (ch) => `updateProductChannel('${p.id}','${ch}',this.value)`;
   const overview = `
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:12px">
@@ -7684,7 +7702,7 @@ function renderProductLivingProfile() {
     <div style="background:${colors[1]};border:1px solid ${colors[0]}33;color:${colors[0]};border-radius:16px;padding:12px;margin-bottom:12px;font-weight:900">${health.label}</div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px">
       ${field('שם מוצר', input('name', p.name))}
-      ${field('קטגוריה', input('category', p.category))}
+      ${field('קטגוריה', categorySelect)}
       ${field('תת קטגוריה', input('subCategory', p.subCategory))}
       ${field('יחידה', `<select class="input" onchange="updateProductField('${p.id}','unitType',this.value)">${['kg','unit','box','carton'].map(u=>`<option value="${u}" ${p.unitType===u?'selected':''}>${u}</option>`).join('')}</select>`)}
       ${field('ברקוד', input('barcode', p.barcode))}
@@ -7787,6 +7805,10 @@ function updateProductInventory(productId, field, val) {
 function updateProductField(productId, field, val) {
   const p = pdb.products.find(x => x.id === productId);
   if (!p) return;
+  if (field === 'category') {
+    val = requireApprovedProductCategory(val);
+    if (!val) return;
+  }
   p[field] = val;
   savePdb(true);
   render();
@@ -7873,12 +7895,11 @@ function productsModalWrap(title, body, confirmLabel, confirmFn, cancelFn) {
 }
 
 function renderProductsModalAdd() {
-  const cats = getProductCategories();
-  const dlId = 'add-prod-cat-dl';
+  const cats = getApprovedProductCategories();
+  const selectedCat = state.productsModalData?.category || '';
   const body = `
-    <datalist id="${dlId}">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
     <div class="field"><label class="label">שם מוצר *</label><input class="input" id="new-prod-name" placeholder="שם המוצר" oninput="state.productsModalData=state.productsModalData||{};state.productsModalData.name=this.value"></div>
-    <div class="field"><label class="label">קטגוריה</label><input class="input" list="${dlId}" placeholder="קטגוריה (לא חובה)" oninput="state.productsModalData=state.productsModalData||{};state.productsModalData.category=this.value"></div>
+    <div class="field"><label class="label">קטגוריה מורשית *</label><select class="input" onchange="state.productsModalData=state.productsModalData||{};state.productsModalData.category=this.value"><option value="">בחר קטגוריה מרשימת ההוצאות...</option>${cats.map(c=>`<option value="${esc(c)}" ${selectedCat===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
     <div class="field"><label class="label">מחיר מכירה ₪</label><input class="input" type="number" inputmode="decimal" placeholder="0.00" oninput="state.productsModalData=state.productsModalData||{};state.productsModalData.sellPrice=this.value"></div>`;
   return productsModalWrap('הוסף מוצר', body, 'הוסף', 'confirmAddProduct()', `setState({productsModal:'',productsModalData:null})`);
 }
@@ -7887,9 +7908,11 @@ function confirmAddProduct() {
   const d = state.productsModalData || {};
   const name = (d.name||'').trim();
   if (!name) { toast('יש להזין שם מוצר', 'error'); return; }
+  const category = requireApprovedProductCategory(d.category);
+  if (!category) return;
   const sp = parseFloat(d.sellPrice);
   pdb.products.push({
-    id: uid(), name, category: (d.category||'').trim(), subCategory:'', barcode:'', image:'',
+    id: uid(), name, category, subCategory:'', barcode:'', image:'',
     unitType:'kg', status:'active', active: true, aliases: [], supplierPrices: [], costHistory: [],
     channels:{store:isNaN(sp)?0:sp, website:0, wolt:0, promo:0},
     sellPrice: isNaN(sp)?null:sp, storePrice:isNaN(sp)?0:sp,
@@ -9903,7 +9926,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=78').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=79').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
