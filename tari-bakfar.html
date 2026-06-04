@@ -6846,7 +6846,7 @@ function filterProductsList() {
   if (q) list = list.filter(p => [p.name,p.category,p.subCategory,p.barcode,p.unitType].some(v=>String(v||'').toLowerCase().includes(q)) || (p.aliases||[]).some(a=>a.toLowerCase().includes(q)) || (p.supplierPrices||[]).some(sp=>String(sp.supplierName||'').toLowerCase().includes(q)));
   if (state.productsCategory==='ללא קטגוריה') list = list.filter(p=>!p.category||!p.category.trim());
   else if (state.productsCategory && state.productsCategory!=='הכל') list = list.filter(p=>p.category===state.productsCategory);
-  if (state.productsSort==='name') list.sort((a,b)=>(a.name||'').localeCompare(b.name||'','he'));
+  if (state.productsSort==='name') list.sort(sortProductsByCategoryThenName);
   else if (state.productsSort==='margin') list.sort((a,b)=>{const ma=calcMargin(a),mb=calcMargin(b);if(ma==null&&mb==null)return 0;if(ma==null)return 1;if(mb==null)return -1;return mb-ma;});
   else if (state.productsSort==='recent') list.sort((a,b)=>{const ta=a.sellPriceUpdated||a.createdAt||'',tb=b.sellPriceUpdated||b.createdAt||'';return tb.localeCompare(ta);});
   return list;
@@ -6854,7 +6854,44 @@ function filterProductsList() {
 function getProductCategories() {
   const cats = new Set();
   pdb.products.forEach(p => { if (p.category && p.category.trim()) cats.add(p.category.trim()); });
-  return [...cats].sort((a,b)=>a.localeCompare(b,'he'));
+  return [...cats].sort(sortProductCategories);
+}
+
+function productCategoryLabel(p) {
+  return (p?.category && p.category.trim()) ? p.category.trim() : 'ללא קטגוריה';
+}
+function productCategoryRank(cat) {
+  const c = String(cat || '').trim();
+  if (!c || c === 'ללא קטגוריה') return 999;
+  if (/ירק|ירקות/.test(c)) return 0;
+  if (/פרי|פירות/.test(c)) return 1;
+  return 10;
+}
+function sortProductCategories(a, b) {
+  const ra = productCategoryRank(a), rb = productCategoryRank(b);
+  if (ra !== rb) return ra - rb;
+  return String(a||'').localeCompare(String(b||''), 'he');
+}
+function sortProductsByCategoryThenName(a, b) {
+  const c = sortProductCategories(productCategoryLabel(a), productCategoryLabel(b));
+  if (c) return c;
+  return (a.name||'').localeCompare(b.name||'', 'he');
+}
+function groupProductsByCategory(rows) {
+  const groups = [];
+  const by = new Map();
+  rows.forEach(p => {
+    const label = productCategoryLabel(p);
+    if (!by.has(label)) {
+      const group = {label, items: []};
+      by.set(label, group);
+      groups.push(group);
+    }
+    by.get(label).items.push(p);
+  });
+  groups.sort((a,b)=>sortProductCategories(a.label,b.label));
+  groups.forEach(g => g.items.sort((a,b)=>(a.name||'').localeCompare(b.name||'','he')));
+  return groups;
 }
 
 function normalizeProductCommandData() {
@@ -7308,6 +7345,18 @@ function renderProductCommandCenter() {
       </div>
     </button>`;
   };
+  const showCategoryGroups = (state.productsSort || 'name') === 'name' && (state.productsCategory || 'הכל') === 'הכל';
+  const groupedRowsHtml = showCategoryGroups
+    ? groupProductsByCategory(rows).map(g => `
+      <section style="margin:14px 0 16px">
+        <div style="display:flex;align-items:center;gap:10px;margin:0 2px 9px">
+          <h3 style="margin:0;font-size:15px;font-weight:950;color:var(--text)">${esc(g.label)}</h3>
+          <span style="font-size:11px;font-weight:900;color:var(--textMuted);background:var(--surfaceHi);border:1px solid var(--border);border-radius:999px;padding:2px 8px">${g.items.length}</span>
+          <div style="height:1px;background:var(--border);flex:1"></div>
+        </div>
+        ${g.items.map(card).join('')}
+      </section>`).join('')
+    : rows.map(card).join('');
   return `<div style="padding:12px 12px 96px" class="fade-up">
     <div style="position:sticky;top:0;z-index:30;background:var(--bg);padding:4px 0 10px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -7337,7 +7386,7 @@ function renderProductCommandCenter() {
     </div>
     ${pendingOcr ? `<div onclick="setState({productsView:'ocr'})" style="border:1px solid rgba(217,119,6,.25);background:var(--amberSoft);border-radius:16px;padding:12px 14px;margin-bottom:12px;color:var(--text);cursor:pointer"><b style="font-size:13px">יש ${pendingOcr} שורות חשבונית שממתינות להתאמת מוצר</b><div style="font-size:11px;color:var(--textDim);margin-top:2px">לא נוצרו מוצרים כפולים. צריך לאשר התאמה פעם אחת כדי ללמוד כינוי.</div></div>` : ''}
     ${alerts.length ? `<div onclick="setState({productsView:'alerts'})" style="border:1px solid rgba(217,119,6,.25);background:var(--amberSoft);border-radius:16px;padding:12px 14px;margin-bottom:12px;color:var(--text);cursor:pointer"><b style="font-size:13px">יש ${alerts.length} התראות מוצרים</b><div style="font-size:11px;color:var(--textDim);margin-top:2px">${esc(alerts[0].title)}</div></div>` : ''}
-    ${rows.length ? rows.map(card).join('') : `<div style="text-align:center;padding:50px 16px;color:var(--textMuted)"><div style="font-size:40px;margin-bottom:8px">🏷️</div><b>אין מוצרים להצגה</b><div style="font-size:12px;margin-top:5px">שנה חיפוש או הוסף מוצר חדש</div></div>`}
+    ${rows.length ? groupedRowsHtml : `<div style="text-align:center;padding:50px 16px;color:var(--textMuted)"><div style="font-size:40px;margin-bottom:8px">🏷️</div><b>אין מוצרים להצגה</b><div style="font-size:12px;margin-top:5px">שנה חיפוש או הוסף מוצר חדש</div></div>`}
   </div>`;
 }
 
@@ -9854,7 +9903,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=77').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=78').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
