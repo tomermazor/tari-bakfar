@@ -1099,10 +1099,19 @@ function businessDateParts(date = new Date()) {
   const get = type => parts.find(p => p.type === type)?.value;
   return {year:get('year'), month:get('month'), day:get('day')};
 }
+function businessISOFromValue(value) {
+  const s = String(value || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    const d = businessDateParts(new Date(s));
+    return `${d.year}-${d.month}-${d.day}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  return '';
+}
 const todayISO = () => { const d=businessDateParts(); return `${d.year}-${d.month}-${d.day}`; };
 const todayStr = () => isoToHe(todayISO());
-const isoToHe = iso => { if(!iso) return todayStr(); const s=String(iso).slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return fmtDate(iso); const [y,m,day]=s.split('-'); return `${day}/${m}/${y}`; };
-const heToISO = d => { if(!d) return todayISO(); const s=String(d); if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10); const p=s.split(/[\/\.]/); return p.length===3?`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`:todayISO(); };
+const isoToHe = iso => { if(!iso) return todayStr(); const s=businessISOFromValue(iso); if(!s) return fmtDate(iso); const [y,m,day]=s.split('-'); return `${day}/${m}/${y}`; };
+const heToISO = d => { if(!d) return todayISO(); const s=String(d); const iso=businessISOFromValue(s); if(iso) return iso; const p=s.split(/[\/\.]/); return p.length===3?`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`:todayISO(); };
 function fmtDate(d) { if(!d) return ''; const s=String(d); if(s.includes('T')||/^\d{4}-\d{2}-\d{2}$/.test(s)) return isoToHe(s); return s.replace(/\./g,'/'); }
 
 const fmt = n => Number(n||0).toLocaleString("he-IL",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1112,8 +1121,9 @@ const parseD = d => {
     if(!d) return null;
     const s=String(d).trim();
     let y,m,day;
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-      [y,m,day] = s.slice(0,10).split('-');
+    const iso = businessISOFromValue(s);
+    if (iso) {
+      [y,m,day] = iso.split('-');
     } else {
       const p=s.split(/[\/\.]/);
       if (p.length !== 3) return null;
@@ -2580,7 +2590,11 @@ function filterExpenseRows() {
     const mc = state.listCat==='הכל' || e.category===state.listCat;
     const mp = state.listPer==='הכל' || (state.listPer==='היום'&&isToday(e.date)) || (state.listPer==='שבוע'&&isWeek(e.date)) || (state.listPer==='חודש'&&isMonth(e.date));
     return mq && mc && mp;
-  }).sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+  }).sort((a,b)=>{
+    const tb = parseD(b.date)?.getTime() || 0;
+    const ta = parseD(a.date)?.getTime() || 0;
+    return tb !== ta ? tb - ta : String(b.id).localeCompare(String(a.id));
+  });
 }
 
 // Renders accountant banner + grouped day list — used by renderList AND surgical update
@@ -10159,7 +10173,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=86').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=87').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
