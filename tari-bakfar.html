@@ -669,8 +669,42 @@ function buildDataCloudState() {
   };
 }
 
+function dataStateCount(obj) {
+  if (!obj || typeof obj !== 'object') return 0;
+  return ['expenses','fixed','installments','income','credits','workers','advances','checks']
+    .reduce((sum, key) => sum + (Array.isArray(obj[key]) ? obj[key].length : 0), 0);
+}
+function productStateCount(obj) {
+  if (!obj || typeof obj !== 'object') return 0;
+  return ['products','pending','orderHistory','ocrQueue']
+    .reduce((sum, key) => sum + (Array.isArray(obj[key]) ? obj[key].length : 0), 0);
+}
+function payablesStateCount(obj) {
+  if (!obj || typeof obj !== 'object') return 0;
+  return ['debts','taxInvoices']
+    .reduce((sum, key) => sum + (Array.isArray(obj[key]) ? obj[key].length : 0), 0);
+}
+function ordersStateCount(obj) {
+  if (!obj || typeof obj !== 'object') return 0;
+  return ['suppliers','history','activeOrders']
+    .reduce((sum, key) => sum + (Array.isArray(obj[key]) ? obj[key].length : 0), 0);
+}
+function cloudStateHasMeaningfulPayload(key, cloud) {
+  if (!cloud || typeof cloud !== 'object') return false;
+  if (key === 'data') return dataStateCount(cloud) > 0;
+  if (key === 'products') return productStateCount(cloud) > 0;
+  if (key === 'payables') return payablesStateCount(cloud) > 0;
+  if (key === 'orders') return ordersStateCount(cloud) > 0 || !!cloud.drafts;
+  if (key === 'core') return ['suppliers','supplierProfiles','categories','users'].some(k => Array.isArray(cloud[k]) && cloud[k].length) || !!cloud.accFlags || !!cloud.dnOrderLinks;
+  return Object.keys(cloud).some(k => k !== '_localModified' && cloud[k] != null);
+}
+
 function applyDataCloudState(cloud) {
   if (!cloud || typeof cloud !== 'object') return;
+  if (dataStateCount(cloud) === 0 && dataStateCount(DB) > 0) {
+    console.warn('Blocked empty data app_state from overwriting local data');
+    return;
+  }
   const localExpenseImages = {};
   const localCreditImages = {};
   (DB.expenses||[]).forEach(e => { if (e.image) localExpenseImages[e.id] = e.image; });
@@ -756,6 +790,10 @@ function buildPayablesCloudState() {
 
 function applyPayablesCloudState(cloud) {
   if (!cloud || typeof cloud !== 'object') return;
+  if (payablesStateCount(cloud) === 0 && payablesStateCount(pv) > 0) {
+    console.warn('Blocked empty payables app_state from overwriting local payables');
+    return;
+  }
   const localImages = {};
   (pv.debts||[]).forEach(d => { if (d.invoiceImage) localImages[d.id] = d.invoiceImage; });
   pv = {...cloud};
@@ -773,6 +811,10 @@ function buildProductsCloudState() {
 
 function applyProductsCloudState(cloud) {
   if (!cloud || typeof cloud !== 'object') return;
+  if (productStateCount(cloud) === 0 && productStateCount(pdb) > 0) {
+    console.warn('Blocked empty products app_state from overwriting local products');
+    return;
+  }
   pdb = {
     products: Array.isArray(cloud.products) ? cloud.products : [],
     pending: Array.isArray(cloud.pending) ? cloud.pending : [],
@@ -793,6 +835,10 @@ function buildOrdersCloudState() {
 
 function applyOrdersCloudState(cloud) {
   if (!cloud || typeof cloud !== 'object') return;
+  if (ordersStateCount(cloud) === 0 && ordersStateCount(odb) > 0) {
+    console.warn('Blocked empty orders app_state from overwriting local orders');
+    return;
+  }
   const localImgMap = {};
   (odb.activeOrders || []).forEach(o => { if (o.deliveryNoteImage) localImgMap[o.id] = o.deliveryNoteImage; });
   odb = {
@@ -817,7 +863,7 @@ async function syncCloudStateBlob(key, buildFn, applyFn, getLocalModified) {
   }
   const localMod = +getLocalModified() || 0;
   const cloudMod = +(cloud && cloud._localModified) || 0;
-  const hasCloudPayload = cloud && typeof cloud === 'object' && Object.keys(cloud).some(k => k !== '_localModified' && cloud[k] != null);
+  const hasCloudPayload = cloudStateHasMeaningfulPayload(key, cloud);
   if (!hasCloudPayload && localMod === 0) return false;
   if (localMod > cloudMod) {
     await cloudCall('save_app_state', {key, payload: buildFn()});
@@ -920,22 +966,25 @@ async function syncAll(opts) {
     if (exp !== null && ((exp||[]).length > 0 || DB.expenses.length === 0)) {
       DB.expenses = dedup(exp || []); // dedup by id — removes cloud duplicates
       mergeAccFlags(DB.expenses);
+      if ((exp || []).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
-    if (fix !== null && ((fix||[]).length > 0 || DB.fixed.length === 0)) DB.fixed = dedup(fix || []);
-    if (ins !== null && ((ins||[]).length > 0 || DB.installments.length === 0)) DB.installments = dedup(ins || []);
+    if (fix !== null && ((fix||[]).length > 0 || DB.fixed.length === 0)) { DB.fixed = dedup(fix || []); if ((fix||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (ins !== null && ((ins||[]).length > 0 || DB.installments.length === 0)) { DB.installments = dedup(ins || []); if ((ins||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     // Credits: merge cloud (authoritative) with local images (stored locally only)
     if (cred !== null && ((cred||[]).length > 0 || DB.credits.length === 0)) {
       const localImgMap = {};
       DB.credits.forEach(c => { if (c.image) localImgMap[c.id] = c.image; });
       DB.credits = dedup(cred || []).map(c => localImgMap[c.id] ? {...c, image: localImgMap[c.id]} : c);
+      if ((cred || []).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
-    if (wrk !== null && ((wrk||[]).length > 0 || DB.workers.length === 0)) DB.workers = dedup(wrk || []);
-    if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) DB.checks = dedup(chk || []);
+    if (wrk !== null && ((wrk||[]).length > 0 || DB.workers.length === 0)) { DB.workers = dedup(wrk || []); if ((wrk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) { DB.checks = dedup(chk || []); if ((chk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     if (inc !== null && ((inc||[]).length > 0 || DB.income.length === 0)) {
       const hasUnsyncedLocalIncome = (APP_META.dataLocalModified || 0) > (APP_META.dataLastSynced || 0);
       DB.income = hasUnsyncedLocalIncome ? dedup([...(DB.income || []), ...(inc || [])]) : dedup(inc || []);
+      if ((inc || []).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
-    if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) DB.advances = dedup(adv || []);
+    if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) { DB.advances = dedup(adv || []); if ((adv||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     if (!extendedSyncOk) {
       if (prod !== null && ((prod||[]).length > 0 || pdb.products.length === 0)) {
         pdb.products = dedup(prod || []);
@@ -966,6 +1015,15 @@ async function syncAll(opts) {
         odb.activeOrders = activeOrders.map(o => ({...o, deliveryNoteImage: localImgMap[o.id] || o.deliveryNoteImage || null}));
         odb._lastSynced = Date.now();
         saveOdb(false);
+      }
+    }
+    if ((APP_META.dataLocalModified || 0) > (APP_META.dataLastSynced || 0) && dataStateCount(DB) > 0) {
+      try {
+        await cloudCall('save_app_state', {key:'data', payload:buildDataCloudState()});
+        APP_META.dataLastSynced = Date.now();
+        saveAppMeta();
+      } catch(e) {
+        console.warn('could not rebuild data app_state:', e.message);
       }
     }
     persistLocal();
@@ -10051,7 +10109,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=83').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=84').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
