@@ -794,9 +794,11 @@ async function syncCloudStateBlob(key, buildFn, applyFn, getLocalModified) {
   }
   const localMod = +getLocalModified() || 0;
   const cloudMod = +(cloud && cloud._localModified) || 0;
+  const hasCloudPayload = cloud && typeof cloud === 'object' && Object.keys(cloud).some(k => k !== '_localModified' && cloud[k] != null);
+  if (!hasCloudPayload && localMod === 0) return false;
   if (localMod > cloudMod) {
     await cloudCall('save_app_state', {key, payload: buildFn()});
-  } else if (cloud) {
+  } else if (hasCloudPayload) {
     applyFn(cloud);
   } else if (localMod > 0) {
     await cloudCall('save_app_state', {key, payload: buildFn()});
@@ -10024,7 +10026,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=80').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=81').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
