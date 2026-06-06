@@ -833,6 +833,97 @@ function buildOrdersCloudState() {
   return {...odb, drafts: getOrdersDraftsForSync(), _localModified: odb._localModified || 0};
 }
 
+function backupSanitize(value, key) {
+  if (typeof value === 'string') {
+    if (value.startsWith('data:image/') || value.startsWith('data:application/')) return '';
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(v => backupSanitize(v, key));
+  if (value && typeof value === 'object') {
+    const out = {};
+    Object.entries(value).forEach(([k,v]) => { out[k] = backupSanitize(v, k); });
+    return out;
+  }
+  return value;
+}
+
+function buildFullBackupPayload() {
+  const payload = {
+    schema: 'tari-bakfar-full-backup-v1',
+    createdAt: new Date().toISOString(),
+    businessDate: todayISO(),
+    source: location.href,
+    counts: {
+      expenses: (DB.expenses || []).length,
+      income: (DB.income || []).length,
+      credits: (DB.credits || []).length,
+      suppliers: (DB.suppliers || []).length,
+      payables: (pv.debts || []).length,
+      products: (pdb.products || []).length,
+      activeOrders: (odb.activeOrders || []).length,
+    },
+    appMeta: APP_META,
+    core: buildCoreCloudState(),
+    data: buildDataCloudState(),
+    payables: buildPayablesCloudState(),
+    products: buildProductsCloudState(),
+    orders: buildOrdersCloudState(),
+  };
+  return backupSanitize(payload);
+}
+
+function downloadFullBackup(payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tari-bakfar-full-backup-${todayISO()}-${String(Date.now()).slice(-6)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function saveFullBackup(options = {}) {
+  const payload = buildFullBackupPayload();
+  const stamp = payload.createdAt.replace(/[^0-9]/g, '').slice(0,14);
+  const snapshotKey = `full_backup_${stamp}`;
+  if (CFG.webAppUrl) {
+    await cloudCall('save_app_state', {key:'full_backup_latest', payload});
+    if (options.snapshot !== false) await cloudCall('save_app_state', {key:snapshotKey, payload});
+    try {
+      const index = await cloudCall('get_app_state', {key:'full_backup_index'}) || [];
+      const next = [{key:snapshotKey, createdAt:payload.createdAt, counts:payload.counts}, ...index.filter(x => x && x.key !== snapshotKey)].slice(0, 30);
+      await cloudCall('save_app_state', {key:'full_backup_index', payload:next});
+    } catch(e) {}
+  }
+  if (options.download !== false) downloadFullBackup(payload);
+  return payload;
+}
+
+async function createFullBackup() {
+  try {
+    setSyncStatus('syncing');
+    const payload = await saveFullBackup({download:true, snapshot:true});
+    setSyncStatus('ok');
+    toast(`גיבוי מלא נשמר: ${payload.counts.expenses} הוצאות, ${payload.counts.income} הכנסות`, 'success');
+  } catch(e) {
+    setSyncStatus('offline');
+    toast('גיבוי נכשל: ' + e.message, 'error');
+  }
+}
+
+async function maybeAutoFullBackup() {
+  if (!CFG.webAppUrl) return;
+  const day = todayISO();
+  if (localStorage.getItem('tari_last_full_backup_day') === day) return;
+  const hasData = dataStateCount(DB) || productStateCount(pdb) || payablesStateCount(pv) || ordersStateCount(odb);
+  if (!hasData) return;
+  try {
+    await saveFullBackup({download:false, snapshot:true});
+    localStorage.setItem('tari_last_full_backup_day', day);
+  } catch(e) {
+    console.warn('daily full backup failed:', e.message);
+  }
+}
+
 function applyOrdersCloudState(cloud) {
   if (!cloud || typeof cloud !== 'object') return;
   if (ordersStateCount(cloud) === 0 && ordersStateCount(odb) > 0) {
@@ -1037,6 +1128,7 @@ async function syncAll(opts) {
     }
     persistLocal();
     setSyncStatus('ok');
+    maybeAutoFullBackup();
     render();
     console.log('✅ Sync OK — exp:', (exp||[]).length, 'chk:', (chk||[]).length, 'inc:', (inc||[]).length);
   } catch(e) {
@@ -4880,6 +4972,7 @@ function renderSettings() {
         <div class="display" style="font-size:26px;color:var(--text)">${DB.expenses.length} רשומות</div>
         <div style="font-size:12px;color:var(--textDim);margin-top:4px;margin-bottom:${PENDING.length>0?'8px':'14px'}">${DB.fixed.length} קבועות · ${DB.installments.length} תשלומים · <span style="color:${PENDING.length>0?'var(--amber)':'var(--textDim)'};font-weight:${PENDING.length>0?'700':'400'}">${PENDING.length} ממתינות לסנכרון</span></div>
         ${PENDING.length > 0 ? `<button onclick="clearPendingQueue()" style="width:100%;margin-bottom:14px;padding:9px;border:1px solid rgba(245,180,42,0.4);border-radius:10px;background:rgba(245,180,42,0.07);color:var(--amber);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">⚡ נקה תור (${PENDING.length} פעולות) — מהיר יותר</button>` : ''}
+        <button onclick="createFullBackup()" style="width:100%;margin-bottom:8px;padding:11px;border:1.5px solid var(--accent);border-radius:10px;font-size:13px;font-weight:800;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit">גיבוי מלא לכל הטאבים</button>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <button onclick="exportJSON()" style="padding:10px;border:1px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;background:transparent;color:var(--text);cursor:pointer;font-family:inherit">📥 ייצוא JSON</button>
           <button onclick="exportCSV()" style="padding:10px;border:1px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;background:transparent;color:var(--text);cursor:pointer;font-family:inherit">📊 ייצוא CSV</button>
@@ -10296,7 +10389,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=90').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=91').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
