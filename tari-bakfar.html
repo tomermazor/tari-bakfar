@@ -1873,18 +1873,26 @@ function setListSearch(val, cursorPos) {
   state.listSearch = val;
   clearTimeout(_searchTimer);
   _searchTimer = setTimeout(() => {
-    const body = document.getElementById('expense-list-body');
-    const meta = document.getElementById('list-meta-el');
+    let body = document.getElementById('expense-list-body');
+    let meta = document.getElementById('list-meta-el');
     const inp  = document.getElementById('list-search-inp');
-    if (!body || !meta || state.tab !== 'list') {
+    if (isDesktopMode() && state.tab === 'list') {
+      body = body || document.querySelector('.desktop-work-grid .desktop-table-wrap');
+    }
+    if (!body || (!meta && !isDesktopMode()) || state.tab !== 'list') {
       render(); return;
     }
     // Re-filter with updated search
     const rows = filterExpenseRows();
     const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
     // Update only the list body and count/total — input element is untouched
-    meta.innerHTML = `<span style="font-size:11.5px;color:var(--textDim);font-weight:600;letter-spacing:0.04em;text-transform:uppercase">${rows.length} רשומות</span><span class="display" style="font-size:21px;color:var(--accent)">${fmtCurr(total)}</span>`;
-    body.innerHTML = renderExpenseListBody(rows);
+    if (meta) meta.innerHTML = `<span style="font-size:11.5px;color:var(--textDim);font-weight:600;letter-spacing:0.04em;text-transform:uppercase">${rows.length} רשומות</span><span class="display" style="font-size:21px;color:var(--accent)">${fmtCurr(total)}</span>`;
+    if (isDesktopMode()) {
+      if (meta) meta.innerHTML = `<div class="desktop-kpi-label">בסינון</div><div class="desktop-kpi-value">${fmtCurr(total)}</div><div class="desktop-kpi-sub">${rows.length} רשומות</div>`;
+      body.innerHTML = renderDesktopExpenseTable(rows);
+    } else {
+      body.innerHTML = renderExpenseListBody(rows);
+    }
     // Restore cursor without triggering scroll
     if (inp) { try { inp.setSelectionRange(cursorPos, cursorPos); } catch(e){} }
   }, 120);
@@ -2907,6 +2915,29 @@ function renderDesktopExpenseDrawer(item) {
       </div>
     </div>
   </aside>`;
+}
+
+function desktopExpenseStatus(e) {
+  if (['×—×©×‘×•× ×™×ª ×ž×¡','×—×©×‘×•× ×™×ª ×ž×¡ ×§×‘×œ×”'].includes(e.document_type)) {
+    return e.sentToAccountant ? desktopStatus('×”×•×¢×‘×¨×”','ok') : desktopStatus('×ž×ž×ª×™× ×”','warn');
+  }
+  if (e.document_type === '×ª×¢×•×“×ª ×ž×©×œ×•×—') {
+    return desktopStatus(e.linkedOrderId?'×§×•×©×¨×”':'×ª×¢×•×“×”', e.linkedOrderId?'ok':'info');
+  }
+  return desktopStatus(e.document_type || '×ž×¡×ž×š','neutral');
+}
+
+function renderDesktopExpenseTable(rows) {
+  if (!rows.length) return desktopEmpty('📭','אין תוצאות','שנה פילטר או הוסף הוצאה חדשה');
+  const tableRows = rows.map(e => `<tr class="${state.listOpen===e.id?'desktop-row-selected':''}" onclick="setState({listOpen:'${e.id}'})" style="cursor:pointer">
+    <td><b>${esc(e.supplier||'×¡×¤×§ ×œ× ×™×“×•×¢')}</b><div class="desktop-muted">#${esc(e.document_number||'â€”')}</div></td>
+    <td>${fmtDate(e.date)}</td>
+    <td>${esc(e.category||'')}</td>
+    <td>${desktopExpenseStatus(e)}</td>
+    <td style="text-align:left"><b>${fmtCurr(e.total_amount)}</b></td>
+    <td><button class="desktop-mini-btn" onclick="event.stopPropagation();openEditExpense('${e.id}')">×¢×¨×•×š</button></td>
+  </tr>`).join('');
+  return `<table class="desktop-table"><thead><tr><th>×¡×¤×§</th><th>×ª××¨×™×š</th><th>×§×˜×’×•×¨×™×”</th><th>×¡×˜×˜×•×¡</th><th style="text-align:left">×¡×›×•×</th><th>×¤×¢×•×œ×”</th></tr></thead><tbody>${tableRows}</tbody></table>`;
 }
 
 function renderDesktopList() {
@@ -10389,7 +10420,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=91').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=92').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
