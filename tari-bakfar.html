@@ -1270,6 +1270,53 @@ function supplierInput(formStateRef, fieldName, currentVal, categoryField) {
 }
 
 // Called onchange — fills category if supplier matches a known entry
+function renderExpenseOrderLinkSelect(formStateRef, formObj) {
+  const orders = (odb.activeOrders || []).slice().sort((a,b)=>(+b.timestamp||0)-(+a.timestamp||0));
+  if (!orders.length) return '';
+  const supplierNorm = pvSupplierNorm(formObj?.supplier || '');
+  const sameSupplier = supplierNorm ? orders.filter(o => pvSupplierNorm(o.supplierName || '') === supplierNorm) : [];
+  const rest = supplierNorm ? orders.filter(o => pvSupplierNorm(o.supplierName || '') !== supplierNorm) : orders;
+  const option = o => {
+    const count = (o.items || []).reduce((s,it)=>s+(+it.qty||0),0);
+    const label = `${o.supplierName || 'הזמנה'} · ${o.dateOrdered || fmtDate(o.timestamp || '')}${count ? ' · ' + count + ' פריטים' : ''}`;
+    return `<option value="${esc(o.id)}" ${formObj?.linkedOrderId===o.id?'selected':''}>${esc(label)}</option>`;
+  };
+  const grouped = [
+    sameSupplier.length ? `<optgroup label="אותו ספק">${sameSupplier.map(option).join('')}</optgroup>` : '',
+    rest.length ? `<optgroup label="${sameSupplier.length ? 'הזמנות אחרות' : 'הזמנות פתוחות'}">${rest.map(option).join('')}</optgroup>` : ''
+  ].join('');
+  return `<div class="field"><label class="label">שיוך להזמנה פתוחה</label><select class="input" onchange="${formStateRef}.linkedOrderId=this.value">${`<option value="" ${!formObj?.linkedOrderId?'selected':''}>ללא שיוך</option>`}${grouped}</select></div>`;
+}
+
+function applyExpenseOrderLink(item) {
+  if (!item) return;
+  let touchedOrders = false;
+  (odb.activeOrders || []).forEach(o => {
+    if ((o.deliveryNoteIds || []).includes(item.id)) {
+      o.deliveryNoteIds = o.deliveryNoteIds.filter(id => id !== item.id);
+      touchedOrders = true;
+    }
+  });
+  if (DN_ORDER_LINKS[item.id]) {
+    delete DN_ORDER_LINKS[item.id];
+    saveDnOrderLinks();
+  }
+  if (!item.linkedOrderId) {
+    if (touchedOrders) { saveOdb(true); pushActiveOrders(); }
+    return;
+  }
+  const order = (odb.activeOrders || []).find(o => o.id === item.linkedOrderId);
+  if (!order) { delete item.linkedOrderId; return; }
+  if (item.document_type === 'תעודת משלוח') {
+    if (!order.deliveryNoteIds) order.deliveryNoteIds = [];
+    if (!order.deliveryNoteIds.includes(item.id)) order.deliveryNoteIds.push(item.id);
+    DN_ORDER_LINKS[item.id] = order.id;
+    saveDnOrderLinks();
+    saveOdb(true);
+    pushActiveOrders();
+  }
+}
+
 function applySupplierDefaults(nameVal, formStateRef, categoryField) {
   if (!nameVal || !categoryField) return;
   const sup = findApprovedSupplier(nameVal);
@@ -2445,6 +2492,7 @@ function renderScan() {
         <div class="field"><label class="label">סוג מסמך</label><select class="input" onchange="state.scanForm.document_type=this.value">${DTYPES.map(d=>`<option ${d===f.document_type?'selected':''}>${d}</option>`).join('')}</select></div>
         <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(f.document_number)}" oninput="state.scanForm.document_number=this.value"></div>
         <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.scanForm.notes=this.value"></div>
+        ${renderExpenseOrderLinkSelect('state.scanForm', f)}
         ${['חשבונית מס','חשבונית מס קבלה'].includes(f.document_type)?`
         <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
           <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">פרטי תשלום (אופציונלי)</div>
@@ -2523,6 +2571,7 @@ async function runScan() {
         amount_before_vat: +data.amount_before_vat||0,
         category: data.category||'אחר', document_type: data.document_type||'חשבונית מס',
         document_number: data.document_number||'', notes: data.notes||'',
+        linkedOrderId: '',
         line_items: Array.isArray(data.line_items) ? data.line_items : [],
       }
     });
@@ -2535,6 +2584,7 @@ function manualForm() {
     supplier: addForm.supplier || '',   // use pre-filled supplier if came from orders
     total_amount:0, vat_amount:0, amount_before_vat:0, category: CATS[0]||'אחר',
     document_type:'חשבונית מס', document_number:'', line_items: [],
+    linkedOrderId: addForm.linkedOrderId || '',
     notes: addForm.notes || ''          // use pre-filled notes if came from orders
   }});
 }
@@ -2589,6 +2639,7 @@ async function saveScanResult() {
   const localItem = {...item, image: item.image?.startsWith('data:') ? '' : (item.image || '')};
   // ── Synchronous: apply locally + navigate in the SAME JS tick ──
   DB.expenses.unshift(localItem);
+  applyExpenseOrderLink(localItem);
   pvAutoCreateDebtFromExpense(localItem);
   processInvoiceLineItems(localItem);
   markDataStateDirty();
@@ -2910,7 +2961,8 @@ function openEditExpense(id) {
   setState({ editId: id, editForm: {
     supplier: e.supplier||'', date: e.date||'', category: e.category||CATS[0],
     document_type: e.document_type||DTYPES[0], document_number: e.document_number||'',
-    notes: e.notes||'', total_amount: e.total_amount||0, vat_amount: e.vat_amount||0
+    notes: e.notes||'', total_amount: e.total_amount||0, vat_amount: e.vat_amount||0,
+    paymentDueDate: e.paymentDueDate||'', paymentTerms: e.paymentTerms||'', linkedOrderId: e.linkedOrderId||''
   }});
 }
 
@@ -2940,6 +2992,7 @@ function renderEditModal() {
         <div class="field"><label class="label">סוג מסמך</label><select class="input" onchange="state.editForm.document_type=this.value">${DTYPES.map(d=>`<option ${d===f.document_type?'selected':''}>${d}</option>`).join('')}</select></div>
         <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(f.document_number)}" oninput="state.editForm.document_number=this.value"></div>
         <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.editForm.notes=this.value"></div>
+        ${renderExpenseOrderLinkSelect('state.editForm', f)}
         ${['חשבונית מס','חשבונית מס קבלה'].includes(f.document_type)?`
         <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
           <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">פרטי תשלום</div>
@@ -2968,9 +3021,11 @@ async function saveEditExpense() {
     total_amount: +f.total_amount||0, vat_amount: +f.vat_amount||0,
     amount_before_vat: (+f.total_amount||0)-(+f.vat_amount||0), notes: f.notes,
     paymentDueDate: f.paymentDueDate||'', paymentTerms: f.paymentTerms||'',
+    linkedOrderId: f.linkedOrderId || '',
   };
   // ── Synchronous: apply locally + close modal in the SAME JS tick ──
   DB.expenses = DB.expenses.map(e => e.id === editId ? updated : e);
+  applyExpenseOrderLink(updated);
   markDataStateDirty();
   persistLocal();
   setState({editId: null, editForm: null, listOpen: null}); // modal gone before first await
@@ -3045,7 +3100,7 @@ async function pushExpenseToCloud(id) {
 // ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — ADD
 // ═══════════════════════════════════════════════════════════════════════════
-let addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:""};
+let addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:"",linkedOrderId:""};
 
 function renderAdd() {
   return `
@@ -3061,6 +3116,7 @@ function renderAdd() {
       <div class="field"><label class="label">סוג מסמך</label><select class="input" onchange="addForm.document_type=this.value">${DTYPES.map(d=>`<option ${d===addForm.document_type?'selected':''}>${d}</option>`).join('')}</select></div>
       <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(addForm.document_number)}" oninput="addForm.document_number=this.value" onkeydown="if(event.key==='Enter')submitAdd()"></div>
       <div class="field"><label class="label">הערות</label><input class="input" value="${esc(addForm.notes)}" oninput="addForm.notes=this.value" onkeydown="if(event.key==='Enter')submitAdd()"></div>
+      ${renderExpenseOrderLinkSelect('addForm', addForm)}
       ${['חשבונית מס','חשבונית מס קבלה'].includes(addForm.document_type)?`
       <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
         <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">פרטי תשלום (אופציונלי)</div>
@@ -3097,8 +3153,8 @@ async function submitAdd() {
   const item = {...addForm, id:uid(), total_amount:+addForm.total_amount, vat_amount:+addForm.vat_amount||0, amount_before_vat:+addForm.amount_before_vat||0};
   const dup = findDuplicate(item);
   if (dup && !warnDuplicate(dup)) return;
-  await queueAndSync('add_expense', {payload: item}, () => { DB.expenses.unshift(item); pvAutoCreateDebtFromExpense(item); processInvoiceLineItems(item); });
-  addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",isOpenDebt:true};
+  await queueAndSync('add_expense', {payload: item}, () => { DB.expenses.unshift(item); applyExpenseOrderLink(item); pvAutoCreateDebtFromExpense(item); processInvoiceLineItems(item); });
+  addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",isOpenDebt:true,linkedOrderId:""};
   toast('נשמר!', 'success');
   setState({tab:'list'});
 }
@@ -10240,7 +10296,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=89').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=90').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
