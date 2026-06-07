@@ -260,6 +260,8 @@ body.orders-focus .o-order-shell { min-height:100dvh; }
 body.orders-focus .o-order-top { padding-top:calc(11px + env(safe-area-inset-top,0px)) !important; }
 body.orders-focus .o-order-body { padding-bottom:140px !important; }
 body.orders-focus .o-order-footer { bottom:0 !important; max-width:100% !important; }
+body.orders-focus.orders-input-focus .o-order-footer { display:none !important; }
+body.orders-focus.orders-input-focus .o-order-body { padding-bottom:32px !important; }
 @media (min-width:768px) {
   body.orders-focus .app { display:flex; }
   body.orders-focus .main > div { padding:0 !important; }
@@ -5949,6 +5951,17 @@ function ordersSetProductNote(pid, value) {
   if (state.ordersState[pid]) { state.ordersState[pid].notes = value; ordersSaveDraft(); }
 }
 
+function ordersSetTypingFocus(active) {
+  document.body.classList.toggle('orders-input-focus', !!active);
+  if (!active) return;
+  setTimeout(() => {
+    const el = document.activeElement;
+    if (el && el.scrollIntoView) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, 80);
+}
+
 function ordersRemoveManualItem(mid) {
   delete state.ordersState[mid];
   ordersSaveDraft();
@@ -6845,6 +6858,8 @@ function renderOrdersOrderView() {
         <div style="font-size:10.5px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">+ הוספת מוצר לרשימה</div>
         <input class="input" id="o-manual-name-inp" type="text" placeholder="שם המוצר..." value="${esc(s.name)}"
           oninput="state.ordersManualAddState.name=this.value"
+          onfocus="ordersSetTypingFocus(true)"
+          onblur="setTimeout(()=>ordersSetTypingFocus(false),180)"
           onkeydown="if(event.key==='Enter')ordersAddManualProduct()"
           autocomplete="off" style="margin-bottom:8px">
         <div style="display:flex;gap:8px;align-items:center">
@@ -10502,7 +10517,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=94').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=95').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
