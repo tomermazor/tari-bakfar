@@ -1358,7 +1358,7 @@ function toast(msg, type='info') {
 // currentVal    – current value to pre-fill
 // categoryField – e.g. 'category' – auto-filled when a known supplier is chosen
 function supplierInput(formStateRef, fieldName, currentVal, categoryField) {
-  return approvedSupplierInput(`${formStateRef}.${fieldName}`, currentVal, 'בחר ספק מאושר...', formStateRef, categoryField);
+  return approvedSupplierInput(`${formStateRef}.${fieldName}`, currentVal, 'בחר ספק מאושר...', formStateRef, categoryField, true);
 }
 
 // Called onchange — fills category if supplier matches a known entry
@@ -1447,10 +1447,11 @@ function requireApprovedSupplier(name) {
   return sup;
 }
 
-function approvedSupplierInput(targetExpr, currentVal, placeholder, formStateRef, categoryField) {
+function approvedSupplierInput(targetExpr, currentVal, placeholder, formStateRef, categoryField, allowInlineAdd) {
   const uidPart = Math.random().toString(36).slice(2);
   const inputId = 'approved-sup-input-' + uidPart;
   const panelId = 'approved-sup-panel-' + uidPart;
+  const addId = 'approved-sup-add-' + uidPart;
   const needsChoice = currentVal && !findApprovedSupplier(currentVal);
   const options = getApprovedSuppliers().map(s => {
     const encoded = encodeURIComponent(s.name);
@@ -1460,6 +1461,12 @@ function approvedSupplierInput(targetExpr, currentVal, placeholder, formStateRef
       <span style="font-size:13.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</span>${cat}
     </button>`;
   }).join('');
+  const addAction = allowInlineAdd ? `
+    <button type="button" id="${addId}" data-supplier-add
+      onclick="supplierComboAddCurrent('${inputId}','${targetExpr}','${panelId}','${formStateRef||''}','${categoryField||''}')"
+      style="display:none;width:100%;border:none;border-top:1px solid var(--border);background:rgba(110,198,58,0.08);color:var(--accent);padding:12px;text-align:center;font-family:inherit;cursor:pointer;font-size:13px;font-weight:900">
+      + הוסף כספק מורשה והשתמש
+    </button>` : '';
   return `
     <div style="position:relative">
       <input id="${inputId}" class="input" autocomplete="off" placeholder="${esc(placeholder || 'בחר ספק מאושר...')}" value="${esc(currentVal||'')}"
@@ -1470,9 +1477,10 @@ function approvedSupplierInput(targetExpr, currentVal, placeholder, formStateRef
       <div id="${panelId}" data-supplier-panel
         style="display:none;position:absolute;z-index:500;top:calc(100% + 6px);right:0;left:0;max-height:230px;overflow-y:auto;background:var(--surface);border:1px solid var(--borderHi);border-radius:12px;box-shadow:var(--shadow-lg);padding:0">
         ${options || `<div style="padding:12px;color:var(--textMuted);font-size:13px;text-align:center">אין ספקים מאושרים</div>`}
+        ${addAction}
       </div>
     </div>
-    ${needsChoice ? `<div style="margin-top:6px;font-size:12px;color:var(--danger);font-weight:700">בחר ספק מכרטיס ספק מאושר.</div>` : ''}`;
+    ${needsChoice ? `<div style="margin-top:6px;font-size:12px;color:var(--danger);font-weight:700">בחר ספק מכרטיס ספק מאושר או הוסף אותו כספק מורשה.</div>` : ''}`;
 }
 
 function supplierComboUpdate(input, panelId, show) {
@@ -1480,12 +1488,18 @@ function supplierComboUpdate(input, panelId, show) {
   if (!panel) return;
   const q = supplierKey(input.value);
   let visible = 0;
+  let exact = false;
   panel.querySelectorAll('[data-supplier-option]').forEach(function(btn) {
-    const hit = !q || supplierKey(btn.getAttribute('data-supplier-option')).includes(q);
+    const optionKey = supplierKey(btn.getAttribute('data-supplier-option'));
+    const hit = !q || optionKey.includes(q);
+    if (q && optionKey === q) exact = true;
     btn.style.display = hit ? 'flex' : 'none';
     if (hit) visible++;
   });
-  panel.style.display = show && visible ? 'block' : 'none';
+  const addBtn = panel.querySelector('[data-supplier-add]');
+  const showAdd = !!(addBtn && q && !exact);
+  if (addBtn) addBtn.style.display = showAdd ? 'block' : 'none';
+  panel.style.display = show && (visible || showAdd) ? 'block' : 'none';
 }
 
 function supplierComboHide(panelId) {
@@ -1499,6 +1513,35 @@ function supplierComboChoose(name, targetExpr, inputId, panelId, formStateRef, c
   if (input) input.value = name;
   supplierComboHide(panelId);
   if (formStateRef && categoryField) applySupplierDefaults(name, formStateRef, categoryField);
+}
+
+function supplierComboAddCurrent(inputId, targetExpr, panelId, formStateRef, categoryField) {
+  const input = document.getElementById(inputId);
+  const name = (input?.value || '').trim();
+  if (!name) { input?.focus(); toast('הזן שם ספק', 'error'); return; }
+
+  const existing = findApprovedSupplier(name);
+  if (existing) {
+    supplierComboChoose(existing.name, targetExpr, inputId, panelId, formStateRef, categoryField);
+    toast('הספק כבר קיים ונבחר ✓', 'success');
+    return;
+  }
+
+  if (!DB.suppliers) DB.suppliers = [];
+  let defaultCategory = CATS[0] || 'אחר';
+  if (formStateRef && categoryField) {
+    try {
+      const obj = Function('return ' + formStateRef)();
+      if (obj && obj[categoryField]) defaultCategory = obj[categoryField];
+    } catch(e) {}
+  }
+  DB.suppliers.push({ id: uid(), name, defaultCategory, approved: true });
+  markCoreStateDirty();
+  persistLocal();
+  try { Function('value', targetExpr + '=value')(name); } catch(e) {}
+  supplierComboHide(panelId);
+  render();
+  toast('ספק מורשה נוסף ונבחר ✓', 'success');
 }
 
 document.addEventListener('click', function(e) {
@@ -10459,7 +10502,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=93').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=94').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
