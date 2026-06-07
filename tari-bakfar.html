@@ -1623,6 +1623,59 @@ function seedSuppliersFromExpenses() {
 // ═══════════════════════════════════════════════════════════════════════════
 // AI: OpenAI
 // ═══════════════════════════════════════════════════════════════════════════
+function parseAIJsonResponse(content) {
+  let txt = String(content || '').trim();
+  if (!txt) throw new Error("תשובה ריקה");
+
+  txt = txt
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .replace(/^JSON\s*:\s*/i, '')
+    .trim();
+
+  try {
+    return JSON.parse(txt);
+  } catch(e) {}
+
+  const start = txt.indexOf('{');
+  if (start < 0) throw new Error("לא נמצא JSON: " + txt.slice(0, 80));
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < txt.length; i++) {
+    const ch = txt[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        const jsonText = txt.slice(start, i + 1);
+        try {
+          return JSON.parse(jsonText);
+        } catch(e) {
+          throw new Error("JSON לא תקין מה-AI: " + e.message);
+        }
+      }
+    }
+  }
+
+  throw new Error("JSON לא שלם מה-AI. נסה שוב או השתמש בהזן ידנית.");
+}
+
 async function scanInvoice(base64, mime) {
   if (!CFG.apiKey) throw new Error("חסר API Key — הכנס אותו בהגדרות");
   if (!CFG.apiKey.startsWith("sk-")) throw new Error("מפתח לא תקין — חייב להתחיל ב-sk-");
@@ -1632,7 +1685,7 @@ async function scanInvoice(base64, mime) {
     ? `\nספקים מאושרים במערכת — אם הספק על המסמך תואם אחד מהם, השתמש בשם המדויק. אם אין התאמה, החזר את מה שמופיע במסמך והמשתמש יבחר ספק מאושר:\n${knownSuppliersList.map(s=>`• ${s.name}${s.defaultCategory?' ('+s.defaultCategory+')':''}`).join('\n')}\n`
     : '';
   let prompt = `אתה מערכת OCR לירקניה בכפר מעש.
-קרא את המסמך והחזר JSON בלבד, בלי טקסט נוסף, בלי backticks.
+קרא את המסמך והחזר JSON חוקי בלבד. אסור להחזיר הסברים, markdown, backticks, או את המילה JSON לפני האובייקט.
 ${knownSuppliers}
 {"date":"DD/MM/YYYY","supplier":"שם הספק","total_amount":0.00,"vat_amount":0.00,"amount_before_vat":0.00,"category":"פירות וירקות","document_type":"חשבונית מס","document_number":"","notes":""}
 
@@ -1651,7 +1704,8 @@ Return all product lines from the invoice or delivery note. If unit_cost is not 
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+CFG.apiKey},
       body: JSON.stringify({
-        model:"gpt-4o", max_tokens:1200,
+        model:"gpt-4o", max_tokens:3500,
+        response_format:{type:"json_object"},
         messages:[{role:"user",content:[
           {type:"text",text:prompt},
           {type:"image_url",image_url:{url:`data:${mime};base64,${base64}`}}
@@ -1672,15 +1726,7 @@ Return all product lines from the invoice or delivery note. If unit_cost is not 
   }
 
   const d = await r.json();
-  const txt = (d.choices?.[0]?.message?.content || "").trim();
-  if (!txt) throw new Error("תשובה ריקה");
-
-  let depth=0, start=-1;
-  for (let i=0;i<txt.length;i++) {
-    if(txt[i]==="{"){if(start<0)start=i; depth++;}
-    else if(txt[i]==="}"){depth--;if(depth===0)return JSON.parse(txt.slice(start,i+1));}
-  }
-  throw new Error("לא נמצא JSON: "+txt.slice(0,80));
+  return parseAIJsonResponse(d.choices?.[0]?.message?.content || "");
 }
 
 async function scanCheck(base64, mime) {
@@ -1688,7 +1734,7 @@ async function scanCheck(base64, mime) {
   if (!CFG.apiKey.startsWith("sk-")) throw new Error("מפתח לא תקין — חייב להתחיל ב-sk-");
 
   const prompt = `אתה מערכת OCR לצ'קים בנקאיים בישראל.
-קרא את הצ'ק והחזר JSON בלבד, בלי טקסט נוסף, בלי backticks.
+קרא את הצ'ק והחזר JSON חוקי בלבד. אסור להחזיר הסברים, markdown, backticks, או את המילה JSON לפני האובייקט.
 
 {"supplier":"שם הנהנה / לפקודת","amount":0.00,"checkNum":"מספר הצ'ק","issueDate":"DD/MM/YYYY","note":"שם הבנק וסניף"}
 
@@ -1706,7 +1752,8 @@ async function scanCheck(base64, mime) {
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+CFG.apiKey},
       body: JSON.stringify({
-        model:"gpt-4o", max_tokens:300,
+        model:"gpt-4o", max_tokens:800,
+        response_format:{type:"json_object"},
         messages:[{role:"user",content:[
           {type:"text",text:prompt},
           {type:"image_url",image_url:{url:`data:${mime};base64,${base64}`,detail:"high"}}
@@ -1726,15 +1773,7 @@ async function scanCheck(base64, mime) {
   }
 
   const d = await r.json();
-  const txt = (d.choices?.[0]?.message?.content || "").trim();
-  if (!txt) throw new Error("תשובה ריקה");
-
-  let depth=0, start=-1;
-  for (let i=0;i<txt.length;i++) {
-    if(txt[i]==="{"){if(start<0)start=i; depth++;}
-    else if(txt[i]==="}"){depth--;if(depth===0)return JSON.parse(txt.slice(start,i+1));}
-  }
-  throw new Error("לא נמצא JSON: "+txt.slice(0,80));
+  return parseAIJsonResponse(d.choices?.[0]?.message?.content || "");
 }
 
 function handleCheckScanFile(file) {
@@ -10420,7 +10459,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=92').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=93').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
