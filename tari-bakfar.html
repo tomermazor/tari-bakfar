@@ -6327,6 +6327,26 @@ function ordersDeleteActiveOrder(id) {
   saveOdb(); pushActiveOrders(); render();
 }
 
+function ordersCloseLinkedActiveOrder(id) {
+  const linkedDns = ordersGetLinkedDeliveryNotes(id);
+  if (!linkedDns.length) {
+    toast('קשר קודם תעודת משלוח להזמנה', 'error');
+    return;
+  }
+  if (!confirm('להוריד את ההזמנה מהרשימה? תעודת המשלוח תישאר בהוצאות.')) return;
+  linkedDns.forEach(dn => {
+    if (dn.linkedOrderId === id) delete dn.linkedOrderId;
+    delete DN_ORDER_LINKS[dn.id];
+  });
+  odb.activeOrders = (odb.activeOrders || []).filter(o => o.id !== id);
+  persistLocal();
+  saveDnOrderLinks();
+  saveOdb(true);
+  pushActiveOrders();
+  render();
+  toast('ההזמנה ירדה מהרשימה ✓', 'success');
+}
+
 function ordersGetDeliveryNoteById(id) {
   return (DB.expenses||[]).find(e => e.id === id && e.document_type === 'תעודת משלוח');
 }
@@ -7079,6 +7099,7 @@ function renderOrdersActiveView() {
             </label>
             <button onclick="ordersOpenLinkDN('${o.id}')" style="border:1px solid var(--border);border-radius:11px;padding:10px 8px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:var(--surfaceHi);color:var(--text)">🔗 קשר קיימת</button>
             <button onclick="ordersAddOrderToExpenses('${o.id}')" style="flex:1;border:none;border-radius:11px;padding:10px 8px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,var(--accent),#52a428);color:#051201">➕ הוסף להוצאות</button>
+            ${linkedDns.length ? `<button onclick="ordersCloseLinkedActiveOrder('${o.id}')" style="border:1px solid rgba(110,198,58,0.35);border-radius:11px;padding:10px 8px;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer;background:var(--accentSoft);color:var(--accent)">✓ הורד מהרשימה</button>` : ''}
           </div>
         </div>`;
       }).join('')}
@@ -10517,7 +10538,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=95').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=96').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
