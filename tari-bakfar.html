@@ -1885,7 +1885,7 @@ function handleCheckScanFile(file) {
 let _prevTab = null; // track tab for scroll-reset
 let state = {
   tab: 'dashboard',
-  scanStage: 'idle', scanImg: null, scanB64: null, scanMime: null, scanForm: null, scanErr: '',
+  scanStage: 'idle', scanImg: null, scanB64: null, scanMime: null, scanForm: null, scanErr: '', scanSaving: false,
   listSearch: '', listCat: 'הכל', listPer: 'הכל', listOpen: null,
   reportPer: 'חודש', reportDateFrom: '', reportDateTo: '',
   editId: null, editForm: null,
@@ -2715,7 +2715,7 @@ function renderScan() {
             <label for="scan-open-debt" style="font-size:13px;color:var(--text);font-weight:600;cursor:pointer">צור חוב פתוח אוטומטית</label>
           </div>
         </div>`:''}
-        <button class="btn-primary" onclick="saveScanResult()">${state.batchQueue&&state.batchQueue.length>0?`💾 שמור והמשך לסריקה הבאה (${state.batchQueue.length} נותרו)`:'💾 שמור הוצאה'}</button>
+        <button class="btn-primary" onclick="saveScanResult()" ${state.scanSaving?'disabled':''} style="${state.scanSaving?'opacity:.75;pointer-events:none':''}">${state.scanSaving?'⏳ שומר...':(state.batchQueue&&state.batchQueue.length>0?`💾 שמור והמשך לסריקה הבאה (${state.batchQueue.length} נותרו)`:'💾 שמור הוצאה')}</button>
         ${state.batchTotal>1&&state.batchQueue.length>0?`<button class="btn-ghost" onclick="skipBatchFile()">⏭ דלג</button>`:`<button class="btn-ghost" onclick="exitBatch()">ביטול</button>`}
       </div>`;
   }
@@ -2917,13 +2917,69 @@ function dedupeExactExpenses() {
 
 let scanSaveInFlight = false;
 
+function normalizeScanExpenseItem(raw) {
+  if (!raw) throw new Error('אין נתוני חשבונית לשמירה');
+  const item = {...raw};
+  item.id = item.id || uid();
+  item.supplier = String(item.supplier || '').trim();
+  item.category = item.category || CATS[0] || 'אחר';
+  item.document_type = item.document_type || 'חשבונית מס';
+  item.document_number = String(item.document_number || '').trim();
+  item.notes = String(item.notes || '').trim();
+  const parsedDate = parseD(item.date || todayStr());
+  if (!parsedDate || Number.isNaN(parsedDate.getTime())) throw new Error('תאריך לא תקין');
+  item.date = isoToHe(toISO(parsedDate));
+  item.total_amount = Number(item.total_amount || 0);
+  item.vat_amount = Number(item.vat_amount || 0);
+  item.amount_before_vat = Number(item.amount_before_vat || 0);
+  if (item.paymentDueDate) item.paymentDueDate = heToISO(item.paymentDueDate);
+  if (!item.supplier) throw new Error('חסר ספק');
+  if (!Number.isFinite(item.total_amount) || item.total_amount <= 0) throw new Error('סכום כולל חייב להיות גדול מ-0');
+  if (!Number.isFinite(item.vat_amount)) throw new Error('מע"מ לא תקין');
+  if (!Number.isFinite(item.amount_before_vat)) throw new Error('סכום לפני מע"מ לא תקין');
+  return item;
+}
+
+function syncScannedExpenseInBackground(item) {
+  if (!CFG.webAppUrl) {
+    console.info('[scan-save] saved locally only: no Google Sheets Web App URL configured', {id:item.id});
+    return;
+  }
+  console.info('[scan-save] sending expense to Google Sheets', {
+    id:item.id,
+    supplier:item.supplier,
+    document_type:item.document_type,
+    document_number:item.document_number,
+    total_amount:item.total_amount,
+    date:item.date
+  });
+  setSyncStatus('syncing');
+  pushExpenseAdd(item).then(() => {
+    console.info('[scan-save] Google Sheets sync succeeded', {id:item.id});
+    setSyncStatus('ok');
+  }).catch(e => {
+    console.error('[scan-save] Google Sheets sync failed; queued for retry', {
+      message:e?.message || String(e),
+      expense:item
+    });
+    queueExpenseAdd(item);
+    if (isQuotaError(e)) {
+      pauseSyncForQuota(e);
+    } else {
+      setSyncStatus('offline');
+      toast('נשמר מקומית, אבל הסנכרון לענן נכשל וינוסה שוב', 'info');
+    }
+  });
+}
+
 async function saveScanResult() {
   if (scanSaveInFlight) return;
   scanSaveInFlight = true;
-  const item = state.scanForm;
+  setState({scanSaving:true, scanErr:''});
   try {
+    const item = normalizeScanExpenseItem(state.scanForm);
     const supplier = requireApprovedSupplier(item.supplier);
-    if (!supplier) return;
+    if (!supplier) throw new Error('יש לבחור ספק מאושר לפני שמירה');
     item.supplier = supplier.name;
     if (supplier.defaultCategory) item.category = supplier.defaultCategory;
     const dup = findDuplicate(item);
@@ -2937,6 +2993,7 @@ async function saveScanResult() {
     dedupeExactExpenses();
     markDataStateDirty();
     persistLocal();
+    console.info('[scan-save] local save succeeded', {id:localItem.id, supplier:localItem.supplier, total_amount:localItem.total_amount});
 
     // If batch mode: load next file instead of navigating away
     if (state.batchQueue && state.batchQueue.length > 0) {
@@ -2949,25 +3006,20 @@ async function saveScanResult() {
       const wasInBatch = state.batchTotal > 1;
       const total = state.batchTotal;
       toast(wasInBatch ? `✓ כל ${total} המסמכים נשמרו` : 'נשמר בהצלחה ✓', 'success');
-      setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null, batchQueue:[], batchTotal:0, batchAutoScan:false});
+      setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null, scanErr:'', scanSaving:false, batchQueue:[], batchTotal:0, batchAutoScan:false});
     }
-    // ── Async: cloud sync in background ──
-    if (!CFG.webAppUrl) return;
-    setSyncStatus('syncing');
-    try {
-      await pushExpenseAdd(item);
-      setSyncStatus('ok');
-    } catch(e) {
-      console.error('sync scan:', e);
-      queueExpenseAdd(item);
-      if (isQuotaError(e)) {
-        pauseSyncForQuota(e);
-      } else {
-        setSyncStatus('offline');
-      }
-    }
+    // ── Cloud sync runs in background and never blocks the save button ──
+    syncScannedExpenseInBackground(localItem);
+  } catch(e) {
+    console.error('[scan-save] save failed', {
+      message:e?.message || String(e),
+      form: state.scanForm
+    });
+    setState({scanErr:e.message || 'שמירה נכשלה', scanSaving:false});
+    toast('שמירה נכשלה: ' + (e.message || 'שגיאה לא ידועה'), 'error');
   } finally {
     scanSaveInFlight = false;
+    if (state.scanSaving) setState({scanSaving:false});
   }
 }
 
@@ -10660,7 +10712,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=101').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=102').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
