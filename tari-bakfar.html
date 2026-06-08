@@ -260,8 +260,8 @@ body.orders-focus .o-order-shell { min-height:100dvh; }
 body.orders-focus .o-order-top { padding-top:calc(11px + env(safe-area-inset-top,0px)) !important; }
 body.orders-focus .o-order-body { padding-bottom:140px !important; }
 body.orders-focus .o-order-footer { bottom:0 !important; max-width:100% !important; }
-body.orders-focus.orders-input-focus .o-order-footer { display:none !important; }
-body.orders-focus.orders-input-focus .o-order-body { padding-bottom:32px !important; }
+body.orders-focus.orders-input-focus .o-order-footer { display:flex !important; }
+body.orders-focus.orders-input-focus .o-order-body { padding-bottom:140px !important; }
 @media (min-width:768px) {
   body.orders-focus .app { display:flex; }
   body.orders-focus .main > div { padding:0 !important; }
@@ -5585,7 +5585,9 @@ function render() {
   if (!canAccessTab(state.tab)) {
     state.tab = getAllowedTabs()[0] || 'scan';
   }
-  document.body.classList.toggle('orders-focus', state.tab === 'orders' && state.ordersView === 'order');
+  const isOrderEntryView = state.tab === 'orders' && state.ordersView === 'order';
+  document.body.classList.toggle('orders-focus', isOrderEntryView);
+  if (!isOrderEntryView) document.body.classList.remove('orders-input-focus');
   const main = document.getElementById('main');
   const tabChanged = state.tab !== _prevTab;
   const savedScroll = tabChanged ? 0 : main.scrollTop; // preserve scroll on same-tab renders
@@ -10750,7 +10752,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=104').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=105').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
