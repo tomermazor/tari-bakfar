@@ -1885,7 +1885,7 @@ function handleCheckScanFile(file) {
 let _prevTab = null; // track tab for scroll-reset
 let state = {
   tab: 'dashboard',
-  scanStage: 'idle', scanImg: null, scanB64: null, scanMime: null, scanForm: null, scanErr: '', scanSaving: false,
+  scanStage: 'idle', scanImg: null, scanB64: null, scanMime: null, scanForm: null, scanErr: '', scanNotice: '', scanSaving: false,
   listSearch: '', listCat: 'הכל', listPer: 'הכל', listOpen: null,
   reportPer: 'חודש', reportDateFrom: '', reportDateTo: '',
   editId: null, editForm: null,
@@ -2687,9 +2687,10 @@ function renderScan() {
       <div style="padding:20px 20px 100px" class="fade-up">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:10px 14px;border-radius:12px;background:rgba(143,198,80,0.07);border:1px solid rgba(143,198,80,0.2)">
           <div style="width:24px;height:24px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;color:#0a1505">✓</div>
-          <div style="flex:1;color:var(--accent);font-weight:700;font-size:14px">${state.scanErr ? 'המשך הזנה ידנית — בדוק ושמור' : `${state.batchTotal>1?`מסמך ${batchCur2} מתוך ${state.batchTotal} — `:''}נחלצו הפרטים — בדוק ושמור`}</div>
+          <div style="flex:1;color:var(--accent);font-weight:700;font-size:14px">${state.scanNotice ? 'המשך הזנה ידנית — בדוק ושמור' : `${state.batchTotal>1?`מסמך ${batchCur2} מתוך ${state.batchTotal} — `:''}נחלצו הפרטים — בדוק ושמור`}</div>
           <button onclick="exitBatch()" style="width:44px;height:44px;border:none;border-radius:12px;background:rgba(0,0,0,0.25);color:var(--text);cursor:pointer;font-size:26px;font-weight:300;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
         </div>
+        ${state.scanNotice ? `<div style="padding:11px 13px;border-radius:12px;background:rgba(245,180,42,0.09);border:1px solid rgba(245,180,42,0.22);color:var(--amber);font-size:13px;font-weight:700;margin-bottom:12px">⚠️ ${esc(state.scanNotice)}</div>` : ''}
         ${state.scanErr ? `<div class="err">⚠️ ${esc(state.scanErr)}</div>` : ''}
         ${f.image ? `<div style="border-radius:14px;overflow:hidden;border:1px solid var(--border);margin-bottom:18px"><img src="${f.image}" style="width:100%;max-height:180px;object-fit:contain;background:#000;display:block"></div>` : ''}
         <div class="field"><label class="label">ספק</label>${supplierInput('state.scanForm','supplier',f.supplier,'category')}</div>
@@ -2727,7 +2728,7 @@ function handleFile(file, autoScan) {
   const rd = new FileReader();
   rd.onload = e => {
     const full = e.target.result;
-    setState({scanImg:full,scanB64:full.split(',')[1],scanMime:file.type,scanStage:'preview',scanErr:''});
+    setState({scanImg:full,scanB64:full.split(',')[1],scanMime:file.type,scanStage:'preview',scanErr:'',scanNotice:''});
     if (autoScan) setTimeout(runScan, 80);
   };
   rd.readAsDataURL(file);
@@ -2756,7 +2757,7 @@ function skipBatchFile() {
 
 // Exit batch mode entirely
 function exitBatch() {
-  setState({scanStage:'idle', scanImg:null, scanErr:'', scanForm:null, batchQueue:[], batchTotal:0, batchAutoScan:false});
+  setState({scanStage:'idle', scanImg:null, scanErr:'', scanNotice:'', scanForm:null, batchQueue:[], batchTotal:0, batchAutoScan:false});
 }
 
 // Multiple checks — process first, queue the rest
@@ -2771,7 +2772,7 @@ function handleMultipleCheckFiles(files) {
 
 
 async function runScan() {
-  setState({scanStage:'scanning',scanErr:''});
+  setState({scanStage:'scanning',scanErr:'',scanNotice:''});
   try {
     const data = await scanInvoice(state.scanB64, state.scanMime);
     setState({
@@ -2793,7 +2794,8 @@ async function runScan() {
       toast(msg, 'info');
       setState({
         scanStage:'confirm',
-        scanErr: msg,
+        scanErr: '',
+        scanNotice: msg,
         scanForm: {
           id: uid(), image: state.scanImg,
           date: todayStr(), supplier: addForm.supplier || '',
@@ -2811,7 +2813,7 @@ async function runScan() {
 }
 
 function manualForm() {
-  setState({tab:'scan', scanStage:'confirm', scanForm:{id:uid(), image:state.scanImg||null,
+  setState({tab:'scan', scanStage:'confirm', scanErr:'', scanNotice:'', scanForm:{id:uid(), image:state.scanImg||null,
     date:todayStr(),
     supplier: addForm.supplier || '',   // use pre-filled supplier if came from orders
     total_amount:0, vat_amount:0, amount_before_vat:0, category: CATS[0]||'אחר',
@@ -2975,7 +2977,7 @@ function syncScannedExpenseInBackground(item) {
 async function saveScanResult() {
   if (scanSaveInFlight) return;
   scanSaveInFlight = true;
-  setState({scanSaving:true, scanErr:''});
+  setState({scanSaving:true, scanErr:'', scanNotice:''});
   try {
     const item = normalizeScanExpenseItem(state.scanForm);
     const supplier = requireApprovedSupplier(item.supplier);
@@ -3006,7 +3008,7 @@ async function saveScanResult() {
       const wasInBatch = state.batchTotal > 1;
       const total = state.batchTotal;
       toast(wasInBatch ? `✓ כל ${total} המסמכים נשמרו` : 'נשמר בהצלחה ✓', 'success');
-      setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null, scanErr:'', scanSaving:false, batchQueue:[], batchTotal:0, batchAutoScan:false});
+      setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null, scanErr:'', scanNotice:'', scanSaving:false, batchQueue:[], batchTotal:0, batchAutoScan:false});
     }
     // ── Cloud sync runs in background and never blocks the save button ──
     syncScannedExpenseInBackground(localItem);
@@ -10712,7 +10714,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=102').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=103').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
