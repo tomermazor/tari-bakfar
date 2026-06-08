@@ -1877,7 +1877,7 @@ let state = {
   checkForm: {supplier:'', amount:'', checkNum:'', issueDate:'', clearDate:'', note:''},
   checksShowCleared: false,
   checkScanStage: 'idle', checkScanErr: '',
-  batchQueue: [], batchTotal: 0,
+  batchQueue: [], batchTotal: 0, batchAutoScan: false,
   checkBatchQueue: [], checkBatchTotal: 0,
   supplierEditId: null, supplierEditName: '',
   payablesView: 'dashboard',
@@ -2620,8 +2620,10 @@ function renderScan() {
         <p style="color:var(--textDim);font-size:13px;margin:0 0 28px;line-height:1.5">ה-AI מחלץ ספק, סכום ותאריך בעברית</p>
         <input type="file" accept="image/*" capture="environment" id="camInput" onchange="handleFile(this.files[0])" style="display:none">
         <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf" multiple id="galInput" onchange="handleMultipleFiles(this.files);this.value=''" style="display:none">
+        <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf" multiple id="multiScanInput" onchange="handleMultipleFiles(this.files,true);this.value=''" style="display:none">
         <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:260px;margin:0 auto">
           <button class="btn-primary" onclick="document.getElementById('camInput').click()" style="margin-bottom:0;padding:16px 20px;font-size:15px">📷 &nbsp;צלם חשבונית</button>
+          <button class="btn-primary" onclick="document.getElementById('multiScanInput').click()" style="margin-bottom:0;padding:14px 20px;font-size:15px;background:linear-gradient(135deg,#4fc46a 0%,#1f8f42 100%)">📚 &nbsp;סריקה מרובה</button>
           <button class="btn-secondary" onclick="document.getElementById('galInput').click()" style="margin-bottom:0;padding:13px 20px">🖼️ &nbsp;גלריה / קבצים</button>
           <button class="btn-ghost" onclick="manualForm()" style="padding:10px">✏️ &nbsp;הוספה ידנית</button>
         </div>
@@ -2639,7 +2641,7 @@ function renderScan() {
         </div>
         <div style="position:relative;margin-bottom:16px;border-radius:16px;overflow:hidden;border:1px solid var(--border)"><img src="${state.scanImg}" alt="" style="width:100%;max-height:360px;object-fit:contain;background:#000;display:block"></div>
         ${state.scanErr ? `<div class="err">⚠️ ${esc(state.scanErr)}</div>` : ''}
-        <button class="btn-primary" onclick="runScan()">✨ &nbsp;קרא עם AI</button>
+        <button class="btn-primary" onclick="runScan()">✨ &nbsp;${state.batchTotal>1?'קרא מסמך זה עם AI':'קרא עם AI'}</button>
         <button class="btn-secondary" onclick="manualForm()">✏️ &nbsp;הזן ידנית</button>
         ${state.batchTotal>1&&state.batchQueue.length>0?`<button class="btn-ghost" onclick="skipBatchFile()">⏭ דלג לקובץ הבא (${state.batchQueue.length} נותרו)</button>`:''}
       </div>`;
@@ -2651,8 +2653,8 @@ function renderScan() {
           <div class="spin" style="position:absolute;inset:0;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent)"></div>
           <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:28px">🌿</div>
         </div>
-        <div class="display" style="font-size:20px;color:var(--text);margin-bottom:6px">קורא את המסמך</div>
-        <div style="font-size:13px;color:var(--textDim)">ה-AI מנתח את החשבונית...</div>
+        <div class="display" style="font-size:20px;color:var(--text);margin-bottom:6px">${state.batchTotal>1?'קורא מסמך מתוך סריקה מרובה':'קורא את המסמך'}</div>
+        <div style="font-size:13px;color:var(--textDim)">${state.batchTotal>1?'ה-AI מנתח מסמך אחד בכל פעם, ואתה מאשר לפני שמירה':'ה-AI מנתח את החשבונית...'}</div>
       </div>`;
   }
   if (state.scanStage === 'confirm' && state.scanForm) {
@@ -2689,38 +2691,40 @@ function renderScan() {
             <label for="scan-open-debt" style="font-size:13px;color:var(--text);font-weight:600;cursor:pointer">צור חוב פתוח אוטומטית</label>
           </div>
         </div>`:''}
-        <button class="btn-primary" onclick="saveScanResult()">${state.batchQueue&&state.batchQueue.length>0?`💾 שמור ועבור לבא (${state.batchQueue.length} נותרו)`:'💾 שמור הוצאה'}</button>
+        <button class="btn-primary" onclick="saveScanResult()">${state.batchQueue&&state.batchQueue.length>0?`💾 שמור והמשך לסריקה הבאה (${state.batchQueue.length} נותרו)`:'💾 שמור הוצאה'}</button>
         ${state.batchTotal>1&&state.batchQueue.length>0?`<button class="btn-ghost" onclick="skipBatchFile()">⏭ דלג</button>`:`<button class="btn-ghost" onclick="exitBatch()">ביטול</button>`}
       </div>`;
   }
   return '';
 }
 
-function handleFile(file) {
+function handleFile(file, autoScan) {
   if (!file) return;
   const rd = new FileReader();
   rd.onload = e => {
     const full = e.target.result;
     setState({scanImg:full,scanB64:full.split(',')[1],scanMime:file.type,scanStage:'preview',scanErr:''});
+    if (autoScan) setTimeout(runScan, 80);
   };
   rd.readAsDataURL(file);
 }
 
 // Load multiple files — process first, queue the rest
-function handleMultipleFiles(files) {
+function handleMultipleFiles(files, autoScanBatch) {
   if (!files || files.length === 0) return;
   const arr = Array.from(files);
-  if (arr.length === 1) { handleFile(arr[0]); return; }
+  state.batchAutoScan = !!autoScanBatch;
+  if (arr.length === 1) { state.batchTotal = 0; state.batchQueue = []; handleFile(arr[0], !!autoScanBatch); return; }
   state.batchQueue = arr.slice(1);
   state.batchTotal = arr.length;
-  handleFile(arr[0]);
+  handleFile(arr[0], !!autoScanBatch);
 }
 
 // Skip current file, load next from queue
 function skipBatchFile() {
   if (state.batchQueue && state.batchQueue.length > 0) {
     const next = state.batchQueue.shift();
-    handleFile(next);
+    handleFile(next, state.batchAutoScan);
   } else {
     exitBatch();
   }
@@ -2728,7 +2732,7 @@ function skipBatchFile() {
 
 // Exit batch mode entirely
 function exitBatch() {
-  setState({scanStage:'idle', scanImg:null, scanErr:'', scanForm:null, batchQueue:[], batchTotal:0});
+  setState({scanStage:'idle', scanImg:null, scanErr:'', scanForm:null, batchQueue:[], batchTotal:0, batchAutoScan:false});
 }
 
 // Multiple checks — process first, queue the rest
@@ -2835,12 +2839,12 @@ async function saveScanResult() {
     const remaining = state.batchQueue.length;
     const done = state.batchTotal - remaining - 1;
     toast(`✓ נשמר (${done}/${state.batchTotal}) · עוד ${remaining} מסמכים`, 'success');
-    handleFile(next); // loads preview of next file
+    handleFile(next, state.batchAutoScan); // loads next file, and auto-scans in multi-scan mode
   } else {
     const wasInBatch = state.batchTotal > 1;
     const total = state.batchTotal;
     toast(wasInBatch ? `✓ כל ${total} המסמכים נשמרו` : 'נשמר בהצלחה ✓', 'success');
-    setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null, batchQueue:[], batchTotal:0});
+    setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null, batchQueue:[], batchTotal:0, batchAutoScan:false});
   }
   // ── Async: cloud sync in background ──
   if (!CFG.webAppUrl) return;
@@ -10543,7 +10547,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=97').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=98').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
