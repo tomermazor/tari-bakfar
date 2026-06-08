@@ -2780,6 +2780,16 @@ function manualForm() {
 // ─── Duplicate detection ───────────────────────────────────────────────────
 function findDuplicate(item) {
   const dn = item.document_number ? String(item.document_number).trim() : '';
+  const exact = DB.expenses.find(e =>
+    e.id !== item.id &&
+    String(e.supplier || '').trim() === String(item.supplier || '').trim() &&
+    String(e.document_type || '').trim() === String(item.document_type || '').trim() &&
+    String(e.document_number || '').trim() === dn &&
+    String(e.date || '').trim() === String(item.date || '').trim() &&
+    Math.abs((+e.total_amount || 0) - (+item.total_amount || 0)) < 0.01
+  );
+  if (dn && exact) return { strength: 'exact', match: exact };
+
   // Strong: same non-empty document number + same supplier
   if (dn) {
     const byDoc = DB.expenses.find(e =>
@@ -2806,6 +2816,10 @@ function warnDuplicate(dup) {
   const m = dup.match;
   const d = fmtDate(m.date);
   const a = fmtCurr(m.total_amount);
+  if (dup.strength === 'exact') {
+    toast('התעודה הזו כבר קיימת — לא נשמרה כפילות', 'error');
+    return false;
+  }
   if (dup.strength === 'strong') {
     return confirm(
       `⚠️ מסמך כפול!\n\nמספר מסמך ${m.document_number} מ"${m.supplier}" כבר קיים:\nתאריך: ${d} | סכום: ${a}\n\nלשמור בכל זאת?`
@@ -2816,46 +2830,96 @@ function warnDuplicate(dup) {
   );
 }
 
-async function saveScanResult() {
-  const item = state.scanForm;
-  const supplier = requireApprovedSupplier(item.supplier);
-  if (!supplier) return;
-  item.supplier = supplier.name;
-  if (supplier.defaultCategory) item.category = supplier.defaultCategory;
-  const dup = findDuplicate(item);
-  if (dup && !warnDuplicate(dup)) return;
-  const localItem = {...item};
-  // ── Synchronous: apply locally + navigate in the SAME JS tick ──
-  DB.expenses.unshift(localItem);
-  applyExpenseOrderLink(localItem);
-  pvAutoCreateDebtFromExpense(localItem);
-  processInvoiceLineItems(localItem);
-  markDataStateDirty();
-  persistLocal();
+function expenseExactDedupeKey(item) {
+  const dn = String(item?.document_number || '').trim();
+  if (!dn) return '';
+  const amount = Number(item?.total_amount || 0).toFixed(2);
+  return [
+    String(item?.supplier || '').trim(),
+    String(item?.document_type || '').trim(),
+    dn,
+    String(item?.date || '').trim(),
+    amount
+  ].join('|').toLowerCase();
+}
 
-  // If batch mode: load next file instead of navigating away
-  if (state.batchQueue && state.batchQueue.length > 0) {
-    const next = state.batchQueue.shift();
-    const remaining = state.batchQueue.length;
-    const done = state.batchTotal - remaining - 1;
-    toast(`✓ נשמר (${done}/${state.batchTotal}) · עוד ${remaining} מסמכים`, 'success');
-    handleFile(next, state.batchAutoScan); // loads next file, and auto-scans in multi-scan mode
-  } else {
-    const wasInBatch = state.batchTotal > 1;
-    const total = state.batchTotal;
-    toast(wasInBatch ? `✓ כל ${total} המסמכים נשמרו` : 'נשמר בהצלחה ✓', 'success');
-    setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null, batchQueue:[], batchTotal:0, batchAutoScan:false});
+function dedupeExactExpenses() {
+  if (!Array.isArray(DB.expenses) || DB.expenses.length < 2) return 0;
+  const seen = new Map();
+  const cleaned = [];
+  let removed = 0;
+  DB.expenses.forEach(item => {
+    const key = expenseExactDedupeKey(item);
+    if (!key) {
+      cleaned.push(item);
+      return;
+    }
+    const existing = seen.get(key);
+    if (existing) {
+      if (!existing.image && item.image) existing.image = item.image;
+      removed++;
+      return;
+    }
+    seen.set(key, item);
+    cleaned.push(item);
+  });
+  if (removed) {
+    DB.expenses = cleaned;
+    markDataStateDirty();
+    persistLocal();
   }
-  // ── Async: cloud sync in background ──
-  if (!CFG.webAppUrl) return;
-  setSyncStatus('syncing');
+  return removed;
+}
+
+let scanSaveInFlight = false;
+
+async function saveScanResult() {
+  if (scanSaveInFlight) return;
+  scanSaveInFlight = true;
+  const item = state.scanForm;
   try {
-    await pushExpenseAdd(item);
-    setSyncStatus('ok');
-  } catch(e) {
-    console.error('sync scan:', e);
-    queueExpenseAdd(item);
-    setSyncStatus('offline');
+    const supplier = requireApprovedSupplier(item.supplier);
+    if (!supplier) return;
+    item.supplier = supplier.name;
+    if (supplier.defaultCategory) item.category = supplier.defaultCategory;
+    const dup = findDuplicate(item);
+    if (dup && !warnDuplicate(dup)) return;
+    const localItem = {...item};
+    // ── Synchronous: apply locally + navigate in the SAME JS tick ──
+    DB.expenses.unshift(localItem);
+    applyExpenseOrderLink(localItem);
+    pvAutoCreateDebtFromExpense(localItem);
+    processInvoiceLineItems(localItem);
+    dedupeExactExpenses();
+    markDataStateDirty();
+    persistLocal();
+
+    // If batch mode: load next file instead of navigating away
+    if (state.batchQueue && state.batchQueue.length > 0) {
+      const next = state.batchQueue.shift();
+      const remaining = state.batchQueue.length;
+      const done = state.batchTotal - remaining - 1;
+      toast(`✓ נשמר (${done}/${state.batchTotal}) · עוד ${remaining} מסמכים`, 'success');
+      handleFile(next, state.batchAutoScan); // loads next file, and auto-scans in multi-scan mode
+    } else {
+      const wasInBatch = state.batchTotal > 1;
+      const total = state.batchTotal;
+      toast(wasInBatch ? `✓ כל ${total} המסמכים נשמרו` : 'נשמר בהצלחה ✓', 'success');
+      setState({tab:'list', scanStage:'idle', scanImg:null, scanForm:null, batchQueue:[], batchTotal:0, batchAutoScan:false});
+    }
+    // ── Async: cloud sync in background ──
+    if (!CFG.webAppUrl) return;
+    setSyncStatus('syncing');
+    try {
+      await pushExpenseAdd(item);
+      setSyncStatus('ok');
+    } catch(e) {
+      console.error('sync scan:', e);
+      queueExpenseAdd(item);
+      setSyncStatus('offline');
+    }
+  } finally {
+    scanSaveInFlight = false;
   }
 }
 
@@ -5633,6 +5697,7 @@ function initApp() {
   mergeAccFlags(DB.expenses); // restore any flags saved before this session
   migrateCategoryNames();
   seedSuppliersFromExpenses();
+  dedupeExactExpenses();
   migrateApprovedSuppliers();
   seedSupplierProfiles();
   if (pdb.products.length === 0) importProductsFromOrders();
@@ -10547,7 +10612,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=98').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=99').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
