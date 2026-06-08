@@ -635,6 +635,24 @@ async function cloudCall(action, payload) {
   return data.data;
 }
 
+let SYNC_PAUSED_UNTIL = 0;
+let LAST_QUOTA_TOAST = 0;
+
+function isQuotaError(err) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  return msg.includes('quota') || msg.includes('exceeded') || msg.includes('מכסה');
+}
+
+function pauseSyncForQuota(err) {
+  SYNC_PAUSED_UNTIL = Date.now() + 15 * 60 * 1000;
+  setSyncStatus('offline');
+  if (Date.now() - LAST_QUOTA_TOAST > 60 * 1000) {
+    LAST_QUOTA_TOAST = Date.now();
+    toast('נשמר מקומית. הסנכרון מושהה זמנית כי מכסת Google נגמרה.', 'info');
+  }
+  console.warn('Sync paused due to quota:', err?.message || err);
+}
+
 async function triggerTopSync() {
   if (typeof canRunFullSync === 'function' && !canRunFullSync()) return;
   const btn = document.getElementById('sync-top-btn');
@@ -989,6 +1007,7 @@ async function syncExtendedAppState() {
 
 async function syncAll(opts) {
   if (!CFG.webAppUrl) { setSyncStatus('local'); return; }
+  if (Date.now() < SYNC_PAUSED_UNTIL) { setSyncStatus('offline'); return; }
   if (_syncLock) { console.log('syncAll: already running, skip'); return; }
   _syncLock = true;
   setSyncStatus('syncing');
@@ -1135,6 +1154,10 @@ async function syncAll(opts) {
     console.log('✅ Sync OK — exp:', (exp||[]).length, 'chk:', (chk||[]).length, 'inc:', (inc||[]).length);
   } catch(e) {
     console.error('Sync failed:', e);
+    if (isQuotaError(e)) {
+      pauseSyncForQuota(e);
+      return;
+    }
     setSyncStatus('offline');
     toast('סנכרון נכשל: ' + e.message, 'error');
   } finally {
@@ -2916,7 +2939,11 @@ async function saveScanResult() {
     } catch(e) {
       console.error('sync scan:', e);
       queueExpenseAdd(item);
-      setSyncStatus('offline');
+      if (isQuotaError(e)) {
+        pauseSyncForQuota(e);
+      } else {
+        setSyncStatus('offline');
+      }
     }
   } finally {
     scanSaveInFlight = false;
@@ -10612,7 +10639,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=99').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=100').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
