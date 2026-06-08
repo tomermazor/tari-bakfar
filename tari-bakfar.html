@@ -514,6 +514,10 @@ function saveDnOrderLinks(skipDirty) {
   localStorage.setItem('tari_dn_order_links_v1', JSON.stringify(DN_ORDER_LINKS));
   if (!skipDirty) markCoreStateDirty();
 }
+function isStorageQuotaError(err) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  return err?.name === 'QuotaExceededError' || err?.code === 22 || msg.includes('quota') || msg.includes('exceeded');
+}
 function mergeAccFlags(expenses) {
   // After every cloud pull: restore sentToAccountant from the local flags store
   (expenses||[]).forEach(e => {
@@ -527,7 +531,26 @@ function mergeAccFlags(expenses) {
 }
 
 function persistLocal() {
-  localStorage.setItem('tari_expenses_v2', JSON.stringify(DB.expenses));
+  try {
+    localStorage.setItem('tari_expenses_v2', JSON.stringify(DB.expenses));
+  } catch(e) {
+    if (!isStorageQuotaError(e)) throw e;
+    console.warn('[local-save] storage quota exceeded while saving expenses; stripping stored document images', e);
+    let compact = DB.expenses.map(x => ({...x}));
+    for (let i = compact.length - 1; i >= 0; i--) {
+      if (compact[i] && typeof compact[i].image === 'string' && compact[i].image.startsWith('data:')) {
+        compact[i].image = '';
+      }
+      try {
+        localStorage.setItem('tari_expenses_v2', JSON.stringify(compact));
+        DB.expenses = compact;
+        toast('נשמר. האחסון בטלפון היה מלא ולכן תמונות ישנות הוסרו מהמטמון.', 'info');
+        break;
+      } catch(retryErr) {
+        if (!isStorageQuotaError(retryErr) || i === 0) throw retryErr;
+      }
+    }
+  }
   localStorage.setItem('tari_fixed_v1', JSON.stringify(DB.fixed));
   localStorage.setItem('tari_installments_v1', JSON.stringify(DB.installments));
   localStorage.setItem('tari_income_v1', JSON.stringify(DB.income));
@@ -2763,10 +2786,36 @@ function handleFile(file, autoScan) {
   const rd = new FileReader();
   rd.onload = e => {
     const full = e.target.result;
-    setState({scanImg:full,scanB64:full.split(',')[1],scanMime:file.type,scanStage:'preview',scanErr:'',scanNotice:''});
-    if (autoScan) setTimeout(runScan, 80);
+    downscaleScanImage(full, file.type).then(({dataUrl, mime}) => {
+      setState({scanImg:dataUrl,scanB64:dataUrl.split(',')[1],scanMime:mime,scanStage:'preview',scanErr:'',scanNotice:''});
+      if (autoScan) setTimeout(runScan, 80);
+    }).catch(() => {
+      setState({scanImg:full,scanB64:full.split(',')[1],scanMime:file.type,scanStage:'preview',scanErr:'',scanNotice:''});
+      if (autoScan) setTimeout(runScan, 80);
+    });
   };
   rd.readAsDataURL(file);
+}
+
+function downscaleScanImage(dataUrl, mime) {
+  return new Promise((resolve, reject) => {
+    if (!String(mime || '').startsWith('image/')) return resolve({dataUrl, mime});
+    const img = new Image();
+    img.onload = () => {
+      const maxSide = 1400;
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      if (scale >= 1 && dataUrl.length < 900000) return resolve({dataUrl, mime});
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const out = canvas.toDataURL('image/jpeg', 0.72);
+      resolve({dataUrl: out, mime: 'image/jpeg'});
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
 }
 
 // Load multiple files — process first, queue the rest
@@ -7456,7 +7505,20 @@ function loadPv() {
 }
 function savePv(dirty) {
   if (dirty) pv._localModified = Date.now();
-  localStorage.setItem(PAYABLES_KEY, JSON.stringify(pv));
+  try {
+    localStorage.setItem(PAYABLES_KEY, JSON.stringify(pv));
+  } catch(e) {
+    if (!isStorageQuotaError(e)) throw e;
+    console.warn('[local-save] storage quota exceeded while saving payables; stripping stored invoice images', e);
+    const compact = {
+      ...pv,
+      debts: (pv.debts || []).map(d => ({...d, invoiceImage: ''})),
+      taxInvoices: (pv.taxInvoices || []).map(t => ({...t, invoiceImage: ''})),
+    };
+    localStorage.setItem(PAYABLES_KEY, JSON.stringify(compact));
+    pv = compact;
+    toast('נשמר. האחסון בטלפון היה מלא ולכן תמונות ישנות הוסרו מהמטמון.', 'info');
+  }
   if (dirty) scheduleAutoSync();
 }
 loadPv();
@@ -10752,7 +10814,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=105').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=106').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
