@@ -1448,13 +1448,34 @@ function applySupplierDefaults(nameVal, formStateRef, categoryField) {
 }
 
 function supplierKey(name) {
-  return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  return String(name || '')
+    .replace(/[׳‘’`´]/g, "'")
+    .replace(/["״“”]/g, '"')
+    .replace(/[־–—]/g, '-')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
 }
 
 function getApprovedSuppliers() {
   return (DB.suppliers || [])
     .filter(s => s && s.name && s.approved !== false)
     .sort((a,b) => String(a.name).localeCompare(String(b.name), 'he'));
+}
+
+function auditApprovedSuppliers() {
+  const buckets = new Map();
+  getApprovedSuppliers().forEach(s => {
+    const key = supplierKey(s.name);
+    if (!key) return;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(s.name);
+  });
+  const duplicates = [...buckets.values()].filter(names => names.length > 1);
+  if (duplicates.length) {
+    console.warn('[supplier-input] duplicate/ambiguous approved suppliers', duplicates);
+  }
+  return duplicates;
 }
 
 function findApprovedSupplier(name) {
@@ -1479,9 +1500,9 @@ function approvedSupplierInput(targetExpr, currentVal, placeholder, formStateRef
   const addId = 'approved-sup-add-' + uidPart;
   const needsChoice = currentVal && !findApprovedSupplier(currentVal);
   const options = getApprovedSuppliers().map(s => {
-    const encoded = encodeURIComponent(s.name);
+    const sid = esc(s.id || supplierKey(s.name));
     const cat = s.defaultCategory ? `<span style="font-size:10.5px;color:var(--textMuted);font-weight:600">${esc(s.defaultCategory)}</span>` : '';
-    return `<button type="button" data-supplier-option="${esc(s.name).toLowerCase()}" onclick="supplierComboChoose(decodeURIComponent('${encoded}'),'${targetExpr}','${inputId}','${panelId}','${formStateRef||''}','${categoryField||''}')"
+    return `<button type="button" data-supplier-option="${esc(s.name)}" data-supplier-id="${sid}" onclick="supplierComboChooseByButton(this,'${targetExpr}','${inputId}','${panelId}','${formStateRef||''}','${categoryField||''}')"
       style="width:100%;border:none;border-bottom:1px solid var(--border);background:transparent;color:var(--text);padding:11px 12px;text-align:right;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px">
       <span style="font-size:13.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</span>${cat}
     </button>`;
@@ -1538,6 +1559,20 @@ function supplierComboChoose(name, targetExpr, inputId, panelId, formStateRef, c
   if (input) input.value = name;
   supplierComboHide(panelId);
   if (formStateRef && categoryField) applySupplierDefaults(name, formStateRef, categoryField);
+}
+
+function supplierComboChooseByButton(btn, targetExpr, inputId, panelId, formStateRef, categoryField) {
+  const sid = btn?.getAttribute('data-supplier-id') || '';
+  const rawName = btn?.getAttribute('data-supplier-option') || '';
+  const sup = getApprovedSuppliers().find(s => String(s.id || supplierKey(s.name)) === sid)
+    || findApprovedSupplier(rawName)
+    || (rawName ? {name: rawName} : null);
+  if (!sup || !sup.name) {
+    console.error('[supplier-input] supplier option could not be resolved', {sid, rawName});
+    toast('לא הצלחתי לבחור את הספק. נסה להקליד שוב.', 'error');
+    return;
+  }
+  supplierComboChoose(sup.name, targetExpr, inputId, panelId, formStateRef, categoryField);
 }
 
 function supplierComboAddCurrent(inputId, targetExpr, panelId, formStateRef, categoryField) {
@@ -5802,6 +5837,7 @@ function initApp() {
   dedupeExactExpenses();
   migrateApprovedSuppliers();
   seedSupplierProfiles();
+  auditApprovedSuppliers();
   if (pdb.products.length === 0) importProductsFromOrders();
   loadOdb();
   applyRoleUI();
@@ -10714,7 +10750,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=103').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=104').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
