@@ -7527,6 +7527,14 @@ function savePv(dirty) {
       ...pv,
       debts: (pv.debts || []).map(d => ({...d, invoiceImage: ''})),
       taxInvoices: (pv.taxInvoices || []).map(t => ({...t, invoiceImage: ''})),
+      supplierInvoices: (pv.supplierInvoices || []).map(inv => ({
+        ...inv,
+        invoice_file: '',
+        legacy_data: inv.legacy_data?.expense ? {
+          ...inv.legacy_data,
+          expense: {...inv.legacy_data.expense, image: ''}
+        } : inv.legacy_data
+      })),
     };
     localStorage.setItem(PAYABLES_KEY, JSON.stringify(compact));
     pv = compact;
@@ -7786,6 +7794,8 @@ function pvCreateDraftSupplierInvoiceFromExpense(item) {
   const existing = pv.supplierInvoices.find(inv => inv.source_expense_id === item.id || (inv.legacy_data?.expense?.id && inv.legacy_data.expense.id === item.id));
   if (existing) return existing;
   const supplier = findApprovedSupplier(item.supplier || '');
+  const legacyExpense = {...item};
+  delete legacyExpense.image;
   const inv = pvNormalizeInvoice({
     supplier_id: supplier?.id || pvSupplierIdByName(item.supplier || ''),
     supplier_name: item.supplier || '',
@@ -7800,13 +7810,14 @@ function pvCreateDraftSupplierInvoiceFromExpense(item) {
     due_date: item.paymentDueDate || '',
     accounting_sent: !!item.sentToAccountant,
     accounting_sent_at: item.sentToAccountant ? (item.accountingSentAt || todayISO()) : '',
-    invoice_file: item.image || '',
+    invoice_file: '',
     notes: [item.notes || '', item.paymentTerms ? 'תנאים: ' + item.paymentTerms : ''].filter(Boolean).join(' · '),
-    legacy_data: {expense:{...item}},
+    legacy_data: {expense:legacyExpense},
     created_by: pvCurrentUserName(),
     updated_by: pvCurrentUserName()
   });
   inv.source_expense_id = item.id;
+  inv.invoice_file_ref = item.image ? `expense:${item.id}` : '';
   inv.source_type = 'scan';
   inv.draft_origin = 'סריקה';
   inv.supplier_match_status = supplier ? 'matched' : 'requires_manual_link';
@@ -10832,7 +10843,7 @@ function renderSupplierInvoiceDetail() {
           ${editField('בנק', `<input class="input" value="${esc(draft.check_bank||'')}" oninput="state.pvInvoiceEditDraft.check_bank=this.value">`)}
         </div>` : `<div style="font-size:11px;color:var(--textMuted);margin-bottom:10px">פרטי הצ׳ק מוסתרים כי אמצעי התשלום אינו צ׳ק. הערכים הישנים נשמרים ולא נמחקים.</div>`}
       ${editField('הערות', `<textarea class="input" style="min-height:82px;resize:vertical" oninput="state.pvInvoiceEditDraft.notes=this.value">${esc(draft.notes||'')}</textarea>`)}
-      ${draft.invoice_file ? `<div style="font-size:11px;color:var(--textDim);margin-bottom:10px">קובץ מצורף קיים נשמר. שינוי אמצעי התשלום לא מוחק אותו.</div>` : `<div style="font-size:11px;color:var(--textMuted);margin-bottom:10px">אין קובץ מצורף</div>`}
+      ${(draft.invoice_file || draft.invoice_file_ref) ? `<div style="font-size:11px;color:var(--textDim);margin-bottom:10px">קובץ מצורף קיים נשמר דרך המסמך הסרוק. שינוי אמצעי התשלום לא מוחק אותו.</div>` : `<div style="font-size:11px;color:var(--textMuted);margin-bottom:10px">אין קובץ מצורף</div>`}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <button onclick="pvSaveSupplierInvoiceEdit('${inv.id}')" class="btn-primary" style="margin:0">שמור שינויים</button>
         <button onclick="pvCancelSupplierInvoiceEdit()" class="btn-secondary" style="margin:0">ביטול</button>
@@ -10928,6 +10939,8 @@ function pvStartSupplierInvoiceEdit(invId) {
       check_number: inv.check_number || '',
       check_due_date: pvDateISO(inv.check_due_date) || '',
       check_bank: inv.check_bank || '',
+      invoice_file: inv.invoice_file || '',
+      invoice_file_ref: inv.invoice_file_ref || '',
       notes: inv.notes || ''
     }
   });
@@ -11796,7 +11809,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=109').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=110').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
