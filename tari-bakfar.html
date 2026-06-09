@@ -7588,6 +7588,7 @@ function pvSupplierIdByName(name) {
 }
 
 function pvCalcInvoiceStatus(inv) {
+  if (inv?.deleted) return 'נמחקה';
   if (!inv || inv.archived) return inv?.payment_status || 'לא שולם';
   if (inv.payment_status === 'טיוטה לבדיקה') return 'טיוטה לבדיקה';
   if (inv.payment_status === 'מאושרת כחוב פתוח') return 'מאושרת כחוב פתוח';
@@ -7616,7 +7617,7 @@ function pvInvoiceOpenAmount(inv) {
 }
 
 function pvIsInvoiceOpen(inv) {
-  return !inv.archived && !['שולם','טיוטה לבדיקה'].includes(pvCalcInvoiceStatus(inv));
+  return !inv.deleted && !inv.archived && !['שולם','טיוטה לבדיקה','נמחקה'].includes(pvCalcInvoiceStatus(inv));
 }
 
 function pvNormalizeInvoice(inv) {
@@ -7651,6 +7652,9 @@ function pvNormalizeInvoice(inv) {
     delivery_note_ids: Array.isArray(inv.delivery_note_ids) ? inv.delivery_note_ids : (inv.deliveryNoteIds || []),
     archived: !!inv.archived,
     archived_at: inv.archived_at || '',
+    deleted: !!inv.deleted,
+    deleted_at: inv.deleted_at || '',
+    delete_reason: inv.delete_reason || '',
     legacy_data: inv.legacy_data || null,
     legacy_debt_id: inv.legacy_debt_id || inv.legacyDebtId || '',
     legacy_tax_invoice_id: inv.legacy_tax_invoice_id || inv.legacyTaxInvoiceId || '',
@@ -10662,6 +10666,7 @@ function renderDesktopPayables() {
 }
 
 function pvInvoiceStatusColor(status) {
+  if (status === 'נמחקה') return 'var(--danger)';
   if (status === 'טיוטה לבדיקה') return 'var(--amber)';
   if (status === 'שולם') return 'var(--accent)';
   if (status === 'שולם חלקית') return 'var(--amber)';
@@ -10690,6 +10695,7 @@ function pvSupplierInvoiceRows() {
   const method = state.pvInvoiceMethod || 'הכל';
   const accounting = state.pvInvoiceAccounting || 'הכל';
   const quick = state.pvInvoiceQuick || 'פתוחות';
+  if (quick !== 'מחוקות') rows = rows.filter(inv => !inv.deleted);
   if (q) rows = rows.filter(inv => [inv.supplier_name, inv.invoice_number, inv.supplier_tax_id, inv.notes].join(' ').toLowerCase().includes(q));
   if (status !== 'הכל') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === status);
   if (method !== 'הכל') rows = rows.filter(inv => (inv.payment_method || '') === method);
@@ -10701,6 +10707,7 @@ function pvSupplierInvoiceRows() {
   if (quick === "צ'קים פתוחים") rows = rows.filter(inv => pvIsCheckMethod(inv.payment_method) && pvCalcInvoiceStatus(inv) !== 'שולם');
   if (quick === 'שולמו') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === 'שולם');
   if (quick === 'ארכיון') rows = rows.filter(inv => inv.archived);
+  if (quick === 'מחוקות') rows = rows.filter(inv => inv.deleted);
   rows.sort((a,b) => String(b.invoice_date || '').localeCompare(String(a.invoice_date || '')) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
   return rows;
 }
@@ -10723,7 +10730,7 @@ function pvInvoiceSearchInput(val) {
 }
 
 function renderSupplierInvoicesDashboard() {
-  const all = pv.supplierInvoices || [];
+  const all = (pv.supplierInvoices || []).filter(inv => !inv.deleted);
   const today = todayISO();
   const month = today.slice(0,7);
   const open = all.filter(pvIsInvoiceOpen);
@@ -10758,8 +10765,8 @@ function renderSupplierInvoicesTab() {
   const rows = pvSupplierInvoiceRows();
   const visibleRows = rows.slice(0, 80);
   const hiddenCount = Math.max(0, rows.length - visibleRows.length);
-  const quicks = ['טיוטות לבדיקה','פתוחות','באיחור',"צ'קים פתוחים",'שולמו','ארכיון','הכל'];
-  const statuses = ['הכל','טיוטה לבדיקה','מאושרת כחוב פתוח','לא שולם','שולם חלקית','שולם','באיחור','ממתין לפירעון צ׳ק'];
+  const quicks = ['טיוטות לבדיקה','פתוחות','באיחור',"צ'קים פתוחים",'שולמו','ארכיון','מחוקות','הכל'];
+  const statuses = ['הכל','טיוטה לבדיקה','מאושרת כחוב פתוח','לא שולם','שולם חלקית','שולם','באיחור','ממתין לפירעון צ׳ק','נמחקה'];
   const methods = ['הכל','מזומן','העברה בנקאית',"צ'ק",'אשראי','אחר'];
   const cards = visibleRows.length ? visibleRows.map(inv => {
     const linked = inv.delivery_note_ids || [];
@@ -10835,6 +10842,7 @@ function renderSupplierInvoiceDetail() {
   const dns = (DB.expenses || []).filter(e => (inv.delivery_note_ids || []).includes(e.id));
   const warning = pvInvoiceDeliveryNotesWarning(inv);
   const isDraftInvoice = pvCalcInvoiceStatus(inv) === 'טיוטה לבדיקה';
+  const isDeletedInvoice = !!inv.deleted;
   const paymentMethods = PV_PAYMENT_METHODS.includes('העברה בנקאית') ? PV_PAYMENT_METHODS : [...PV_PAYMENT_METHODS, 'העברה בנקאית'];
   const paymentStatuses = ['טיוטה לבדיקה','מאושרת כחוב פתוח','לא שולם','שולם חלקית','ממתין לפירעון צ׳ק','שולם'];
   const checkFieldsOpen = isEditing ? pvIsCheckMethod(draft.payment_method) : pvIsCheckMethod(inv.payment_method);
@@ -10903,14 +10911,19 @@ function renderSupplierInvoiceDetail() {
     <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
       <div style="font-size:11px;font-weight:800;color:var(--textDim);margin-bottom:8px">פעולות מהירות</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <button onclick="pvStartSupplierInvoiceEdit('${inv.id}')" class="btn-secondary" style="margin:0">ערוך חשבונית</button>
-      <button onclick="pvStartSupplierInvoiceEdit('${inv.id}')" class="btn-secondary" style="margin:0">שנה אמצעי תשלום</button>
-      ${isDraftInvoice ? `<button onclick="pvApproveSupplierInvoice('${inv.id}')" class="btn-primary" style="margin:0">אשר חשבונית</button>` : ''}
-      ${!isDraftInvoice ? `<button onclick="pvMarkSupplierInvoicePaid('${inv.id}')" class="btn-primary" style="margin:0">סמן שולם</button>` : ''}
-      <button onclick="pvToggleSupplierInvoiceAccounting('${inv.id}')" class="btn-secondary" style="margin:0">הנה"ח ${inv.accounting_sent?'✓':'לא'}</button>
-      ${!isDraftInvoice ? `<button onclick="pvAddSupplierInvoicePartialPayment('${inv.id}')" class="btn-secondary" style="margin:0">תשלום חלקי</button>` : ''}
-      <button onclick="pvOpenInvoiceLinkDN('${inv.id}')" class="btn-secondary" style="margin:0">שייך ת"מ</button>
-      <button onclick="pvToggleSupplierInvoiceArchive('${inv.id}')" class="btn-secondary" style="margin:0">${inv.archived?'שחזר מארכיון':(isDraftInvoice?'דחה / העבר לארכיון':'העבר לארכיון')}</button>
+      ${isDeletedInvoice ? `
+        <button onclick="pvRestoreDeletedSupplierInvoice('${inv.id}')" class="btn-primary" style="margin:0">שחזר חשבונית</button>
+      ` : `
+        <button onclick="pvStartSupplierInvoiceEdit('${inv.id}')" class="btn-secondary" style="margin:0">ערוך חשבונית</button>
+        <button onclick="pvStartSupplierInvoiceEdit('${inv.id}')" class="btn-secondary" style="margin:0">שנה אמצעי תשלום</button>
+        ${isDraftInvoice ? `<button onclick="pvApproveSupplierInvoice('${inv.id}')" class="btn-primary" style="margin:0">אשר חשבונית</button>` : ''}
+        ${!isDraftInvoice ? `<button onclick="pvMarkSupplierInvoicePaid('${inv.id}')" class="btn-primary" style="margin:0">סמן שולם</button>` : ''}
+        <button onclick="pvToggleSupplierInvoiceAccounting('${inv.id}')" class="btn-secondary" style="margin:0">הנה"ח ${inv.accounting_sent?'✓':'לא'}</button>
+        ${!isDraftInvoice ? `<button onclick="pvAddSupplierInvoicePartialPayment('${inv.id}')" class="btn-secondary" style="margin:0">תשלום חלקי</button>` : ''}
+        <button onclick="pvOpenInvoiceLinkDN('${inv.id}')" class="btn-secondary" style="margin:0">שייך ת"מ</button>
+        <button onclick="pvToggleSupplierInvoiceArchive('${inv.id}')" class="btn-secondary" style="margin:0">${inv.archived?'שחזר מארכיון':(isDraftInvoice?'דחה / העבר לארכיון':'העבר לארכיון')}</button>
+        <button onclick="pvDeleteSupplierInvoice('${inv.id}')" class="btn-secondary" style="margin:0;background:var(--dangerSoft);color:var(--danger);border-color:rgba(220,98,98,.28)">מחק טעות / כפילות</button>
+      `}
       </div>
     </div>
     <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
@@ -11177,6 +11190,52 @@ function pvToggleSupplierInvoiceArchive(invId) {
   pvInvoiceLog(inv.id, inv.archived ? 'העברה לארכיון' : 'שחזור מארכיון', 'archived', old, inv.archived ? 'בארכיון' : 'פעיל');
   savePv(true);
   setState({});
+}
+
+function pvDeleteSupplierInvoice(invId) {
+  const inv = pvGetInvoice(invId);
+  if (!inv) return;
+  const reason = prompt('סיבת מחיקה: טעות / כפילות / אחר', inv.delete_reason || 'כפילות');
+  if (reason === null) return;
+  if (!confirm('למחוק את החשבונית מהרשימות הרגילות? הרשומה לא תימחק פיזית ותישמר ביומן.')) return;
+  const oldStatus = pvCalcInvoiceStatus(inv);
+  inv.deleted = true;
+  inv.deleted_at = new Date().toISOString();
+  inv.delete_reason = reason || 'טעות / כפילות';
+  inv.archived = true;
+  inv.archived_at = inv.archived_at || inv.deleted_at;
+  inv.payment_status = 'נמחקה';
+  if (inv.legacy_debt_id) {
+    const debt = (pv.debts || []).find(d => d.id === inv.legacy_debt_id);
+    if (debt && debt.status !== 'cancelled') {
+      debt.status = 'cancelled';
+      debt.paymentStatus = 'בוטל';
+      debt.closedAt = Date.now();
+      debt.cancelReason = inv.delete_reason;
+    }
+  }
+  pvTouchInvoice(inv);
+  pvInvoiceLog(inv.id, 'מחיקת חשבונית', 'payment_status', oldStatus, 'נמחקה', {reason:inv.delete_reason, legacy_debt_id:inv.legacy_debt_id || ''});
+  savePv(true);
+  setState({payablesView:'dashboard', payablesInvoiceId:''});
+  toast('החשבונית הוסרה מהרשימות ונשמרה במחוקות', 'success');
+}
+
+function pvRestoreDeletedSupplierInvoice(invId) {
+  const inv = pvGetInvoice(invId);
+  if (!inv) return;
+  if (!confirm('לשחזר את החשבונית לרשימות?')) return;
+  const oldStatus = pvCalcInvoiceStatus(inv);
+  inv.deleted = false;
+  inv.deleted_at = '';
+  inv.delete_reason = '';
+  inv.archived = false;
+  inv.payment_status = inv.source_type === 'scan' && !inv.legacy_debt_id ? 'טיוטה לבדיקה' : 'לא שולם';
+  pvTouchInvoice(inv);
+  pvInvoiceLog(inv.id, 'שחזור מחיקה', 'payment_status', oldStatus, inv.payment_status);
+  savePv(true);
+  setState({});
+  toast('החשבונית שוחזרה', 'success');
 }
 
 function pvOpenInvoiceLinkDN(invId) {
@@ -11831,7 +11890,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=111').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=112').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
