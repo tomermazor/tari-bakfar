@@ -2764,16 +2764,14 @@ function renderScan() {
         ${renderExpenseOrderLinkSelect('state.scanForm', f)}
         ${['חשבונית מס','חשבונית מס קבלה'].includes(f.document_type)?`
         <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
-          <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">פרטי תשלום (אופציונלי)</div>
+          <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">טיוטת חשבונית ספק</div>
+          <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">השמירה תיצור טיוטה לבדיקה בטאב ספקים. היא לא תיחשב כחוב פתוח עד שתאשר אותה ידנית.</div>
           <div class="row">
             <div class="field"><label class="label">תאריך לתשלום</label><input class="input" type="date" value="${f.paymentDueDate||''}" oninput="state.scanForm.paymentDueDate=this.value"></div>
             <div class="field"><label class="label">תנאי תשלום</label><input class="input" placeholder="שוטף+30..." value="${esc(f.paymentTerms||'')}" oninput="state.scanForm.paymentTerms=this.value"></div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;padding:6px 0">
-            <input type="checkbox" id="scan-open-debt" ${f.isOpenDebt!==false?'checked':''} onchange="state.scanForm.isOpenDebt=this.checked" style="width:16px;height:16px;accent-color:var(--accent)">
-            <label for="scan-open-debt" style="font-size:13px;color:var(--text);font-weight:600;cursor:pointer">צור חוב פתוח אוטומטית</label>
-          </div>
         </div>`:''}
+        ${f.document_type==='תעודת משלוח'?`<div style="padding:12px 14px;border-radius:12px;background:var(--surfaceHi);border:1px solid var(--border);margin-bottom:12px;font-size:12px;color:var(--textDim);line-height:1.45">תעודת משלוח תישמר במאגר תעודות המשלוח ותהיה זמינה לשיוך עתידי לחשבונית. היא לא תהפוך לחוב פתוח.</div>`:''}
         <button class="btn-primary" onclick="saveScanResult()" ${state.scanSaving?'disabled':''} style="${state.scanSaving?'opacity:.75;pointer-events:none':''}">${state.scanSaving?'⏳ שומר...':(state.batchQueue&&state.batchQueue.length>0?`💾 שמור והמשך לסריקה הבאה (${state.batchQueue.length} נותרו)`:'💾 שמור הוצאה')}</button>
         ${state.batchTotal>1&&state.batchQueue.length>0?`<button class="btn-ghost" onclick="skipBatchFile()">⏭ דלג</button>`:`<button class="btn-ghost" onclick="exitBatch()">ביטול</button>`}
       </div>`;
@@ -3064,17 +3062,21 @@ async function saveScanResult() {
   setState({scanSaving:true, scanErr:'', scanNotice:''});
   try {
     const item = normalizeScanExpenseItem(state.scanForm);
-    const supplier = requireApprovedSupplier(item.supplier);
-    if (!supplier) throw new Error('יש לבחור ספק מאושר לפני שמירה');
-    item.supplier = supplier.name;
-    if (supplier.defaultCategory) item.category = supplier.defaultCategory;
+    const supplier = findApprovedSupplier(item.supplier);
+    if (supplier) item.supplier = supplier.name;
+    else item.supplier_match_status = 'requires_manual_link';
+    if (supplier?.defaultCategory) item.category = supplier.defaultCategory;
     const dup = findDuplicate(item);
     if (dup && !warnDuplicate(dup)) return;
     const localItem = {...item};
     // ── Synchronous: apply locally + navigate in the SAME JS tick ──
     DB.expenses.unshift(localItem);
     applyExpenseOrderLink(localItem);
-    pvAutoCreateDebtFromExpense(localItem);
+    if (['חשבונית מס','חשבונית מס קבלה'].includes(localItem.document_type)) {
+      pvCreateDraftSupplierInvoiceFromExpense(localItem);
+    } else if (localItem.document_type === 'תעודת משלוח') {
+      pvRegisterDeliveryNoteFromExpense(localItem);
+    }
     processInvoiceLineItems(localItem);
     dedupeExactExpenses();
     markDataStateDirty();
@@ -3580,16 +3582,14 @@ function renderAdd() {
       ${renderExpenseOrderLinkSelect('addForm', addForm)}
       ${['חשבונית מס','חשבונית מס קבלה'].includes(addForm.document_type)?`
       <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
-        <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">פרטי תשלום (אופציונלי)</div>
+        <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">טיוטת חשבונית ספק</div>
+        <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">החשבונית תישמר כטיוטה לבדיקה בטאב ספקים. היא לא תיכנס לחובות פתוחים עד אישור ידני.</div>
         <div class="row">
           <div class="field"><label class="label">תאריך לתשלום</label><input class="input" type="date" value="${addForm.paymentDueDate||''}" oninput="addForm.paymentDueDate=this.value"></div>
           <div class="field"><label class="label">תנאי תשלום</label><input class="input" placeholder="שוטף+30..." value="${esc(addForm.paymentTerms||'')}" oninput="addForm.paymentTerms=this.value"></div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;padding:6px 0">
-          <input type="checkbox" id="add-open-debt" ${addForm.isOpenDebt!==false?'checked':''} onchange="addForm.isOpenDebt=this.checked" style="width:16px;height:16px;accent-color:var(--accent)">
-          <label for="add-open-debt" style="font-size:13px;color:var(--text);font-weight:600;cursor:pointer">צור חוב פתוח אוטומטית</label>
-        </div>
       </div>`:''}
+      ${addForm.document_type==='תעודת משלוח'?`<div style="padding:12px 14px;border-radius:12px;background:var(--surfaceHi);border:1px solid var(--border);margin-bottom:12px;font-size:12px;color:var(--textDim);line-height:1.45">תעודת משלוח תישמר בנפרד ותהיה זמינה לשיוך עתידי לחשבונית. היא לא תהפוך לחוב פתוח.</div>`:''}
       <button class="btn-primary" onclick="submitAdd()">שמור הוצאה</button>
     </div>`;
 }
@@ -3614,7 +3614,13 @@ async function submitAdd() {
   const item = {...addForm, id:uid(), total_amount:+addForm.total_amount, vat_amount:+addForm.vat_amount||0, amount_before_vat:+addForm.amount_before_vat||0};
   const dup = findDuplicate(item);
   if (dup && !warnDuplicate(dup)) return;
-  await queueAndSync('add_expense', {payload: item}, () => { DB.expenses.unshift(item); applyExpenseOrderLink(item); pvAutoCreateDebtFromExpense(item); processInvoiceLineItems(item); });
+  await queueAndSync('add_expense', {payload: item}, () => {
+    DB.expenses.unshift(item);
+    applyExpenseOrderLink(item);
+    if (['חשבונית מס','חשבונית מס קבלה'].includes(item.document_type)) pvCreateDraftSupplierInvoiceFromExpense(item);
+    else if (item.document_type === 'תעודת משלוח') pvRegisterDeliveryNoteFromExpense(item);
+    processInvoiceLineItems(item);
+  });
   addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",isOpenDebt:true,linkedOrderId:""};
   toast('נשמר!', 'success');
   setState({tab:'list'});
@@ -7575,6 +7581,8 @@ function pvSupplierIdByName(name) {
 
 function pvCalcInvoiceStatus(inv) {
   if (!inv || inv.archived) return inv?.payment_status || 'לא שולם';
+  if (inv.payment_status === 'טיוטה לבדיקה') return 'טיוטה לבדיקה';
+  if (inv.payment_status === 'מאושרת כחוב פתוח') return 'מאושרת כחוב פתוח';
   if (inv.payment_status === 'שולם') return 'שולם';
   const total = +inv.total_amount || 0;
   const paid = pvInvoicePaidAmount(inv.id);
@@ -7600,7 +7608,7 @@ function pvInvoiceOpenAmount(inv) {
 }
 
 function pvIsInvoiceOpen(inv) {
-  return !inv.archived && !['שולם'].includes(pvCalcInvoiceStatus(inv));
+  return !inv.archived && !['שולם','טיוטה לבדיקה'].includes(pvCalcInvoiceStatus(inv));
 }
 
 function pvNormalizeInvoice(inv) {
@@ -7770,6 +7778,52 @@ function pvCreateSupplierInvoiceFromDebt(debt, extra) {
   });
   pvInvoiceLog(inv.id, 'יצירת חשבונית', 'source', '', opts.source || 'legacy-debt-flow', {legacy_debt_id: debt.id, legacy_tax_invoice_id: inv.legacy_tax_invoice_id});
   return inv;
+}
+
+function pvCreateDraftSupplierInvoiceFromExpense(item) {
+  if (!item || !['חשבונית מס','חשבונית מס קבלה'].includes(item.document_type)) return null;
+  if (!pv.supplierInvoices) pv.supplierInvoices = [];
+  const existing = pv.supplierInvoices.find(inv => inv.source_expense_id === item.id || (inv.legacy_data?.expense?.id && inv.legacy_data.expense.id === item.id));
+  if (existing) return existing;
+  const supplier = findApprovedSupplier(item.supplier || '');
+  const inv = pvNormalizeInvoice({
+    supplier_id: supplier?.id || pvSupplierIdByName(item.supplier || ''),
+    supplier_name: item.supplier || '',
+    supplier_tax_id: item.supplier_tax_id || item.tax_id || '',
+    invoice_number: item.document_number || '',
+    invoice_date: item.date || todayStr(),
+    amount_before_vat: +item.amount_before_vat || Math.max(0, (+item.total_amount || 0) - (+item.vat_amount || 0)),
+    vat_amount: +item.vat_amount || 0,
+    total_amount: +item.total_amount || 0,
+    payment_status: 'טיוטה לבדיקה',
+    payment_method: item.paymentMethod || '',
+    due_date: item.paymentDueDate || '',
+    accounting_sent: !!item.sentToAccountant,
+    accounting_sent_at: item.sentToAccountant ? (item.accountingSentAt || todayISO()) : '',
+    invoice_file: item.image || '',
+    notes: [item.notes || '', item.paymentTerms ? 'תנאים: ' + item.paymentTerms : ''].filter(Boolean).join(' · '),
+    legacy_data: {expense:{...item}},
+    created_by: pvCurrentUserName(),
+    updated_by: pvCurrentUserName()
+  });
+  inv.source_expense_id = item.id;
+  inv.source_type = 'scan';
+  inv.draft_origin = 'סריקה';
+  inv.supplier_match_status = supplier ? 'matched' : 'requires_manual_link';
+  pv.supplierInvoices.push(inv);
+  pvInvoiceLog(inv.id, 'יצירת חשבונית', 'scan_draft', '', 'טיוטה לבדיקה', {source_expense_id:item.id, supplier_match_status:inv.supplier_match_status});
+  savePv(true);
+  return inv;
+}
+
+function pvRegisterDeliveryNoteFromExpense(item) {
+  if (!item || item.document_type !== 'תעודת משלוח') return null;
+  item.delivery_note_status = item.delivery_note_status || 'available_for_invoice_link';
+  const supplier = findApprovedSupplier(item.supplier || '');
+  item.supplier_id = item.supplier_id || supplier?.id || pvSupplierIdByName(item.supplier || '');
+  item.supplier_match_status = supplier ? 'matched' : 'requires_manual_link';
+  item.available_for_supplier_invoice_link = true;
+  return item;
 }
 
 function pvSyncSupplierInvoiceFromDebt(debt, action) {
@@ -10597,6 +10651,7 @@ function renderDesktopPayables() {
 }
 
 function pvInvoiceStatusColor(status) {
+  if (status === 'טיוטה לבדיקה') return 'var(--amber)';
   if (status === 'שולם') return 'var(--accent)';
   if (status === 'שולם חלקית') return 'var(--amber)';
   if (status === 'באיחור') return 'var(--danger)';
@@ -10630,6 +10685,7 @@ function pvSupplierInvoiceRows() {
   if (accounting === 'הועבר') rows = rows.filter(inv => inv.accounting_sent);
   if (accounting === 'לא הועבר') rows = rows.filter(inv => !inv.accounting_sent);
   if (quick === 'פתוחות') rows = rows.filter(pvIsInvoiceOpen);
+  if (quick === 'טיוטות לבדיקה') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === 'טיוטה לבדיקה');
   if (quick === 'באיחור') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === 'באיחור');
   if (quick === "צ'קים פתוחים") rows = rows.filter(inv => pvIsCheckMethod(inv.payment_method) && pvCalcInvoiceStatus(inv) !== 'שולם');
   if (quick === 'שולמו') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === 'שולם');
@@ -10672,19 +10728,21 @@ function renderSupplierInvoicesDashboard() {
 function renderSupplierInvoicesTab() {
   pvEnsureSupplierInvoiceMigration();
   const rows = pvSupplierInvoiceRows();
-  const quicks = ['פתוחות','באיחור',"צ'קים פתוחים",'שולמו','ארכיון','הכל'];
-  const statuses = ['הכל','לא שולם','שולם חלקית','שולם','באיחור','ממתין לפירעון צ׳ק'];
+  const quicks = ['טיוטות לבדיקה','פתוחות','באיחור',"צ'קים פתוחים",'שולמו','ארכיון','הכל'];
+  const statuses = ['הכל','טיוטה לבדיקה','מאושרת כחוב פתוח','לא שולם','שולם חלקית','שולם','באיחור','ממתין לפירעון צ׳ק'];
   const methods = ['הכל','מזומן','העברה בנקאית',"צ'ק",'אשראי','אחר'];
   const cards = rows.length ? rows.map(inv => {
     const linked = inv.delivery_note_ids || [];
     const openAmount = pvInvoiceOpenAmount(inv);
     const warn = pvInvoiceDeliveryNotesWarning(inv);
+    const isDraft = pvCalcInvoiceStatus(inv) === 'טיוטה לבדיקה';
     return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:13px 14px;margin-bottom:9px">
       <div style="display:flex;align-items:flex-start;gap:10px">
         <div style="flex:1;min-width:0" onclick="setState({payablesView:'invoice',payablesInvoiceId:'${inv.id}'})">
           <div style="font-size:15px;font-weight:900;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(inv.supplier_name || 'ספק')}</div>
           <div style="font-size:11px;color:var(--textDim);margin-top:3px">#${esc(inv.invoice_number || 'ללא מספר')} · ${fmtDate(inv.invoice_date)} · ${esc(inv.payment_method||'')}</div>
           ${warn ? `<div style="font-size:11px;color:var(--amber);font-weight:800;margin-top:5px">⚠ ${warn}</div>` : ''}
+          ${isDraft ? `<div style="font-size:11px;color:var(--amber);font-weight:900;margin-top:5px">טיוטה מסריקה · ${inv.supplier_match_status==='requires_manual_link'?'דורש שיוך ידני':'ממתינה לאישור'}</div>` : ''}
         </div>
         <div style="text-align:left;flex-shrink:0">
           <div class="display" style="font-size:15px;font-weight:800;color:var(--text)">${fmtCurr(inv.total_amount)}</div>
@@ -10699,7 +10757,7 @@ function renderSupplierInvoicesTab() {
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px">
         <button onclick="setState({payablesView:'invoice',payablesInvoiceId:'${inv.id}'})" class="desktop-mini-btn">פתח</button>
         <button onclick="pvOpenInvoiceLinkDN('${inv.id}')" class="desktop-mini-btn">שייך ת"מ</button>
-        <button onclick="pvMarkSupplierInvoicePaid('${inv.id}')" class="desktop-mini-btn primary">שולם</button>
+        ${isDraft ? `<button onclick="pvApproveSupplierInvoice('${inv.id}')" class="desktop-mini-btn primary">אשר</button>` : `<button onclick="pvMarkSupplierInvoicePaid('${inv.id}')" class="desktop-mini-btn primary">שולם</button>`}
       </div>
     </div>`;
   }).join('') : `<div style="text-align:center;padding:34px 16px;color:var(--textMuted)"><div style="font-size:34px;margin-bottom:8px">🧾</div><div style="font-size:13px;font-weight:700">אין חשבוניות בפילטר הנוכחי</div></div>`;
@@ -10743,14 +10801,24 @@ function renderSupplierInvoiceDetail() {
   const logs = (pv.supplierInvoiceActivityLog || []).filter(l => l.invoice_id === inv.id);
   const dns = (DB.expenses || []).filter(e => (inv.delivery_note_ids || []).includes(e.id));
   const warning = pvInvoiceDeliveryNotesWarning(inv);
+  const isDraftInvoice = pvCalcInvoiceStatus(inv) === 'טיוטה לבדיקה';
   const paymentMethods = PV_PAYMENT_METHODS.includes('העברה בנקאית') ? PV_PAYMENT_METHODS : [...PV_PAYMENT_METHODS, 'העברה בנקאית'];
-  const paymentStatuses = ['לא שולם','שולם חלקית','ממתין לפירעון צ׳ק','שולם'];
+  const paymentStatuses = ['טיוטה לבדיקה','מאושרת כחוב פתוח','לא שולם','שולם חלקית','ממתין לפירעון צ׳ק','שולם'];
   const checkFieldsOpen = isEditing ? pvIsCheckMethod(draft.payment_method) : pvIsCheckMethod(inv.payment_method);
   const detailRows = [['עוסק/ח.פ',inv.supplier_tax_id],['תאריך חשבונית',fmtDate(inv.invoice_date)],['תאריך פירעון',fmtDate(inv.due_date)],['אמצעי תשלום',inv.payment_method],['סטטוס תשלום',pvCalcInvoiceStatus(inv)],['מספר צ׳ק',inv.check_number],['פירעון צ׳ק',fmtDate(inv.check_due_date)],['בנק',inv.check_bank],['הנה"ח',inv.accounting_sent?'כן':'לא'],['תאריך הנה"ח',inv.accounting_sent ? fmtDate(inv.accounting_sent_at) : '—']];
   const editField = (label, html) => `<div class="field" style="margin-bottom:10px"><label class="label">${label}</label>${html}</div>`;
   const editHtml = isEditing ? `
     <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--accent);margin-bottom:12px">
       <div style="font-size:11px;font-weight:900;color:var(--accent);margin-bottom:10px">עריכת חשבונית</div>
+      ${editField('ספק', `<input class="input" value="${esc(draft.supplier_name||'')}" oninput="state.pvInvoiceEditDraft.supplier_name=this.value">`)}
+      ${editField('עוסק מורשה / ח.פ', `<input class="input" value="${esc(draft.supplier_tax_id||'')}" oninput="state.pvInvoiceEditDraft.supplier_tax_id=this.value">`)}
+      ${editField('מספר חשבונית', `<input class="input" value="${esc(draft.invoice_number||'')}" oninput="state.pvInvoiceEditDraft.invoice_number=this.value">`)}
+      ${editField('תאריך חשבונית', `<input class="input" type="date" value="${esc(pvDateISO(draft.invoice_date)||'')}" oninput="state.pvInvoiceEditDraft.invoice_date=this.value">`)}
+      <div class="row">
+        ${editField('סכום לפני מע"מ', `<input class="input" type="number" inputmode="decimal" value="${esc(draft.amount_before_vat||0)}" oninput="state.pvInvoiceEditDraft.amount_before_vat=+this.value">`)}
+        ${editField('מע"מ', `<input class="input" type="number" inputmode="decimal" value="${esc(draft.vat_amount||0)}" oninput="state.pvInvoiceEditDraft.vat_amount=+this.value">`)}
+      </div>
+      ${editField('סכום כולל', `<input class="input" type="number" inputmode="decimal" value="${esc(draft.total_amount||0)}" oninput="state.pvInvoiceEditDraft.total_amount=+this.value">`)}
       ${editField('אמצעי תשלום', `<select class="input" onchange="state.pvInvoiceEditDraft.payment_method=this.value;render()">${paymentMethods.map(m=>`<option value="${esc(m)}" ${draft.payment_method===m?'selected':''}>${esc(m)}</option>`).join('')}</select>`)}
       ${editField('סטטוס תשלום', `<select class="input" onchange="state.pvInvoiceEditDraft.payment_status=this.value">${paymentStatuses.map(s=>`<option value="${esc(s)}" ${draft.payment_status===s?'selected':''}>${esc(s)}</option>`).join('')}</select>`)}
       ${editField('תאריך פירעון חשבונית', `<input class="input" type="date" value="${esc(pvDateISO(draft.due_date)||'')}" oninput="state.pvInvoiceEditDraft.due_date=this.value">`)}
@@ -10764,6 +10832,7 @@ function renderSupplierInvoiceDetail() {
           ${editField('בנק', `<input class="input" value="${esc(draft.check_bank||'')}" oninput="state.pvInvoiceEditDraft.check_bank=this.value">`)}
         </div>` : `<div style="font-size:11px;color:var(--textMuted);margin-bottom:10px">פרטי הצ׳ק מוסתרים כי אמצעי התשלום אינו צ׳ק. הערכים הישנים נשמרים ולא נמחקים.</div>`}
       ${editField('הערות', `<textarea class="input" style="min-height:82px;resize:vertical" oninput="state.pvInvoiceEditDraft.notes=this.value">${esc(draft.notes||'')}</textarea>`)}
+      ${draft.invoice_file ? `<div style="font-size:11px;color:var(--textDim);margin-bottom:10px">קובץ מצורף קיים נשמר. שינוי אמצעי התשלום לא מוחק אותו.</div>` : `<div style="font-size:11px;color:var(--textMuted);margin-bottom:10px">אין קובץ מצורף</div>`}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <button onclick="pvSaveSupplierInvoiceEdit('${inv.id}')" class="btn-primary" style="margin:0">שמור שינויים</button>
         <button onclick="pvCancelSupplierInvoiceEdit()" class="btn-secondary" style="margin:0">ביטול</button>
@@ -10775,11 +10844,13 @@ function renderSupplierInvoiceDetail() {
       <div style="flex:1;min-width:0">
         <h2 class="display" style="font-size:17px;margin:0">${esc(inv.supplier_name)}</h2>
         <div style="font-size:12px;color:var(--textDim)">חשבונית #${esc(inv.invoice_number||'ללא מספר')}</div>
+        ${isDraftInvoice ? `<div style="font-size:11px;color:var(--amber);font-weight:900;margin-top:3px">טיוטה מסריקה ${inv.supplier_match_status==='requires_manual_link'?'· דורש שיוך ידני':''}</div>` : ''}
       </div>
       ${pvInvoiceStatusBadge(inv)}
     </div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
-      <button onclick="pvStartSupplierInvoiceEdit('${inv.id}')" class="btn-secondary" style="margin:0;flex:1">ערוך חשבונית</button>
+      <button onclick="pvStartSupplierInvoiceEdit('${inv.id}')" class="btn-secondary" style="margin:0;flex:1">${isDraftInvoice?'ערוך לפני אישור':'ערוך חשבונית'}</button>
+      ${isDraftInvoice ? `<button onclick="pvApproveSupplierInvoice('${inv.id}')" class="btn-primary" style="margin:0;flex:1">אשר חשבונית</button>` : ''}
     </div>
     ${warning ? `<div class="err" style="color:var(--amber);background:var(--amberSoft);border-color:rgba(245,180,42,.3)">⚠ ${warning}</div>` : ''}
     ${editHtml}
@@ -10801,11 +10872,12 @@ function renderSupplierInvoiceDetail() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <button onclick="pvStartSupplierInvoiceEdit('${inv.id}')" class="btn-secondary" style="margin:0">ערוך חשבונית</button>
       <button onclick="pvStartSupplierInvoiceEdit('${inv.id}')" class="btn-secondary" style="margin:0">שנה אמצעי תשלום</button>
-      <button onclick="pvMarkSupplierInvoicePaid('${inv.id}')" class="btn-primary" style="margin:0">סמן שולם</button>
+      ${isDraftInvoice ? `<button onclick="pvApproveSupplierInvoice('${inv.id}')" class="btn-primary" style="margin:0">אשר חשבונית</button>` : ''}
+      ${!isDraftInvoice ? `<button onclick="pvMarkSupplierInvoicePaid('${inv.id}')" class="btn-primary" style="margin:0">סמן שולם</button>` : ''}
       <button onclick="pvToggleSupplierInvoiceAccounting('${inv.id}')" class="btn-secondary" style="margin:0">הנה"ח ${inv.accounting_sent?'✓':'לא'}</button>
-      <button onclick="pvAddSupplierInvoicePartialPayment('${inv.id}')" class="btn-secondary" style="margin:0">תשלום חלקי</button>
+      ${!isDraftInvoice ? `<button onclick="pvAddSupplierInvoicePartialPayment('${inv.id}')" class="btn-secondary" style="margin:0">תשלום חלקי</button>` : ''}
       <button onclick="pvOpenInvoiceLinkDN('${inv.id}')" class="btn-secondary" style="margin:0">שייך ת"מ</button>
-      <button onclick="pvToggleSupplierInvoiceArchive('${inv.id}')" class="btn-secondary" style="margin:0">${inv.archived?'שחזר מארכיון':'העבר לארכיון'}</button>
+      <button onclick="pvToggleSupplierInvoiceArchive('${inv.id}')" class="btn-secondary" style="margin:0">${inv.archived?'שחזר מארכיון':(isDraftInvoice?'דחה / העבר לארכיון':'העבר לארכיון')}</button>
       </div>
     </div>
     <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
@@ -10841,6 +10913,13 @@ function pvStartSupplierInvoiceEdit(invId) {
   setState({
     pvInvoiceEditId: inv.id,
     pvInvoiceEditDraft: {
+      supplier_name: inv.supplier_name || '',
+      supplier_tax_id: inv.supplier_tax_id || '',
+      invoice_number: inv.invoice_number || '',
+      invoice_date: pvDateISO(inv.invoice_date) || '',
+      amount_before_vat: +inv.amount_before_vat || 0,
+      vat_amount: +inv.vat_amount || 0,
+      total_amount: +inv.total_amount || 0,
       payment_method: inv.payment_method || "צ'ק",
       payment_status: pvCalcInvoiceStatus(inv) || inv.payment_status || 'לא שולם',
       due_date: pvDateISO(inv.due_date) || '',
@@ -10868,6 +10947,14 @@ function pvSaveSupplierInvoiceEdit(invId) {
       legacy_data: inv.legacy_data ? {...inv.legacy_data, edit_snapshots: undefined} : null
     }));
     const next = {
+      supplier_name: String(d.supplier_name || '').trim() || inv.supplier_name || '',
+      supplier_id: pvSupplierIdByName(d.supplier_name || inv.supplier_name || ''),
+      supplier_tax_id: String(d.supplier_tax_id || '').trim(),
+      invoice_number: String(d.invoice_number || '').trim(),
+      invoice_date: pvDateISO(d.invoice_date) || inv.invoice_date || todayISO(),
+      amount_before_vat: Number(d.amount_before_vat || 0),
+      vat_amount: Number(d.vat_amount || 0),
+      total_amount: Number(d.total_amount || 0),
       payment_method: d.payment_method || inv.payment_method || "צ'ק",
       payment_status: d.payment_status || inv.payment_status || 'לא שולם',
       due_date: pvDateISO(d.due_date) || '',
@@ -10885,7 +10972,11 @@ function pvSaveSupplierInvoiceEdit(invId) {
       next.check_cleared = false;
     }
 
-    const fields = ['payment_method','payment_status','due_date','accounting_sent','accounting_sent_at','check_number','check_due_date','check_bank','notes','paid_at','check_cleared'];
+    if (!Number.isFinite(next.total_amount) || next.total_amount <= 0) throw new Error('סכום כולל לא תקין');
+    if (!Number.isFinite(next.amount_before_vat)) throw new Error('סכום לפני מע"מ לא תקין');
+    if (!Number.isFinite(next.vat_amount)) throw new Error('מע"מ לא תקין');
+
+    const fields = ['supplier_name','supplier_id','supplier_tax_id','invoice_number','invoice_date','amount_before_vat','vat_amount','total_amount','payment_method','payment_status','due_date','accounting_sent','accounting_sent_at','check_number','check_due_date','check_bank','notes','paid_at','check_cleared'];
     let changed = false;
     fields.forEach(field => {
       if (!Object.prototype.hasOwnProperty.call(next, field)) return;
@@ -10902,6 +10993,31 @@ function pvSaveSupplierInvoiceEdit(invId) {
       toast('לא היו שינויים לשמירה', 'info');
       return;
     }
+    if (inv.payment_status === 'מאושרת כחוב פתוח' && !inv.legacy_debt_id) {
+      const debt = {
+        id: uid(),
+        supplierName: inv.supplier_name || '',
+        taxInvoiceId: inv.legacy_tax_invoice_id || null,
+        expenseId: inv.source_expense_id || null,
+        invoiceNumber: inv.invoice_number || '',
+        date: inv.invoice_date || todayISO(),
+        amount: +inv.total_amount || 0,
+        paidAmount: 0,
+        dueDate: inv.due_date || '',
+        paymentMethod: inv.payment_method || "צ'ק",
+        checkNumber: inv.check_number || '',
+        invoiceImage: inv.invoice_file || null,
+        paymentStatus: 'מאושרת כחוב פתוח',
+        notes: inv.notes || '',
+        status: 'open',
+        payments: [],
+        createdAt: Date.now(),
+        sourceSupplierInvoiceId: inv.id
+      };
+      pv.debts.push(debt);
+      inv.legacy_debt_id = debt.id;
+      pvInvoiceLog(inv.id, 'אישור חשבונית', 'legacy_debt_id', '', debt.id);
+    }
     inv.legacy_data = inv.legacy_data || {};
     if (!inv.legacy_data.edit_snapshots) inv.legacy_data.edit_snapshots = [];
     inv.legacy_data.edit_snapshots.push({at:new Date().toISOString(), by:pvCurrentUserName(), before:oldSnapshot});
@@ -10913,6 +11029,56 @@ function pvSaveSupplierInvoiceEdit(invId) {
   } catch(e) {
     console.error('[supplier-invoice-edit] save failed', {invoiceId:invId, error:e, draft:d});
     toast('שמירת השינויים נכשלה. בדוק קונסול לפרטים.', 'error');
+  }
+}
+
+function pvApproveSupplierInvoice(invId) {
+  const inv = pvGetInvoice(invId);
+  if (!inv) return;
+  try {
+    if (!inv.supplier_name) throw new Error('חסר ספק');
+    if (!(+inv.total_amount > 0)) throw new Error('סכום כולל לא תקין');
+    const oldStatus = inv.payment_status;
+    inv.payment_status = 'מאושרת כחוב פתוח';
+    inv.approved_at = new Date().toISOString();
+    inv.approved_by = pvCurrentUserName();
+    inv.supplier_match_status = inv.supplier_match_status === 'requires_manual_link' && findApprovedSupplier(inv.supplier_name) ? 'matched' : (inv.supplier_match_status || 'matched');
+
+    if (!inv.legacy_debt_id) {
+      const debt = {
+        id: uid(),
+        supplierName: inv.supplier_name || '',
+        taxInvoiceId: inv.legacy_tax_invoice_id || null,
+        expenseId: inv.source_expense_id || null,
+        invoiceNumber: inv.invoice_number || '',
+        date: inv.invoice_date || todayISO(),
+        amount: +inv.total_amount || 0,
+        paidAmount: 0,
+        dueDate: inv.due_date || '',
+        paymentMethod: inv.payment_method || "צ'ק",
+        checkNumber: inv.check_number || '',
+        invoiceImage: inv.invoice_file || null,
+        paymentStatus: 'מאושרת כחוב פתוח',
+        notes: inv.notes || '',
+        status: 'open',
+        payments: [],
+        createdAt: Date.now(),
+        sourceSupplierInvoiceId: inv.id
+      };
+      pv.debts.push(debt);
+      inv.legacy_debt_id = debt.id;
+      inv.legacy_data = inv.legacy_data || {};
+      inv.legacy_data.approved_debt = {...debt};
+      pvInvoiceLog(inv.id, 'אישור חשבונית', 'legacy_debt_id', '', debt.id);
+    }
+    pvTouchInvoice(inv);
+    pvInvoiceLog(inv.id, 'אישור חשבונית', 'payment_status', oldStatus, inv.payment_status);
+    savePv(true);
+    setState({});
+    toast('החשבונית אושרה כחוב פתוח', 'success');
+  } catch(e) {
+    console.error('[supplier-invoice-approve] failed', {invoiceId:invId, error:e});
+    toast('אישור החשבונית נכשל: ' + (e.message || 'שגיאה לא ידועה'), 'error');
   }
 }
 
@@ -11630,7 +11796,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=108').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=109').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
