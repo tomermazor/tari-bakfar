@@ -7497,11 +7497,18 @@ function loadPv() {
   if (!pv.taxInvoices) pv.taxInvoices = [];
   if (!pv.debts) pv.debts = [];
   if (!pv.cancelledDNIds) pv.cancelledDNIds = [];
+  if (!pv.suppliers) pv.suppliers = [];
+  if (!pv.supplierInvoices) pv.supplierInvoices = [];
+  if (!pv.supplierInvoicePayments) pv.supplierInvoicePayments = [];
+  if (!pv.supplierInvoiceDeliveryNotes) pv.supplierInvoiceDeliveryNotes = [];
+  if (!pv.supplierInvoiceFiles) pv.supplierInvoiceFiles = [];
+  if (!pv.supplierInvoiceActivityLog) pv.supplierInvoiceActivityLog = [];
   if (!pv._localModified) {
-    const hasData = pv.taxInvoices.length || pv.debts.length || pv.cancelledDNIds.length;
+    const hasData = pv.taxInvoices.length || pv.debts.length || pv.cancelledDNIds.length || pv.supplierInvoices.length;
     pv._localModified = hasData ? Date.now() : 0;
   }
   if (!pv._lastSynced) pv._lastSynced = pv._localModified ? 0 : Date.now();
+  pvEnsureSupplierInvoiceMigration();
 }
 function savePv(dirty) {
   if (dirty) pv._localModified = Date.now();
@@ -7522,6 +7529,327 @@ function savePv(dirty) {
   if (dirty) scheduleAutoSync();
 }
 loadPv();
+
+function pvCurrentUserName() {
+  try {
+    const u = getCurrentUser && getCurrentUser();
+    return u?.email || u?.name || 'local-user';
+  } catch(e) { return 'local-user'; }
+}
+
+function pvCreateMigrationBackup() {
+  const key = 'payables-v1-backup-before-supplier-invoices';
+  if (localStorage.getItem(key)) return;
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      createdAt: new Date().toISOString(),
+      reason: 'safe migration before supplier_invoices model',
+      payables: pv
+    }));
+    console.info('[supplier-invoices] migration backup created', key);
+  } catch(e) {
+    console.warn('[supplier-invoices] could not create local migration backup', e);
+  }
+}
+
+function pvInvoiceLog(invoiceId, action, field, oldValue, newValue, meta) {
+  if (!pv.supplierInvoiceActivityLog) pv.supplierInvoiceActivityLog = [];
+  pv.supplierInvoiceActivityLog.unshift({
+    id: uid(),
+    invoice_id: invoiceId || '',
+    action,
+    field: field || '',
+    old_value: oldValue == null ? '' : oldValue,
+    new_value: newValue == null ? '' : newValue,
+    meta: meta || null,
+    created_at: new Date().toISOString(),
+    created_by: pvCurrentUserName()
+  });
+  if (pv.supplierInvoiceActivityLog.length > 1200) pv.supplierInvoiceActivityLog = pv.supplierInvoiceActivityLog.slice(0, 1200);
+}
+
+function pvSupplierIdByName(name) {
+  const sup = findApprovedSupplier(name || '');
+  return sup?.id || supplierKey(name || '');
+}
+
+function pvCalcInvoiceStatus(inv) {
+  if (!inv || inv.archived) return inv?.payment_status || 'לא שולם';
+  const total = +inv.total_amount || 0;
+  const paid = pvInvoicePaidAmount(inv.id);
+  if (paid > 0 && paid < total) return 'שולם חלקית';
+  if (paid >= total && total > 0) {
+    if (pvIsCheckMethod(inv.payment_method) && inv.check_cleared !== true) return 'ממתין לפירעון צ׳ק';
+    return 'שולם';
+  }
+  if (pvIsCheckMethod(inv.payment_method)) return 'ממתין לפירעון צ׳ק';
+  const due = pvDateISO(inv.due_date);
+  if (due && due < todayISO()) return 'באיחור';
+  return inv.payment_status || 'לא שולם';
+}
+
+function pvInvoicePaidAmount(invoiceId) {
+  return (pv.supplierInvoicePayments || [])
+    .filter(p => p.invoice_id === invoiceId && p.cancelled !== true)
+    .reduce((s,p)=>s+(+p.amount||0),0);
+}
+
+function pvInvoiceOpenAmount(inv) {
+  return Math.max(0, (+inv.total_amount || 0) - pvInvoicePaidAmount(inv.id));
+}
+
+function pvIsInvoiceOpen(inv) {
+  return !inv.archived && !['שולם'].includes(pvCalcInvoiceStatus(inv));
+}
+
+function pvNormalizeInvoice(inv) {
+  const supplierName = inv.supplier_name || inv.supplierName || inv.supplier || '';
+  const total = +inv.total_amount || +inv.amount || 0;
+  const vat = +inv.vat_amount || 0;
+  const beforeVat = +inv.amount_before_vat || Math.max(0, total - vat);
+  const now = new Date().toISOString();
+  return {
+    id: inv.id || uid(),
+    supplier_id: inv.supplier_id || pvSupplierIdByName(supplierName),
+    supplier_name: supplierName,
+    supplier_tax_id: inv.supplier_tax_id || '',
+    invoice_number: inv.invoice_number || inv.invoiceNumber || '',
+    invoice_date: heToISO(inv.invoice_date || inv.date || todayStr()),
+    amount_before_vat: beforeVat,
+    vat_amount: vat,
+    total_amount: total,
+    payment_status: inv.payment_status || inv.paymentStatus || 'לא שולם',
+    payment_method: inv.payment_method || inv.paymentMethod || "צ'ק",
+    due_date: inv.due_date || inv.dueDate || '',
+    paid_at: inv.paid_at || inv.paidDate || '',
+    check_number: inv.check_number || inv.checkNumber || '',
+    check_due_date: inv.check_due_date || inv.checkDueDate || inv.due_date || inv.dueDate || '',
+    check_bank: inv.check_bank || '',
+    check_note: inv.check_note || '',
+    check_cleared: !!inv.check_cleared,
+    accounting_sent: !!(inv.accounting_sent || inv.accountingPassed),
+    accounting_sent_at: inv.accounting_sent_at || '',
+    invoice_file: inv.invoice_file || inv.invoiceImage || '',
+    notes: inv.notes || '',
+    delivery_note_ids: Array.isArray(inv.delivery_note_ids) ? inv.delivery_note_ids : (inv.deliveryNoteIds || []),
+    archived: !!inv.archived,
+    archived_at: inv.archived_at || '',
+    legacy_data: inv.legacy_data || null,
+    legacy_debt_id: inv.legacy_debt_id || inv.legacyDebtId || '',
+    legacy_tax_invoice_id: inv.legacy_tax_invoice_id || inv.legacyTaxInvoiceId || '',
+    created_at: inv.created_at || inv.createdAt || now,
+    updated_at: inv.updated_at || inv.updatedAt || now,
+    created_by: inv.created_by || 'migration',
+    updated_by: inv.updated_by || 'migration'
+  };
+}
+
+function pvEnsureSupplierInvoiceMigration() {
+  if (pv._supplierInvoicesMigrationV1) return;
+  pvCreateMigrationBackup();
+  if (!pv.supplierInvoices) pv.supplierInvoices = [];
+  if (!pv.supplierInvoicePayments) pv.supplierInvoicePayments = [];
+  if (!pv.supplierInvoiceDeliveryNotes) pv.supplierInvoiceDeliveryNotes = [];
+  if (!pv.supplierInvoiceFiles) pv.supplierInvoiceFiles = [];
+  if (!pv.supplierInvoiceActivityLog) pv.supplierInvoiceActivityLog = [];
+  let created = 0;
+
+  (pv.taxInvoices || []).forEach(ti => {
+    if (pv.supplierInvoices.some(inv => inv.legacy_tax_invoice_id === ti.id)) return;
+    const inv = pvNormalizeInvoice({
+      supplier_name: ti.supplierName,
+      invoice_number: ti.invoiceNumber,
+      invoice_date: ti.date,
+      total_amount: ti.amount,
+      payment_status: 'לא שולם',
+      payment_method: "צ'ק",
+      invoice_file: ti.invoiceImage || '',
+      delivery_note_ids: ti.deliveryNoteIds || [],
+      notes: ti.notes || '',
+      legacy_tax_invoice_id: ti.id,
+      legacy_data: {...ti}
+    });
+    pv.supplierInvoices.push(inv);
+    (inv.delivery_note_ids || []).forEach(dnId => {
+      if (!pv.supplierInvoiceDeliveryNotes.some(x => x.invoice_id === inv.id && x.delivery_note_id === dnId)) {
+        pv.supplierInvoiceDeliveryNotes.push({id:uid(), invoice_id:inv.id, delivery_note_id:dnId, created_at:inv.created_at, created_by:'migration'});
+      }
+    });
+    pvInvoiceLog(inv.id, 'יצירת חשבונית', 'migration', '', 'from taxInvoices', {legacy_tax_invoice_id: ti.id});
+    created++;
+  });
+
+  (pv.debts || []).forEach(d => {
+    if (pv.supplierInvoices.some(inv => inv.legacy_debt_id === d.id)) return;
+    const inv = pvNormalizeInvoice({
+      supplier_name: d.supplierName,
+      invoice_number: d.invoiceNumber,
+      invoice_date: d.date,
+      total_amount: d.amount,
+      payment_status: d.paymentStatus || (d.status === 'paid' ? 'שולם' : 'לא שולם'),
+      payment_method: d.paymentMethod,
+      due_date: d.dueDate,
+      paid_at: d.paidDate || '',
+      check_number: d.checkNumber || '',
+      accounting_sent: !!d.accountingPassed,
+      invoice_file: d.invoiceImage || '',
+      notes: d.notes || '',
+      legacy_debt_id: d.id,
+      legacy_tax_invoice_id: d.taxInvoiceId || '',
+      legacy_data: {...d}
+    });
+    pv.supplierInvoices.push(inv);
+    if ((+d.paidAmount || 0) > 0 || d.status === 'paid') {
+      const amount = +d.paidAmount || +d.amount || 0;
+      pv.supplierInvoicePayments.push({
+        id: uid(),
+        invoice_id: inv.id,
+        amount,
+        date: d.paidDate || d.closedAt || inv.updated_at,
+        method: d.paymentMethod || '',
+        reference: d.checkNumber || '',
+        notes: 'legacy payment migration',
+        created_at: inv.updated_at,
+        created_by: 'migration',
+        legacy_data: {legacy_debt_id: d.id}
+      });
+    }
+    pvInvoiceLog(inv.id, 'יצירת חשבונית', 'migration', '', 'from debts', {legacy_debt_id: d.id});
+    created++;
+  });
+
+  pv.supplierInvoices = pv.supplierInvoices.map(pvNormalizeInvoice);
+  pv._supplierInvoicesMigrationV1 = {
+    migratedAt: new Date().toISOString(),
+    created,
+    preserved: {
+      debts: (pv.debts || []).length,
+      taxInvoices: (pv.taxInvoices || []).length,
+      cancelledDNIds: (pv.cancelledDNIds || []).length
+    }
+  };
+  pv._localModified = Date.now();
+  try { localStorage.setItem(PAYABLES_KEY, JSON.stringify(pv)); } catch(e) { console.warn('[supplier-invoices] migration save deferred', e); }
+  console.info('[supplier-invoices] migration complete', pv._supplierInvoicesMigrationV1);
+}
+
+function pvCreateSupplierInvoiceFromDebt(debt, extra) {
+  if (!debt) return null;
+  if (!pv.supplierInvoices) pv.supplierInvoices = [];
+  if (!pv.supplierInvoicePayments) pv.supplierInvoicePayments = [];
+  if (!pv.supplierInvoiceDeliveryNotes) pv.supplierInvoiceDeliveryNotes = [];
+  const existing = pv.supplierInvoices.find(inv => inv.legacy_debt_id === debt.id || (debt.taxInvoiceId && inv.legacy_tax_invoice_id === debt.taxInvoiceId));
+  if (existing) return existing;
+  const opts = extra || {};
+  const inv = pvNormalizeInvoice({
+    supplier_name: debt.supplierName,
+    invoice_number: debt.invoiceNumber,
+    invoice_date: debt.date || todayISO(),
+    total_amount: debt.amount,
+    payment_status: debt.paymentStatus || (debt.status === 'paid' ? 'שולם' : 'לא שולם'),
+    payment_method: debt.paymentMethod,
+    due_date: debt.dueDate || '',
+    paid_at: debt.paidDate || '',
+    check_number: debt.checkNumber || '',
+    accounting_sent: !!debt.accountingPassed,
+    invoice_file: debt.invoiceImage || '',
+    notes: debt.notes || '',
+    delivery_note_ids: opts.delivery_note_ids || opts.deliveryNoteIds || [],
+    legacy_debt_id: debt.id,
+    legacy_tax_invoice_id: debt.taxInvoiceId || opts.legacy_tax_invoice_id || '',
+    legacy_data: { debt: {...debt}, ...(opts.legacy_data || {}) },
+    created_by: pvCurrentUserName(),
+    updated_by: pvCurrentUserName()
+  });
+  pv.supplierInvoices.push(inv);
+  (inv.delivery_note_ids || []).forEach(dnId => {
+    if (!pv.supplierInvoiceDeliveryNotes.some(x => x.invoice_id === inv.id && x.delivery_note_id === dnId)) {
+      pv.supplierInvoiceDeliveryNotes.push({id:uid(), invoice_id:inv.id, delivery_note_id:dnId, created_at:new Date().toISOString(), created_by:pvCurrentUserName()});
+    }
+  });
+  pvInvoiceLog(inv.id, 'יצירת חשבונית', 'source', '', opts.source || 'legacy-debt-flow', {legacy_debt_id: debt.id, legacy_tax_invoice_id: inv.legacy_tax_invoice_id});
+  return inv;
+}
+
+function pvSyncSupplierInvoiceFromDebt(debt, action) {
+  if (!debt) return null;
+  const inv = pvCreateSupplierInvoiceFromDebt(debt, {source: action || 'sync-debt'});
+  if (!inv) return null;
+  const updates = {
+    supplier_name: debt.supplierName || '',
+    supplier_id: pvSupplierIdByName(debt.supplierName || ''),
+    invoice_number: debt.invoiceNumber || '',
+    total_amount: +debt.amount || 0,
+    amount_before_vat: +debt.amount || 0,
+    due_date: debt.dueDate || '',
+    payment_method: debt.paymentMethod || "צ'ק",
+    check_number: debt.checkNumber || '',
+    accounting_sent: !!debt.accountingPassed,
+    invoice_file: debt.invoiceImage || '',
+    notes: debt.notes || '',
+    legacy_tax_invoice_id: debt.taxInvoiceId || inv.legacy_tax_invoice_id || ''
+  };
+  Object.entries(updates).forEach(([field, value]) => {
+    if (inv[field] !== value) {
+      const old = inv[field];
+      inv[field] = value;
+      pvInvoiceLog(inv.id, 'עריכת חשבונית', field, old, value, {source: action || 'sync-debt'});
+    }
+  });
+
+  const legacyPayments = (pv.supplierInvoicePayments || []).filter(p => p.invoice_id === inv.id && p.legacy_data?.legacy_debt_id === debt.id);
+  const debtPaymentIds = new Set((debt.payments || []).map(p => p.id));
+  legacyPayments.forEach(p => {
+    if (p.legacy_data?.legacy_debt_payment_id && !debtPaymentIds.has(p.legacy_data.legacy_debt_payment_id) && p.cancelled !== true) {
+      p.cancelled = true;
+      p.cancelled_at = new Date().toISOString();
+      pvInvoiceLog(inv.id, 'עריכת חשבונית', 'payment_cancelled', p.amount, '', {legacy_debt_payment_id:p.legacy_data.legacy_debt_payment_id});
+    }
+  });
+  (debt.payments || []).forEach(p => {
+    if (!pv.supplierInvoicePayments.some(x => x.invoice_id === inv.id && x.legacy_data?.legacy_debt_payment_id === p.id)) {
+      pv.supplierInvoicePayments.push({
+        id: uid(),
+        invoice_id: inv.id,
+        amount: +p.amount || 0,
+        date: p.date || todayISO(),
+        method: p.method || debt.paymentMethod || '',
+        reference: p.reference || debt.checkNumber || '',
+        notes: p.notes || '',
+        created_at: new Date().toISOString(),
+        created_by: pvCurrentUserName(),
+        legacy_data: {legacy_debt_id: debt.id, legacy_debt_payment_id: p.id}
+      });
+      pvInvoiceLog(inv.id, p.finalStatus ? 'סימון שולם' : 'תשלום חלקי', 'payment', '', +p.amount || 0, {legacy_debt_payment_id:p.id});
+    }
+  });
+  if ((+debt.paidAmount || 0) > 0 && !(debt.payments || []).length && !pv.supplierInvoicePayments.some(x => x.invoice_id === inv.id && x.legacy_data?.legacy_debt_summary === debt.id)) {
+    pv.supplierInvoicePayments.push({
+      id: uid(),
+      invoice_id: inv.id,
+      amount: +debt.paidAmount || 0,
+      date: debt.paidDate || todayISO(),
+      method: debt.paymentMethod || '',
+      reference: debt.checkNumber || '',
+      notes: 'legacy paid amount',
+      created_at: new Date().toISOString(),
+      created_by: pvCurrentUserName(),
+      legacy_data: {legacy_debt_id: debt.id, legacy_debt_summary: debt.id}
+    });
+  }
+  const oldStatus = inv.payment_status;
+  if (debt.status === 'cancelled') {
+    inv.payment_status = 'בוטל';
+    inv.archived = true;
+    inv.archived_at = inv.archived_at || new Date().toISOString();
+  } else if (debt.status === 'paid') inv.payment_status = 'שולם';
+  else if ((+debt.paidAmount || 0) > 0) inv.payment_status = 'שולם חלקית';
+  else inv.payment_status = pvIsCheckMethod(inv.payment_method) ? 'ממתין לפירעון צ׳ק' : 'לא שולם';
+  inv.paid_at = debt.paidDate || (inv.payment_status === 'שולם' ? todayISO() : '');
+  if (oldStatus !== inv.payment_status) pvInvoiceLog(inv.id, 'עריכת חשבונית', 'payment_status', oldStatus, inv.payment_status, {source: action || 'sync-debt'});
+  pvTouchInvoice(inv);
+  return inv;
+}
 
 // ── Supplier Profiles ─────────────────────────────────────────────────────────
 const SUPPLIER_PROFILES_KEY = 'supplier-profiles-v1';
@@ -9117,6 +9445,7 @@ function pvSetPaymentStatus(debtId, newStatus) {
     debt.status = 'cancelled';
     debt.closedAt = Date.now();
   }
+  pvSyncSupplierInvoiceFromDebt(debt, 'payment-status');
   savePv(true);
   setState({});
   toast(newStatus==='שולם'?'✅ סומן כשולם':'סטטוס עודכן', 'success');
@@ -10266,19 +10595,303 @@ function renderDesktopPayables() {
   </div>`;
 }
 
+function pvInvoiceStatusColor(status) {
+  if (status === 'שולם') return 'var(--accent)';
+  if (status === 'שולם חלקית') return 'var(--amber)';
+  if (status === 'באיחור') return 'var(--danger)';
+  if (String(status||'').includes('צ')) return 'var(--info)';
+  return 'var(--textDim)';
+}
+
+function pvInvoiceStatusBadge(inv) {
+  const st = pvCalcInvoiceStatus(inv);
+  const color = pvInvoiceStatusColor(st);
+  return `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:${color}18;color:${color};font-size:11px;font-weight:900;white-space:nowrap">${esc(st)}</span>`;
+}
+
+function pvInvoiceAccountingBadge(inv) {
+  return inv.accounting_sent
+    ? `<span style="color:var(--accent);font-size:11px;font-weight:800">כן</span>`
+    : `<span style="color:var(--danger);font-size:11px;font-weight:800">לא</span>`;
+}
+
+function pvSupplierInvoiceRows() {
+  pvEnsureSupplierInvoiceMigration();
+  let rows = [...(pv.supplierInvoices || [])];
+  const q = (state.payablesSearch || '').trim().toLowerCase();
+  const status = state.pvInvoiceStatus || 'הכל';
+  const method = state.pvInvoiceMethod || 'הכל';
+  const accounting = state.pvInvoiceAccounting || 'הכל';
+  const quick = state.pvInvoiceQuick || 'פתוחות';
+  if (q) rows = rows.filter(inv => [inv.supplier_name, inv.invoice_number, inv.supplier_tax_id, inv.notes].join(' ').toLowerCase().includes(q));
+  if (status !== 'הכל') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === status);
+  if (method !== 'הכל') rows = rows.filter(inv => (inv.payment_method || '') === method);
+  if (accounting === 'הועבר') rows = rows.filter(inv => inv.accounting_sent);
+  if (accounting === 'לא הועבר') rows = rows.filter(inv => !inv.accounting_sent);
+  if (quick === 'פתוחות') rows = rows.filter(pvIsInvoiceOpen);
+  if (quick === 'באיחור') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === 'באיחור');
+  if (quick === "צ'קים פתוחים") rows = rows.filter(inv => pvIsCheckMethod(inv.payment_method) && pvCalcInvoiceStatus(inv) !== 'שולם');
+  if (quick === 'שולמו') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === 'שולם');
+  if (quick === 'ארכיון') rows = rows.filter(inv => inv.archived);
+  rows.sort((a,b) => String(b.invoice_date || '').localeCompare(String(a.invoice_date || '')) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  return rows;
+}
+
+function renderSupplierInvoicesDashboard() {
+  const all = pv.supplierInvoices || [];
+  const today = todayISO();
+  const month = today.slice(0,7);
+  const open = all.filter(pvIsInvoiceOpen);
+  const overdue = all.filter(inv => pvCalcInvoiceStatus(inv) === 'באיחור');
+  const week = open.filter(inv => inv.due_date && pvDateInDays(inv.due_date, 7));
+  const checks = all.filter(inv => pvIsCheckMethod(inv.payment_method) && pvCalcInvoiceStatus(inv) !== 'שולם');
+  const paidMonth = all.filter(inv => pvCalcInvoiceStatus(inv) === 'שולם' && String(inv.paid_at || inv.updated_at || '').slice(0,7) === month);
+  const notAccounting = all.filter(inv => !inv.accounting_sent && !inv.archived);
+  const monthPurchases = all.filter(inv => String(inv.invoice_date || '').slice(0,7) === month).reduce((s,inv)=>s+(+inv.total_amount||0),0);
+  const kpi = (label, value, sub, tone) => {
+    const color = tone === 'danger' ? 'var(--danger)' : tone === 'warn' ? 'var(--amber)' : tone === 'info' ? 'var(--info)' : 'var(--accent)';
+    return `<div style="padding:12px;border-radius:13px;background:var(--surface);border:1px solid var(--border)">
+      <div style="font-size:10.5px;color:var(--textDim);font-weight:800;margin-bottom:5px">${label}</div>
+      <div class="display" style="font-size:17px;color:${color};font-weight:800">${value}</div>
+      <div style="font-size:10.5px;color:var(--textMuted);margin-top:2px">${sub||''}</div>
+    </div>`;
+  };
+  return `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px">
+    ${kpi('חובות פתוחים', fmtCurr(open.reduce((s,inv)=>s+pvInvoiceOpenAmount(inv),0)), open.length+' חשבוניות', open.length?'warn':'ok')}
+    ${kpi('לפירעון השבוע', fmtCurr(week.reduce((s,inv)=>s+pvInvoiceOpenAmount(inv),0)), week.length+' פריטים', 'info')}
+    ${kpi('באיחור', fmtCurr(overdue.reduce((s,inv)=>s+pvInvoiceOpenAmount(inv),0)), overdue.length+' חשבוניות', overdue.length?'danger':'ok')}
+    ${kpi("צ'קים פתוחים", checks.length, fmtCurr(checks.reduce((s,inv)=>s+pvInvoiceOpenAmount(inv),0)), 'info')}
+    ${kpi('שולמו החודש', paidMonth.length, fmtCurr(paidMonth.reduce((s,inv)=>s+(+inv.total_amount||0),0)), 'ok')}
+    ${kpi('לא הועבר להנה"ח', notAccounting.length, 'דורש טיפול', notAccounting.length?'warn':'ok')}
+    ${kpi('קניות החודש', fmtCurr(monthPurchases), month, 'ok')}
+    ${kpi('חשבוניות', all.length, 'כולל היסטוריה', 'info')}
+  </div>`;
+}
+
+function renderSupplierInvoicesTab() {
+  pvEnsureSupplierInvoiceMigration();
+  const rows = pvSupplierInvoiceRows();
+  const quicks = ['פתוחות','באיחור',"צ'קים פתוחים",'שולמו','ארכיון','הכל'];
+  const statuses = ['הכל','לא שולם','שולם חלקית','שולם','באיחור','ממתין לפירעון צ׳ק'];
+  const methods = ['הכל','מזומן','העברה בנקאית',"צ'ק",'אשראי','אחר'];
+  const cards = rows.length ? rows.map(inv => {
+    const linked = inv.delivery_note_ids || [];
+    const openAmount = pvInvoiceOpenAmount(inv);
+    const warn = pvInvoiceDeliveryNotesWarning(inv);
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:13px 14px;margin-bottom:9px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0" onclick="setState({payablesView:'invoice',payablesInvoiceId:'${inv.id}'})">
+          <div style="font-size:15px;font-weight:900;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(inv.supplier_name || 'ספק')}</div>
+          <div style="font-size:11px;color:var(--textDim);margin-top:3px">#${esc(inv.invoice_number || 'ללא מספר')} · ${fmtDate(inv.invoice_date)} · ${esc(inv.payment_method||'')}</div>
+          ${warn ? `<div style="font-size:11px;color:var(--amber);font-weight:800;margin-top:5px">⚠ ${warn}</div>` : ''}
+        </div>
+        <div style="text-align:left;flex-shrink:0">
+          <div class="display" style="font-size:15px;font-weight:800;color:var(--text)">${fmtCurr(inv.total_amount)}</div>
+          <div style="font-size:11px;color:${openAmount>0?'var(--danger)':'var(--accent)'};font-weight:800">יתרה ${fmtCurr(openAmount)}</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px">
+        ${pvInvoiceStatusBadge(inv)}
+        <span style="font-size:11px;color:var(--textDim)">הנה"ח: ${pvInvoiceAccountingBadge(inv)}</span>
+        <span style="font-size:11px;color:var(--textDim)">${linked.length} תעודות</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px">
+        <button onclick="setState({payablesView:'invoice',payablesInvoiceId:'${inv.id}'})" class="desktop-mini-btn">פתח</button>
+        <button onclick="pvOpenInvoiceLinkDN('${inv.id}')" class="desktop-mini-btn">שייך ת"מ</button>
+        <button onclick="pvMarkSupplierInvoicePaid('${inv.id}')" class="desktop-mini-btn primary">שולם</button>
+      </div>
+    </div>`;
+  }).join('') : `<div style="text-align:center;padding:34px 16px;color:var(--textMuted)"><div style="font-size:34px;margin-bottom:8px">🧾</div><div style="font-size:13px;font-weight:700">אין חשבוניות בפילטר הנוכחי</div></div>`;
+
+  return `<div style="padding:14px 14px 110px" class="fade-up">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div style="flex:1">
+        <h2 class="display" style="font-size:20px;margin:0">חשבוניות ספק</h2>
+        <div style="font-size:11px;color:var(--textDim);margin-top:2px">ניהול חשבוניות וחובות פתוחים בלבד. תעודות משלוח משויכות בלי מחיקה.</div>
+      </div>
+      <button onclick="setState({payablesModal:'add-direct',payablesModalData:{}})" style="border:none;border-radius:10px;background:var(--accent);color:#071302;padding:9px 12px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer">+ חשבונית</button>
+    </div>
+    ${renderSupplierInvoicesDashboard()}
+    <div style="position:relative;margin-bottom:10px"><input class="input" placeholder="חיפוש ספק / חשבונית / הערה" value="${esc(state.payablesSearch||'')}" oninput="state.payablesSearch=this.value;render()"></div>
+    <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;padding-bottom:3px">
+      ${quicks.map(q=>`<button onclick="setState({pvInvoiceQuick:'${q}'})" class="desktop-mini-btn ${(state.pvInvoiceQuick||'פתוחות')===q?'primary':''}">${q}</button>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:10px">
+      <select class="input" onchange="setState({pvInvoiceStatus:this.value})">${statuses.map(s=>`<option ${((state.pvInvoiceStatus||'הכל')===s)?'selected':''}>${s}</option>`).join('')}</select>
+      <select class="input" onchange="setState({pvInvoiceMethod:this.value})">${methods.map(m=>`<option ${((state.pvInvoiceMethod||'הכל')===m)?'selected':''}>${m}</option>`).join('')}</select>
+      <select class="input" onchange="setState({pvInvoiceAccounting:this.value})">${['הכל','הועבר','לא הועבר'].map(a=>`<option ${((state.pvInvoiceAccounting||'הכל')===a)?'selected':''}>${a}</option>`).join('')}</select>
+    </div>
+    ${cards}
+  </div>`;
+}
+
+function pvInvoiceDeliveryNotesWarning(inv) {
+  const ids = inv.delivery_note_ids || [];
+  if (!ids.length) return '';
+  const sum = (DB.expenses || []).filter(e => ids.includes(e.id)).reduce((s,e)=>s+(+e.total_amount||0),0);
+  const diff = Math.abs(sum - (+inv.total_amount || 0));
+  return diff > 1 ? `סכום ת"מ ${fmtCurr(sum)} שונה מחשבונית ${fmtCurr(inv.total_amount)}` : '';
+}
+
+function renderSupplierInvoiceDetail() {
+  const inv = (pv.supplierInvoices || []).find(x => x.id === state.payablesInvoiceId);
+  if (!inv) return `<div style="padding:20px;color:var(--danger)">חשבונית לא נמצאה</div>`;
+  const payments = (pv.supplierInvoicePayments || []).filter(p => p.invoice_id === inv.id && p.cancelled !== true);
+  const logs = (pv.supplierInvoiceActivityLog || []).filter(l => l.invoice_id === inv.id);
+  const dns = (DB.expenses || []).filter(e => (inv.delivery_note_ids || []).includes(e.id));
+  const warning = pvInvoiceDeliveryNotesWarning(inv);
+  return `<div style="padding:16px 16px 100px" class="fade-up">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <button onclick="setState({payablesView:'dashboard',payablesInvoiceId:''})" style="width:38px;height:38px;border:none;border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:20px;cursor:pointer">‹</button>
+      <div style="flex:1;min-width:0">
+        <h2 class="display" style="font-size:17px;margin:0">${esc(inv.supplier_name)}</h2>
+        <div style="font-size:12px;color:var(--textDim)">חשבונית #${esc(inv.invoice_number||'ללא מספר')}</div>
+      </div>
+      ${pvInvoiceStatusBadge(inv)}
+    </div>
+    ${warning ? `<div class="err" style="color:var(--amber);background:var(--amberSoft);border-color:rgba(245,180,42,.3)">⚠ ${warning}</div>` : ''}
+    <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center">
+        <div><div style="font-size:11px;color:var(--textDim)">לפני מע"מ</div><b>${fmtCurr(inv.amount_before_vat)}</b></div>
+        <div><div style="font-size:11px;color:var(--textDim)">מע"מ</div><b>${fmtCurr(inv.vat_amount)}</b></div>
+        <div><div style="font-size:11px;color:var(--textDim)">כולל</div><b>${fmtCurr(inv.total_amount)}</b></div>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:var(--textDim)">יתרה פתוחה: <b style="color:${pvInvoiceOpenAmount(inv)>0?'var(--danger)':'var(--accent)'}">${fmtCurr(pvInvoiceOpenAmount(inv))}</b></div>
+    </div>
+    <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
+      <div style="font-size:11px;font-weight:800;color:var(--textDim);margin-bottom:8px">פרטים</div>
+      ${[['עוסק/ח.פ',inv.supplier_tax_id],['תאריך חשבונית',fmtDate(inv.invoice_date)],['תאריך פירעון',fmtDate(inv.due_date)],['אמצעי תשלום',inv.payment_method],['מספר צ׳ק',inv.check_number],['פירעון צ׳ק',fmtDate(inv.check_due_date)],['בנק',inv.check_bank],['הנה"ח',inv.accounting_sent?'כן':'לא']].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span style="color:var(--textDim);font-size:12px">${k}</span><b style="font-size:12px">${esc(v||'—')}</b></div>`).join('')}
+      ${inv.notes ? `<div style="font-size:12px;color:var(--textDim);padding-top:8px">הערות: ${esc(inv.notes)}</div>` : ''}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <button onclick="pvOpenInvoiceLinkDN('${inv.id}')" class="btn-secondary" style="margin:0">שייך ת"מ</button>
+      <button onclick="pvAddSupplierInvoicePartialPayment('${inv.id}')" class="btn-secondary" style="margin:0">תשלום חלקי</button>
+      <button onclick="pvMarkSupplierInvoicePaid('${inv.id}')" class="btn-primary" style="margin:0">סמן שולם</button>
+      <button onclick="pvToggleSupplierInvoiceAccounting('${inv.id}')" class="btn-secondary" style="margin:0">הנה"ח ${inv.accounting_sent?'✓':'לא'}</button>
+      <button onclick="pvToggleSupplierInvoiceArchive('${inv.id}')" class="btn-secondary" style="margin:0">${inv.archived?'שחזר מארכיון':'העבר לארכיון'}</button>
+    </div>
+    <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
+      <div style="font-size:11px;font-weight:800;color:var(--textDim);margin-bottom:8px">תעודות משלוח משויכות</div>
+      ${dns.length ? dns.map(e=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1"><b style="font-size:13px">${esc(e.document_number||'ללא מספר')}</b><div style="font-size:11px;color:var(--textDim)">${fmtDate(e.date)} · ${fmtCurr(e.total_amount)}</div></div>
+        <button onclick="pvUnlinkDNFromSupplierInvoice('${inv.id}','${e.id}')" class="desktop-mini-btn">בטל שיוך</button>
+      </div>`).join('') : `<div style="font-size:12px;color:var(--textMuted)">אין תעודות משויכות</div>`}
+    </div>
+    <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:12px">
+      <div style="font-size:11px;font-weight:800;color:var(--textDim);margin-bottom:8px">תשלומים</div>
+      ${payments.length ? payments.map(p=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px">${fmtDate(p.date)} · ${esc(p.method||'')}</span><b>${fmtCurr(p.amount)}</b></div>`).join('') : `<div style="font-size:12px;color:var(--textMuted)">אין תשלומים</div>`}
+    </div>
+    <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:800;color:var(--textDim);margin-bottom:8px">היסטוריית שינויים</div>
+      ${logs.length ? logs.slice(0,40).map(l=>`<div style="padding:7px 0;border-bottom:1px solid var(--border)"><b style="font-size:12px">${esc(l.action)}</b><div style="font-size:11px;color:var(--textDim)">${fmtDate(l.created_at)} · ${esc(l.created_by||'')}</div>${l.field?`<div style="font-size:11px;color:var(--textDim)">${esc(l.field)}: ${esc(l.old_value)} ← ${esc(l.new_value)}</div>`:''}</div>`).join('') : `<div style="font-size:12px;color:var(--textMuted)">אין היסטוריה</div>`}
+    </div>
+  </div>`;
+}
+
+function pvGetInvoice(invId) {
+  return (pv.supplierInvoices || []).find(x => x.id === invId);
+}
+
+function pvTouchInvoice(inv) {
+  inv.updated_at = new Date().toISOString();
+  inv.updated_by = pvCurrentUserName();
+}
+
+function pvMarkSupplierInvoicePaid(invId) {
+  const inv = pvGetInvoice(invId);
+  if (!inv) return;
+  if (pvIsCheckMethod(inv.payment_method) && !confirm('התשלום בצ׳ק. לסמן שהצ׳ק נפרע בפועל והחשבונית שולמה?')) return;
+  const remaining = pvInvoiceOpenAmount(inv);
+  if (remaining > 0) {
+    pv.supplierInvoicePayments.push({id:uid(), invoice_id:inv.id, amount:remaining, date:todayISO(), method:inv.payment_method||'', reference:inv.check_number||'', notes:'סימון שולם', created_at:new Date().toISOString(), created_by:pvCurrentUserName()});
+  }
+  const old = inv.payment_status;
+  inv.payment_status = 'שולם';
+  inv.paid_at = todayISO();
+  inv.check_cleared = true;
+  pvTouchInvoice(inv);
+  pvInvoiceLog(inv.id, 'סימון שולם', 'payment_status', old, 'שולם');
+  savePv(true);
+  setState({});
+  toast('החשבונית סומנה כשולמה ✓', 'success');
+}
+
+function pvAddSupplierInvoicePartialPayment(invId) {
+  const inv = pvGetInvoice(invId);
+  if (!inv) return;
+  const remaining = pvInvoiceOpenAmount(inv);
+  const val = prompt('סכום תשלום חלקי', remaining.toFixed(2));
+  if (val == null) return;
+  const amount = +val;
+  if (!amount || amount <= 0) { toast('סכום לא תקין', 'error'); return; }
+  pv.supplierInvoicePayments.push({id:uid(), invoice_id:inv.id, amount:Math.min(amount, remaining), date:todayISO(), method:inv.payment_method||'', reference:inv.check_number||'', notes:'תשלום חלקי', created_at:new Date().toISOString(), created_by:pvCurrentUserName()});
+  const old = inv.payment_status;
+  inv.payment_status = pvInvoiceOpenAmount(inv) <= 0 ? 'שולם' : 'שולם חלקית';
+  if (inv.payment_status === 'שולם') inv.paid_at = todayISO();
+  pvTouchInvoice(inv);
+  pvInvoiceLog(inv.id, 'תשלום חלקי', 'payment_status', old, inv.payment_status, {amount});
+  savePv(true);
+  setState({});
+  toast('תשלום חלקי נרשם ✓', 'success');
+}
+
+function pvToggleSupplierInvoiceAccounting(invId) {
+  const inv = pvGetInvoice(invId);
+  if (!inv) return;
+  const old = inv.accounting_sent ? 'כן' : 'לא';
+  inv.accounting_sent = !inv.accounting_sent;
+  inv.accounting_sent_at = inv.accounting_sent ? new Date().toISOString() : '';
+  pvTouchInvoice(inv);
+  pvInvoiceLog(inv.id, 'סימון הועבר להנה"ח', 'accounting_sent', old, inv.accounting_sent ? 'כן' : 'לא');
+  savePv(true);
+  setState({});
+}
+
+function pvToggleSupplierInvoiceArchive(invId) {
+  const inv = pvGetInvoice(invId);
+  if (!inv) return;
+  const old = inv.archived ? 'בארכיון' : 'פעיל';
+  inv.archived = !inv.archived;
+  inv.archived_at = inv.archived ? new Date().toISOString() : '';
+  pvTouchInvoice(inv);
+  pvInvoiceLog(inv.id, inv.archived ? 'העברה לארכיון' : 'שחזור מארכיון', 'archived', old, inv.archived ? 'בארכיון' : 'פעיל');
+  savePv(true);
+  setState({});
+}
+
+function pvOpenInvoiceLinkDN(invId) {
+  const inv = pvGetInvoice(invId);
+  if (!inv) return;
+  setState({payablesModal:'supplier-invoice-link-dn',payablesModalData:{invoiceId:invId, selectedDNIds:[...(inv.delivery_note_ids||[])]}});
+}
+
+function pvUnlinkDNFromSupplierInvoice(invId, dnId) {
+  const inv = pvGetInvoice(invId);
+  if (!inv) return;
+  if (!confirm('לבטל שיוך תעודת משלוח מהחשבונית? התעודה לא תימחק.')) return;
+  inv.delivery_note_ids = (inv.delivery_note_ids || []).filter(id => id !== dnId);
+  pv.supplierInvoiceDeliveryNotes = (pv.supplierInvoiceDeliveryNotes || []).filter(x => !(x.invoice_id === invId && x.delivery_note_id === dnId));
+  pvTouchInvoice(inv);
+  pvInvoiceLog(inv.id, 'ביטול שיוך', 'delivery_note_ids', dnId, '');
+  savePv(true);
+  setState({});
+}
+
 function renderPayables() {
   if (isDesktopMode()) return renderDesktopPayables();
+  if (state.payablesView === 'invoice') return renderSupplierInvoiceDetail();
   if (state.payablesView === 'supplier') return renderPayablesSupplier();
   if (state.payablesView === 'debt') return renderPayablesDebt();
   if (state.payablesView === 'reconcile') return renderPayablesReconcile();
   if (state.payablesView === 'supplierBook') return renderPayablesSupplierBook();
-  return renderPayablesDashboard();
+  return renderSupplierInvoicesTab();
 }
 
 // ── Modals ───────────────────────────────────────────────────────────────────
 function renderPayablesModal() {
   switch(state.payablesModal) {
     case 'link-dn': return renderPvModalLinkDN();
+    case 'supplier-invoice-link-dn': return renderPvModalSupplierInvoiceLinkDN();
     case 'add-direct': return renderPvModalAddDirect();
     case 'edit-debt': return renderPvModalEditDebt();
     case 'edit-check': return renderPvModalEditCheck();
@@ -10287,6 +10900,83 @@ function renderPayablesModal() {
     case 'confirm-paid': return renderPvModalConfirmPaid();
     default: return '';
   }
+}
+
+function pvToggleSupplierInvoiceDNSelection(dnId) {
+  if (!state.payablesModalData) state.payablesModalData = {};
+  const selected = new Set(state.payablesModalData.selectedDNIds || []);
+  if (selected.has(dnId)) selected.delete(dnId);
+  else selected.add(dnId);
+  state.payablesModalData.selectedDNIds = [...selected];
+  render();
+}
+
+function renderPvModalSupplierInvoiceLinkDN() {
+  const d = state.payablesModalData || {};
+  const inv = pvGetInvoice(d.invoiceId);
+  if (!inv) return '';
+  const selected = new Set(d.selectedDNIds || []);
+  const supplierNorm = pvSupplierNorm(inv.supplier_name || '');
+  const notes = (DB.expenses || [])
+    .filter(e => String(e.document_type || '').includes('משלוח'))
+    .filter(e => !pv.cancelledDNIds.includes(e.id))
+    .filter(e => selected.has(e.id) || !supplierNorm || pvSupplierNorm(e.supplier || '') === supplierNorm)
+    .sort((a,b) => String(b.date || '').localeCompare(String(a.date || '')));
+  const selectedTotal = notes.filter(e => selected.has(e.id)).reduce((sum,e) => sum + (+e.total_amount || 0), 0);
+  const invoiceTotal = +inv.total_amount || 0;
+  const hasAmountGap = selected.size > 0 && Math.abs(selectedTotal - invoiceTotal) > 1;
+  const body = `
+    <div style="font-size:12px;color:var(--textDim);margin-bottom:10px">
+      ${esc(inv.supplier_name || '')} · חשבונית ${esc(inv.invoice_number || 'ללא מספר')} · ${fmtCurr(invoiceTotal)}
+    </div>
+    ${hasAmountGap ? `<div style="padding:10px 12px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:12px;font-weight:800;margin-bottom:10px">
+      אזהרה: סכום התעודות המשויכות ${fmtCurr(selectedTotal)} שונה מסכום החשבונית ${fmtCurr(invoiceTotal)}
+    </div>` : ''}
+    ${notes.length === 0 ? `<div style="text-align:center;color:var(--textMuted);font-size:13px;padding:18px 0">לא נמצאו תעודות משלוח זמינות לספק הזה</div>` : notes.map(e => `
+      <div onclick="pvToggleSupplierInvoiceDNSelection('${e.id}')" style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid ${selected.has(e.id)?'var(--accent)':'var(--border)'};background:${selected.has(e.id)?'var(--accentSoft)':'var(--surfaceHi)'};border-radius:13px;margin-bottom:8px;cursor:pointer">
+        <div style="width:24px;height:24px;border-radius:8px;background:${selected.has(e.id)?'var(--accent)':'var(--surface)'};color:${selected.has(e.id)?'#fff':'var(--textDim)'};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900">${selected.has(e.id)?'✓':''}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;color:var(--text);font-size:13px">${esc(e.supplier || inv.supplier_name || '')}</div>
+          <div style="font-size:11px;color:var(--textDim)">תעודת משלוח ${esc(e.document_number || 'ללא מספר')} · ${fmtDate(e.date)}</div>
+        </div>
+        <div style="font-weight:900;color:var(--text);font-size:13px">${fmtCurr(+e.total_amount || 0)}</div>
+      </div>`).join('')}
+    <button class="btn" onclick="pvConfirmSupplierInvoiceLinkDN()">שמור שיוך</button>
+    <button class="btn-ghost" onclick="setState({payablesModal:'',payablesModalData:null})">ביטול</button>`;
+  return `<div onclick="setState({payablesModal:'',payablesModalData:null})" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
+    <div onclick="event.stopPropagation()" style="background:var(--surface);border-radius:24px 24px 0 0;width:100%;max-width:520px;padding:20px;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));max-height:88vh;overflow-y:auto;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <button onclick="setState({payablesModal:'',payablesModalData:null})" style="width:40px;height:40px;border:none;border-radius:12px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0">×</button>
+        <h2 class="display" style="font-size:16px;margin:0;flex:1">שייך תעודות משלוח</h2>
+      </div>
+      ${body}
+    </div>
+  </div>`;
+}
+
+function pvConfirmSupplierInvoiceLinkDN() {
+  const d = state.payablesModalData || {};
+  const inv = pvGetInvoice(d.invoiceId);
+  if (!inv) return;
+  const oldIds = new Set(inv.delivery_note_ids || []);
+  const newIds = new Set(d.selectedDNIds || []);
+  const added = [...newIds].filter(id => !oldIds.has(id));
+  const removed = [...oldIds].filter(id => !newIds.has(id));
+  inv.delivery_note_ids = [...newIds];
+  added.forEach(dnId => {
+    if (!pv.supplierInvoiceDeliveryNotes.some(x => x.invoice_id === inv.id && x.delivery_note_id === dnId)) {
+      pv.supplierInvoiceDeliveryNotes.push({id:uid(), invoice_id:inv.id, delivery_note_id:dnId, created_at:new Date().toISOString(), created_by:pvCurrentUserName()});
+    }
+    pvInvoiceLog(inv.id, 'שיוך תעודת משלוח', 'delivery_note_ids', '', dnId);
+  });
+  removed.forEach(dnId => {
+    pv.supplierInvoiceDeliveryNotes = (pv.supplierInvoiceDeliveryNotes || []).filter(x => !(x.invoice_id === inv.id && x.delivery_note_id === dnId));
+    pvInvoiceLog(inv.id, 'ביטול שיוך', 'delivery_note_ids', dnId, '');
+  });
+  pvTouchInvoice(inv);
+  savePv(true);
+  setState({payablesModal:'',payablesModalData:null});
+  toast('שיוך התעודות נשמר ✓', 'success');
 }
 
 function renderPvModalLinkCheckToDebt() {
@@ -10474,6 +11164,7 @@ function pvLinkDNConfirm() {
     createdAt: Date.now(),
   };
   pv.debts.push(debt);
+  pvCreateSupplierInvoiceFromDebt(debt, {source:'link-delivery-notes', delivery_note_ids:d.selectedDNIds || [], legacy_tax_invoice_id:tiId, legacy_data:{tax_invoice:{...ti}}});
   savePv(true);
   setState({payablesModal:'', payablesModalData:null});
   toast('חשבונית וחוב נוצרו ✓', 'success');
@@ -10527,6 +11218,7 @@ function pvAddDirectConfirm() {
     createdAt: Date.now(),
   };
   pv.debts.push(debt);
+  pvCreateSupplierInvoiceFromDebt(debt, {source:'direct-debt'});
   savePv(true);
   const supName = debt.supplierName;
   setState({payablesModal:'', payablesModalData:null, payablesView:'supplier', payablesSupplier:supName});
@@ -10622,6 +11314,7 @@ function pvEditDebtConfirm() {
     }
   }
 
+  pvSyncSupplierInvoiceFromDebt(debt, 'edit-debt');
   savePv(true);
   setState({payablesModal:'', payablesModalData:null, payablesView:'debt', payablesDebtId:debt.id});
   toast('התנועה עודכנה ✓', 'success');
@@ -10724,6 +11417,7 @@ function pvRecordPaymentConfirm() {
     debt.paidDate = payment.date;
     debt.closedAt = Date.now();
   }
+  pvSyncSupplierInvoiceFromDebt(debt, 'record-payment');
   savePv(true);
   setState({payablesModal:'', payablesModalData:null});
   toast('תשלום נרשם ✓', 'success');
@@ -10756,6 +11450,7 @@ function pvAutoCreateDebtFromExpense(item) {
     createdAt: Date.now(),
   };
   pv.debts.push(debt);
+  pvCreateSupplierInvoiceFromDebt(debt, {source:'expense-scan', legacy_data:{expense:{...item}}});
   savePv(true);
   toast('חוב ₪' + fmt(debt.amount) + ' נוצר אוטומטית ✓', 'success');
 }
@@ -10791,6 +11486,7 @@ function pvCreateDebtFromTI(tiId) {
     createdAt: Date.now(),
   };
   pv.debts.push(debt);
+  pvCreateSupplierInvoiceFromDebt(debt, {source:'create-debt-from-tax-invoice', delivery_note_ids:ti.deliveryNoteIds || [], legacy_tax_invoice_id:tiId, legacy_data:{tax_invoice:{...ti}}});
   savePv(true);
   setState({payablesView:'debt', payablesDebtId:debt.id});
   toast('חוב נוצר ✓', 'success');
@@ -10803,6 +11499,7 @@ function pvCancelDebt(debtId) {
   debt.status = 'cancelled';
   debt.paymentStatus = 'בוטל';
   debt.closedAt = Date.now();
+  pvSyncSupplierInvoiceFromDebt(debt, 'cancel-debt');
   savePv(true);
   setState({payablesView:'supplier', payablesSupplier:debt.supplierName});
   toast('חוב בוטל', 'success');
@@ -10814,7 +11511,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=106').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=107').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
