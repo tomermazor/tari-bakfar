@@ -10651,7 +10651,7 @@ function renderDesktopPayables() {
     <div class="desktop-work-grid">
       <section class="desktop-section">
         <div class="desktop-filterbar">
-          <input class="input" placeholder="חיפוש ספק / צ׳ק / חשבונית" value="${esc(state.payablesSearch||'')}" oninput="state.payablesSearch=this.value;render()">
+          <input class="input" placeholder="חיפוש ספק / צ׳ק / חשבונית" value="${esc(state.payablesSearch||'')}" oninput="pvInvoiceSearchInput(this.value)">
           ${filters.map(f=>`<button class="desktop-mini-btn ${pf===f?'primary':''}" onclick="setState({pvPaymentFilter:'${f}'})">${f}</button>`).join('')}
         </div>
         <div class="desktop-table-wrap">${rows.length ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>תאריך</th><th>אמצעי</th><th>סטטוס</th><th style="text-align:left">סכום</th><th>פעולה</th></tr></thead><tbody>${rowsHtml}</tbody></table>` : desktopEmpty('✅','אין תשלומים להצגה','הכול מסודר לפי הפילטר הנוכחי')}</div>
@@ -10705,6 +10705,23 @@ function pvSupplierInvoiceRows() {
   return rows;
 }
 
+let pvInvoiceSearchTimer = null;
+function pvInvoiceSearchInput(val) {
+  state.payablesSearch = val || '';
+  clearTimeout(pvInvoiceSearchTimer);
+  pvInvoiceSearchTimer = setTimeout(() => {
+    if (state.tab === 'payables' && (!state.payablesView || state.payablesView === 'dashboard')) {
+      render();
+      const inp = document.getElementById('pv-invoice-search-inp');
+      if (inp) {
+        inp.focus({preventScroll:true});
+        const pos = inp.value.length;
+        try { inp.setSelectionRange(pos, pos); } catch(e) {}
+      }
+    }
+  }, 180);
+}
+
 function renderSupplierInvoicesDashboard() {
   const all = pv.supplierInvoices || [];
   const today = todayISO();
@@ -10739,10 +10756,12 @@ function renderSupplierInvoicesDashboard() {
 function renderSupplierInvoicesTab() {
   pvEnsureSupplierInvoiceMigration();
   const rows = pvSupplierInvoiceRows();
+  const visibleRows = rows.slice(0, 80);
+  const hiddenCount = Math.max(0, rows.length - visibleRows.length);
   const quicks = ['טיוטות לבדיקה','פתוחות','באיחור',"צ'קים פתוחים",'שולמו','ארכיון','הכל'];
   const statuses = ['הכל','טיוטה לבדיקה','מאושרת כחוב פתוח','לא שולם','שולם חלקית','שולם','באיחור','ממתין לפירעון צ׳ק'];
   const methods = ['הכל','מזומן','העברה בנקאית',"צ'ק",'אשראי','אחר'];
-  const cards = rows.length ? rows.map(inv => {
+  const cards = visibleRows.length ? visibleRows.map(inv => {
     const linked = inv.delivery_note_ids || [];
     const openAmount = pvInvoiceOpenAmount(inv);
     const warn = pvInvoiceDeliveryNotesWarning(inv);
@@ -10771,7 +10790,7 @@ function renderSupplierInvoicesTab() {
         ${isDraft ? `<button onclick="pvApproveSupplierInvoice('${inv.id}')" class="desktop-mini-btn primary">אשר</button>` : `<button onclick="pvMarkSupplierInvoicePaid('${inv.id}')" class="desktop-mini-btn primary">שולם</button>`}
       </div>
     </div>`;
-  }).join('') : `<div style="text-align:center;padding:34px 16px;color:var(--textMuted)"><div style="font-size:34px;margin-bottom:8px">🧾</div><div style="font-size:13px;font-weight:700">אין חשבוניות בפילטר הנוכחי</div></div>`;
+  }).join('') + (hiddenCount ? `<div style="text-align:center;color:var(--textDim);font-size:12px;padding:10px 4px">מוצגות 80 תוצאות ראשונות מתוך ${rows.length}. המשך להקליד כדי לצמצם.</div>` : '') : `<div style="text-align:center;padding:34px 16px;color:var(--textMuted)"><div style="font-size:34px;margin-bottom:8px">🧾</div><div style="font-size:13px;font-weight:700">אין חשבוניות בפילטר הנוכחי</div></div>`;
 
   return `<div style="padding:14px 14px 110px" class="fade-up">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
@@ -10782,7 +10801,10 @@ function renderSupplierInvoicesTab() {
       <button onclick="setState({payablesModal:'add-direct',payablesModalData:{}})" style="border:none;border-radius:10px;background:var(--accent);color:#071302;padding:9px 12px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer">+ חשבונית</button>
     </div>
     ${renderSupplierInvoicesDashboard()}
-    <div style="position:relative;margin-bottom:10px"><input class="input" placeholder="חיפוש ספק / חשבונית / הערה" value="${esc(state.payablesSearch||'')}" oninput="state.payablesSearch=this.value;render()"></div>
+    <div style="position:relative;margin-bottom:10px">
+      <input id="pv-invoice-search-inp" class="input" placeholder="חיפוש ספק / חשבונית / הערה" value="${esc(state.payablesSearch||'')}" oninput="pvInvoiceSearchInput(this.value)">
+      ${state.payablesSearch ? `<button onclick="state.payablesSearch='';render()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;border-radius:50%;background:var(--borderHi);color:var(--textDim);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>` : ''}
+    </div>
     <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;padding-bottom:3px">
       ${quicks.map(q=>`<button onclick="setState({pvInvoiceQuick:'${q}'})" class="desktop-mini-btn ${(state.pvInvoiceQuick||'פתוחות')===q?'primary':''}">${q}</button>`).join('')}
     </div>
@@ -11809,7 +11831,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=110').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=111').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
