@@ -568,6 +568,12 @@ let _autoSyncTimer = null;
 let _liveSyncTimer = null;
 let _productsSearchTimer = null;
 let _productsSearchFocusId = '';
+const CLOUD_TIMEOUT_MS = 15000;
+const CLOUD_READ_CACHE_TTL = 45000;
+const SYNC_MIN_INTERVAL_MS = 12000;
+const CLOUD_READ_CACHE = new Map();
+let LAST_SYNC_AT = 0;
+let _syncQueued = false;
 function setSyncStatus(s) {
   SYNC_STATUS = s;
   const badge = document.getElementById('sync-badge');
@@ -588,9 +594,9 @@ function scheduleAutoSync() {
   if (!fullSync && !ordersSync) return;
   clearTimeout(_autoSyncTimer);
   _autoSyncTimer = setTimeout(function() {
-    if (fullSync) syncAll({silent:true});
-    if (ordersSync) { syncOrders(); syncActiveOrders(); }
-  }, 650);
+    if (fullSync) syncAll({silent:true, reason:'auto'});
+    else if (ordersSync) { syncOrders(); syncActiveOrders(); }
+  }, 2500);
 }
 
 function startLiveSyncLoop() {
@@ -598,9 +604,9 @@ function startLiveSyncLoop() {
   if (!CFG.webAppUrl) return;
   _liveSyncTimer = setInterval(function() {
     if (document.hidden || !CFG.webAppUrl) return;
-    if (typeof canRunFullSync === 'function' && canRunFullSync()) syncAll({silent:true});
-    if (typeof canRunOrdersSync === 'function' && canRunOrdersSync()) { syncOrders(); syncActiveOrders(); }
-  }, 20000);
+    if (typeof canRunFullSync === 'function' && canRunFullSync()) syncAll({silent:true, reason:'live'});
+    else if (typeof canRunOrdersSync === 'function' && canRunOrdersSync()) { syncOrders(); syncActiveOrders(); }
+  }, 60000);
 }
 
 function setProductsSearch(value, inputId) {
@@ -637,25 +643,68 @@ function saveOrdersDraftsFromSync(drafts) {
 // ═══════════════════════════════════════════════════════════════════════════
 // CLOUD SYNC
 // ═══════════════════════════════════════════════════════════════════════════
-async function cloudCall(action, payload) {
+function isCloudReadAction(action) {
+  return /^list_|^get_/.test(String(action || ''));
+}
+
+function cloudCacheKey(action, payload) {
+  try { return action + ':' + JSON.stringify(payload || {}); }
+  catch(e) { return action + ':uncacheable'; }
+}
+
+function shouldRetryCloudError(err) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  return !msg.includes('15 שניות') && !msg.includes('unknown action') && !msg.includes('quota') && !msg.includes('validation') && !msg.includes('duplicate');
+}
+
+async function cloudCall(action, payload, opts) {
   if (!CFG.webAppUrl) throw new Error('לא הוגדר חיבור ל-Google Sheets');
+  opts = opts || {};
+  const canCache = opts.cache !== false && isCloudReadAction(action);
+  const cacheKey = canCache ? cloudCacheKey(action, payload) : '';
+  if (canCache) {
+    const cached = CLOUD_READ_CACHE.get(cacheKey);
+    if (cached && Date.now() - cached.at < CLOUD_READ_CACHE_TTL) return cached.data;
+  }
 
-  // Use text/plain to avoid CORS preflight
-  const res = await fetch(CFG.webAppUrl, {
-    method: 'POST',
-    headers: {'Content-Type': 'text/plain;charset=utf-8'},
-    body: JSON.stringify({action, ...payload}),
-    redirect: 'follow'
-  });
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = setTimeout(() => {
+      if (controller) controller.abort();
+    }, opts.timeoutMs || CLOUD_TIMEOUT_MS);
+    try {
+      // Use text/plain to avoid CORS preflight
+      const res = await fetch(CFG.webAppUrl, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({action, ...(payload || {})}),
+        redirect: 'follow',
+        signal: controller ? controller.signal : undefined
+      });
 
-  if (!res.ok) throw new Error(`Server ${res.status}`);
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); }
-  catch(e) { throw new Error('תשובה לא תקינה מהשרת: ' + text.slice(0,200)); }
+      if (!res.ok) throw new Error(`Server ${res.status}`);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch(e) { throw new Error('תשובה לא תקינה מהשרת: ' + text.slice(0,200)); }
 
-  if (!data.ok) throw new Error(data.error || 'שגיאה לא ידועה');
-  return data.data;
+      if (!data.ok) throw new Error(data.error || 'שגיאה לא ידועה');
+      if (canCache) CLOUD_READ_CACHE.set(cacheKey, {at:Date.now(), data:data.data});
+      else CLOUD_READ_CACHE.clear();
+      return data.data;
+    } catch(e) {
+      lastErr = e?.name === 'AbortError'
+        ? new Error('הפעולה לוקחת מעל 15 שניות. לא הקפאתי את המסך, אפשר לנסות שוב.')
+        : e;
+      console.warn('[cloudCall] failed', {action, attempt:attempt + 1, message:lastErr.message || String(lastErr)});
+      if (attempt === 0 && shouldRetryCloudError(lastErr)) continue;
+      throw lastErr;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastErr || new Error('שגיאת תקשורת לא ידועה');
 }
 
 let SYNC_PAUSED_UNTIL = 0;
@@ -685,6 +734,19 @@ async function triggerTopSync() {
 }
 
 let _syncLock = false; // prevent concurrent syncAll calls → duplicates
+
+function hasLocalSyncWork() {
+  try {
+    return (PENDING && PENDING.length > 0)
+      || ((APP_META.coreLocalModified || 0) > (APP_META.coreLastSynced || 0))
+      || ((APP_META.dataLocalModified || 0) > (APP_META.dataLastSynced || 0))
+      || ((pv?._localModified || 0) > (pv?._lastSynced || 0))
+      || ((pdb?._localModified || 0) > (pdb?._lastSynced || 0))
+      || ((odb?._localModified || 0) > (odb?._lastSynced || 0));
+  } catch(e) {
+    return true;
+  }
+}
 
 function buildCoreCloudState() {
   return {
@@ -1029,11 +1091,19 @@ async function syncExtendedAppState() {
 }
 
 async function syncAll(opts) {
+  opts = opts || {};
   if (!CFG.webAppUrl) { setSyncStatus('local'); return; }
   if (Date.now() < SYNC_PAUSED_UNTIL) { setSyncStatus('offline'); return; }
-  if (_syncLock) { console.log('syncAll: already running, skip'); return; }
+  if (_syncLock) { _syncQueued = true; console.log('syncAll: already running, queued'); return; }
+  if (opts.silent && !hasLocalSyncWork() && Date.now() - LAST_SYNC_AT < SYNC_MIN_INTERVAL_MS) {
+    console.log('syncAll: throttled silent sync');
+    return;
+  }
   _syncLock = true;
   setSyncStatus('syncing');
+  const slowSyncTimer = setTimeout(function() {
+    toast('הסנכרון עדיין עובד ברקע. המסך נשאר פעיל.', 'info');
+  }, CLOUD_TIMEOUT_MS);
   try {
     // 1. Push pending changes — skip "Row not found" errors (row already gone or was never synced)
     while (PENDING.length > 0) {
@@ -1184,7 +1254,13 @@ async function syncAll(opts) {
     setSyncStatus('offline');
     toast('סנכרון נכשל: ' + e.message, 'error');
   } finally {
+    clearTimeout(slowSyncTimer);
+    LAST_SYNC_AT = Date.now();
     _syncLock = false; // always release lock
+    if (_syncQueued) {
+      _syncQueued = false;
+      if (hasLocalSyncWork()) setTimeout(() => syncAll({silent:true, reason:'queued'}), 1200);
+    }
   }
 }
 
@@ -1963,6 +2039,8 @@ let state = {
   supplierEditId: null, supplierEditName: '',
   payablesView: 'dashboard',
   payablesSearch: '',
+  pvInvoiceHistoryLoaded: false,
+  pvInvoiceLimit: 30,
   payablesFilter: 'הכל',
   pvPaymentFilter: 'הכל',
   pvFabOpen: false,
@@ -10728,7 +10806,9 @@ function pvSupplierInvoiceRows() {
   const status = state.pvInvoiceStatus || 'הכל';
   const method = state.pvInvoiceMethod || 'הכל';
   const accounting = state.pvInvoiceAccounting || 'הכל';
-  const quick = state.pvInvoiceQuick || 'פתוחות';
+  const historyQuicks = ['הכל','שולמו','טיוטות לבדיקה','ארכיון','מחוקות'];
+  let quick = state.pvInvoiceQuick || 'פתוחות';
+  if (!state.pvInvoiceHistoryLoaded && historyQuicks.includes(quick)) quick = 'פתוחות';
   if (quick !== 'מחוקות') rows = rows.filter(inv => !inv.deleted);
   if (q) rows = rows.filter(inv => [inv.supplier_name, inv.invoice_number, inv.supplier_tax_id, inv.notes].join(' ').toLowerCase().includes(q));
   if (status !== 'הכל') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === status);
@@ -10752,8 +10832,10 @@ function pvSupplierInvoiceRows() {
 }
 
 let pvInvoiceSearchTimer = null;
+let pvInvoiceFilterTimer = null;
 function pvInvoiceSearchInput(val) {
   state.payablesSearch = val || '';
+  state.pvInvoiceLimit = 30;
   clearTimeout(pvInvoiceSearchTimer);
   pvInvoiceSearchTimer = setTimeout(() => {
     if (state.tab === 'payables' && (!state.payablesView || state.payablesView === 'dashboard')) {
@@ -10768,8 +10850,22 @@ function pvInvoiceSearchInput(val) {
   }, 180);
 }
 
+function pvInvoiceFilterChange(patch) {
+  Object.assign(state, patch || {}, {pvInvoiceLimit:30});
+  clearTimeout(pvInvoiceFilterTimer);
+  pvInvoiceFilterTimer = setTimeout(() => {
+    if (state.tab === 'payables' && (!state.payablesView || state.payablesView === 'dashboard')) render();
+  }, 180);
+}
+
 function renderSupplierInvoicesDashboard() {
-  const all = (pv.supplierInvoices || []).filter(inv => !inv.deleted);
+  const source = (pv.supplierInvoices || []).filter(inv => !inv.deleted);
+  const all = state.pvInvoiceHistoryLoaded
+    ? source
+    : source.filter(inv => {
+        const status = pvCalcInvoiceStatus(inv);
+        return pvIsInvoiceOpen(inv) || status === 'באיחור' || status === 'טיוטה לבדיקה';
+      });
   const today = todayISO();
   const month = today.slice(0,7);
   const open = all.filter(pvIsInvoiceOpen);
@@ -10802,9 +10898,13 @@ function renderSupplierInvoicesDashboard() {
 function renderSupplierInvoicesTab() {
   pvEnsureSupplierInvoiceMigration();
   const rows = pvSupplierInvoiceRows();
-  const visibleRows = rows.slice(0, 80);
+  const visibleLimit = Math.max(30, +(state.pvInvoiceLimit || 30));
+  const visibleRows = rows.slice(0, visibleLimit);
   const hiddenCount = Math.max(0, rows.length - visibleRows.length);
-  const quicks = ['הכל','פתוחות','באיחור','היום','השבוע','חסר תאריך','לא עבר להנה"ח',"צ'קים פתוחים",'שולמו','טיוטות לבדיקה','ארכיון','מחוקות'];
+  const currentQuick = (!state.pvInvoiceHistoryLoaded && ['הכל','שולמו','טיוטות לבדיקה','ארכיון','מחוקות'].includes(state.pvInvoiceQuick)) ? 'פתוחות' : (state.pvInvoiceQuick || 'פתוחות');
+  const quicks = state.pvInvoiceHistoryLoaded
+    ? ['הכל','פתוחות','באיחור','היום','השבוע','חסר תאריך','לא עבר להנה"ח',"צ'קים פתוחים",'שולמו','טיוטות לבדיקה','ארכיון','מחוקות']
+    : ['פתוחות','באיחור','היום','השבוע','חסר תאריך','לא עבר להנה"ח',"צ'קים פתוחים"];
   const statuses = ['הכל','טיוטה לבדיקה','מאושרת כחוב פתוח','לא שולם','שולם חלקית','שולם','באיחור','ממתין לפירעון צ׳ק','נמחקה'];
   const methods = ['הכל','מזומן','העברה בנקאית',"צ'ק",'אשראי','אחר'];
   const cards = visibleRows.length ? visibleRows.map(inv => {
@@ -10845,7 +10945,10 @@ function renderSupplierInvoicesTab() {
         ${isDraft ? `<button onclick="pvApproveSupplierInvoice('${inv.id}')" class="desktop-mini-btn primary">אשר חשבונית</button>` : `<button onclick="pvMarkSupplierInvoicePaid('${inv.id}')" class="desktop-mini-btn primary" style="background:var(--accent);border-color:var(--accent);color:#071302">סמן שולם</button>`}
       </div>
     </div>`;
-  }).join('') + (hiddenCount ? `<div style="text-align:center;color:var(--textDim);font-size:12px;padding:10px 4px">מוצגות 80 תוצאות ראשונות מתוך ${rows.length}. המשך להקליד כדי לצמצם.</div>` : '') : `<div style="text-align:center;padding:34px 16px;color:var(--textMuted)"><div style="font-size:34px;margin-bottom:8px">🧾</div><div style="font-size:13px;font-weight:700">אין חשבוניות בפילטר הנוכחי</div></div>`;
+  }).join('') + (hiddenCount ? `<div style="display:grid;gap:8px;text-align:center;color:var(--textDim);font-size:12px;padding:10px 4px">
+    <div>מוצגות ${visibleRows.length} תוצאות מתוך ${rows.length}</div>
+    <button onclick="setState({pvInvoiceLimit:${visibleLimit + 30}})" class="desktop-mini-btn primary" style="justify-self:center;min-width:140px">טען עוד</button>
+  </div>` : '') : `<div style="text-align:center;padding:34px 16px;color:var(--textMuted)"><div style="font-size:34px;margin-bottom:8px">🧾</div><div style="font-size:13px;font-weight:700">אין חשבוניות בפילטר הנוכחי</div></div>`;
 
   return `<div style="padding:14px 14px 110px" class="fade-up">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
@@ -10858,15 +10961,16 @@ function renderSupplierInvoicesTab() {
     ${renderSupplierInvoicesDashboard()}
     <div style="position:relative;margin-bottom:10px">
       <input id="pv-invoice-search-inp" class="input" placeholder="חיפוש ספק / חשבונית / הערה" value="${esc(state.payablesSearch||'')}" oninput="pvInvoiceSearchInput(this.value)">
-      ${state.payablesSearch ? `<button onclick="state.payablesSearch='';render()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;border-radius:50%;background:var(--borderHi);color:var(--textDim);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>` : ''}
+      ${state.payablesSearch ? `<button onclick="state.payablesSearch='';state.pvInvoiceLimit=30;render()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;border-radius:50%;background:var(--borderHi);color:var(--textDim);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>` : ''}
     </div>
     <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;padding-bottom:3px">
-      ${quicks.map(q=>`<button onclick="setState({pvInvoiceQuick:'${q}'})" class="desktop-mini-btn ${(state.pvInvoiceQuick||'פתוחות')===q?'primary':''}">${q}</button>`).join('')}
+      ${quicks.map(q=>`<button onclick="pvInvoiceFilterChange({pvInvoiceQuick:'${q}'})" class="desktop-mini-btn ${currentQuick===q?'primary':''}">${q}</button>`).join('')}
+      ${!state.pvInvoiceHistoryLoaded ? `<button onclick="setState({pvInvoiceHistoryLoaded:true,pvInvoiceQuick:'הכל',pvInvoiceLimit:30})" class="desktop-mini-btn" style="background:rgba(59,130,246,0.10);border-color:rgba(59,130,246,0.18);color:#2563EB;white-space:nowrap">טען היסטוריה</button>` : ''}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:10px">
-      <select class="input" onchange="setState({pvInvoiceStatus:this.value})">${statuses.map(s=>`<option ${((state.pvInvoiceStatus||'הכל')===s)?'selected':''}>${s}</option>`).join('')}</select>
-      <select class="input" onchange="setState({pvInvoiceMethod:this.value})">${methods.map(m=>`<option ${((state.pvInvoiceMethod||'הכל')===m)?'selected':''}>${m}</option>`).join('')}</select>
-      <select class="input" onchange="setState({pvInvoiceAccounting:this.value})">${['הכל','הועבר','לא הועבר'].map(a=>`<option ${((state.pvInvoiceAccounting||'הכל')===a)?'selected':''}>${a}</option>`).join('')}</select>
+      <select class="input" onchange="pvInvoiceFilterChange({pvInvoiceStatus:this.value})">${statuses.map(s=>`<option ${((state.pvInvoiceStatus||'הכל')===s)?'selected':''}>${s}</option>`).join('')}</select>
+      <select class="input" onchange="pvInvoiceFilterChange({pvInvoiceMethod:this.value})">${methods.map(m=>`<option ${((state.pvInvoiceMethod||'הכל')===m)?'selected':''}>${m}</option>`).join('')}</select>
+      <select class="input" onchange="pvInvoiceFilterChange({pvInvoiceAccounting:this.value})">${['הכל','הועבר','לא הועבר'].map(a=>`<option ${((state.pvInvoiceAccounting||'הכל')===a)?'selected':''}>${a}</option>`).join('')}</select>
     </div>
     ${cards}
   </div>`;
@@ -11939,7 +12043,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=112').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=113').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
