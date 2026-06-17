@@ -636,7 +636,14 @@ function getOrdersDraftsForSync() {
 
 function saveOrdersDraftsFromSync(drafts) {
   if (drafts && typeof drafts === 'object') {
-    localStorage.setItem('orders-all-drafts', JSON.stringify(drafts));
+    const local = getOrdersDraftsForSync();
+    const merged = {...drafts};
+    Object.entries(local || {}).forEach(([supplierId, draft]) => {
+      const localTs = +draft?.ts || 0;
+      const cloudTs = +merged[supplierId]?.ts || 0;
+      if (localTs >= cloudTs) merged[supplierId] = draft;
+    });
+    localStorage.setItem('orders-all-drafts', JSON.stringify(merged));
   }
 }
 
@@ -6132,15 +6139,32 @@ async function syncActiveOrders() {
 function ordersGetAllDrafts() {
   try { return JSON.parse(localStorage.getItem(ORDERS_ALL_DRAFTS_KEY) || '{}'); } catch(e) { return {}; }
 }
+function ordersDraftHasItems(st) {
+  return Object.keys(st || {}).some(function(pid) {
+    const v = st[pid];
+    if (!v) return false;
+    if (v.isManual) return (parseInt(v.qty)||0) > 0;
+    if (v.unit === 'both') return (parseInt(v.carton)||0) > 0 || (parseInt(v.units)||0) > 0;
+    return (parseInt(v.qty)||0) > 0;
+  });
+}
+function ordersMarkDraftsDirty() {
+  odb._localModified = Date.now();
+  saveOdb(true);
+}
 function ordersSaveDraft() {
+  if (!state.ordersSupplierId || !state.ordersState) return;
   const drafts = ordersGetAllDrafts();
-  drafts[state.ordersSupplierId] = { state: state.ordersState, ts: Date.now() };
+  drafts[state.ordersSupplierId] = { state: JSON.parse(JSON.stringify(state.ordersState || {})), ts: Date.now() };
   localStorage.setItem(ORDERS_ALL_DRAFTS_KEY, JSON.stringify(drafts));
+  ordersMarkDraftsDirty();
 }
 function ordersClearDraft() {
+  if (!state.ordersSupplierId) return;
   const drafts = ordersGetAllDrafts();
   delete drafts[state.ordersSupplierId];
   localStorage.setItem(ORDERS_ALL_DRAFTS_KEY, JSON.stringify(drafts));
+  ordersMarkDraftsDirty();
 }
 function ordersLoadDraft(supplierId) {
   const drafts = ordersGetAllDrafts();
@@ -6149,14 +6173,7 @@ function ordersLoadDraft(supplierId) {
 function ordersHasDraftFor(supplierId) {
   const drafts = ordersGetAllDrafts();
   if (!drafts[supplierId]) return false;
-  const st = drafts[supplierId].state || {};
-  return Object.keys(st).some(function(pid) {
-    const v = st[pid];
-    if (!v) return false;
-    if (v.isManual) return (parseInt(v.qty)||0) > 0;
-    if (v.unit === 'both') return (parseInt(v.carton)||0) > 0 || (parseInt(v.units)||0) > 0;
-    return (parseInt(v.qty)||0) > 0;
-  });
+  return ordersDraftHasItems(drafts[supplierId].state || {});
 }
 
 // ── findSupplierOdb ────────────────────────────────────────────────────────
@@ -6379,6 +6396,7 @@ function ordersExportOrder() {
   if (!sup) return;
   const orderedItems = ordersGetOrderedItems();
   if (!orderedItems.length) { toast('אין פריטים בהזמנה', 'error'); return; }
+  ordersSaveDraft();
   const dateStr = fmtOrdersDate(new Date());
   const lines = orderedItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
   const text = `📋 הזמנה - ${sup.name}\n📅 ${dateStr}\n\n${lines.join('\n')}\n\nתודה!`;
@@ -6391,6 +6409,7 @@ function ordersSummaryOrder() {
   if (!sup) return;
   const summaryItems = ordersGetOrderedItems();
   if (!summaryItems.length) { toast('אין פריטים בהזמנה', 'error'); return; }
+  ordersSaveDraft();
   const dateStr = fmtOrdersDate(new Date());
   const lines = summaryItems.map(it => `${it.name}: ${it.qty} ${it.unit}${it.notes ? ' — ' + it.notes : ''}`);
   const text = `סיכום הזמנה - ${sup.name}\n${dateStr}\n\n${lines.join('\n')}`;
@@ -12043,7 +12062,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=113').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=114').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
