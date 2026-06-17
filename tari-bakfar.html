@@ -2851,12 +2851,21 @@ function renderScan() {
         ${renderExpenseOrderLinkSelect('state.scanForm', f)}
         ${['חשבונית מס','חשבונית מס קבלה'].includes(f.document_type)?`
         <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
-          <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">טיוטת חשבונית ספק</div>
-          <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">השמירה תיצור טיוטה לבדיקה בטאב ספקים. היא לא תיחשב כחוב פתוח עד שתאשר אותה ידנית.</div>
+          <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">סטטוס חשבונית ספק</div>
+          <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">אם החשבונית לא שולמה או לא עברה להנה"ח, היא תופיע בטאב ספקים לפי תאריך התשלום. אם היא שולמה וגם עברה להנה"ח, היא תישמר בארכיון.</div>
           <div class="row">
             <div class="field"><label class="label">תאריך לתשלום</label><input class="input" type="date" value="${f.paymentDueDate||''}" oninput="state.scanForm.paymentDueDate=this.value"></div>
             <div class="field"><label class="label">תנאי תשלום</label><input class="input" placeholder="שוטף+30..." value="${esc(f.paymentTerms||'')}" oninput="state.scanForm.paymentTerms=this.value"></div>
           </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <label style="display:flex;align-items:center;gap:8px;padding:11px;border:1px solid ${f.sentToAccountant?'rgba(34,197,94,0.35)':'var(--border)'};border-radius:12px;background:${f.sentToAccountant?'rgba(34,197,94,0.10)':'var(--surface)'};font-size:13px;font-weight:800;color:${f.sentToAccountant?'var(--accent)':'var(--textDim)'}">
+              <input type="checkbox" ${f.sentToAccountant?'checked':''} onchange="state.scanForm.sentToAccountant=this.checked;if(this.checked&&!state.scanForm.accountingSentAt)state.scanForm.accountingSentAt=todayISO();render()" style="width:18px;height:18px;accent-color:var(--accent)"> עבר להנה"ח
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;padding:11px;border:1px solid ${f.expensePaid?'rgba(34,197,94,0.35)':'var(--border)'};border-radius:12px;background:${f.expensePaid?'rgba(34,197,94,0.10)':'var(--surface)'};font-size:13px;font-weight:800;color:${f.expensePaid?'var(--accent)':'var(--textDim)'}">
+              <input type="checkbox" ${f.expensePaid?'checked':''} onchange="state.scanForm.expensePaid=this.checked;if(this.checked&&!state.scanForm.expensePaidAt)state.scanForm.expensePaidAt=todayISO();render()" style="width:18px;height:18px;accent-color:var(--accent)"> שולם
+            </label>
+          </div>
+          ${f.expensePaid ? `<div class="field" style="margin-top:10px"><label class="label">תאריך תשלום בפועל</label><input class="input" type="date" value="${f.expensePaidAt||todayISO()}" oninput="state.scanForm.expensePaidAt=this.value"></div>` : ''}
         </div>`:''}
         ${f.document_type==='תעודת משלוח'?`<div style="padding:12px 14px;border-radius:12px;background:var(--surfaceHi);border:1px solid var(--border);margin-bottom:12px;font-size:12px;color:var(--textDim);line-height:1.45">תעודת משלוח תישמר במאגר תעודות המשלוח ותהיה זמינה לשיוך עתידי לחשבונית. היא לא תהפוך לחוב פתוח.</div>`:''}
         <button class="btn-primary" onclick="saveScanResult()" ${state.scanSaving?'disabled':''} style="${state.scanSaving?'opacity:.75;pointer-events:none':''}">${state.scanSaving?'⏳ שומר...':(state.batchQueue&&state.batchQueue.length>0?`💾 שמור והמשך לסריקה הבאה (${state.batchQueue.length} נותרו)`:'💾 שמור הוצאה')}</button>
@@ -2954,6 +2963,8 @@ async function runScan() {
         category: data.category||'אחר', document_type: data.document_type||'חשבונית מס',
         document_number: data.document_number||'', notes: data.notes||'',
         linkedOrderId: '',
+        sentToAccountant: false, accountingSentAt: '',
+        expensePaid: false, expensePaidAt: '',
         line_items: Array.isArray(data.line_items) ? data.line_items : [],
       }
     });
@@ -2972,6 +2983,8 @@ async function runScan() {
           category: CATS[0]||'אחר', document_type:'חשבונית מס',
           document_number:'', notes: addForm.notes || '',
           linkedOrderId: addForm.linkedOrderId || '',
+          sentToAccountant: false, accountingSentAt: '',
+          expensePaid: false, expensePaidAt: '',
           line_items: [],
         }
       });
@@ -2988,6 +3001,8 @@ function manualForm() {
     total_amount:0, vat_amount:0, amount_before_vat:0, category: CATS[0]||'אחר',
     document_type:'חשבונית מס', document_number:'', line_items: [],
     linkedOrderId: addForm.linkedOrderId || '',
+    sentToAccountant: false, accountingSentAt: '',
+    expensePaid: false, expensePaidAt: '',
     notes: addForm.notes || ''          // use pre-filled notes if came from orders
   }});
 }
@@ -3104,6 +3119,10 @@ function normalizeScanExpenseItem(raw) {
   item.vat_amount = Number(item.vat_amount || 0);
   item.amount_before_vat = Number(item.amount_before_vat || 0);
   if (item.paymentDueDate) item.paymentDueDate = heToISO(item.paymentDueDate);
+  item.sentToAccountant = !!item.sentToAccountant;
+  item.accountingSentAt = item.sentToAccountant ? (heToISO(item.accountingSentAt || '') || item.accountingSentAt || todayISO()) : '';
+  item.expensePaid = !!item.expensePaid;
+  item.expensePaidAt = item.expensePaid ? (heToISO(item.expensePaidAt || '') || item.expensePaidAt || todayISO()) : '';
   if (!item.supplier) throw new Error('חסר ספק');
   if (!Number.isFinite(item.total_amount) || item.total_amount <= 0) throw new Error('סכום כולל חייב להיות גדול מ-0');
   if (!Number.isFinite(item.vat_amount)) throw new Error('מע"מ לא תקין');
@@ -3656,7 +3675,7 @@ async function pushExpenseToCloud(id) {
 // ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — ADD
 // ═══════════════════════════════════════════════════════════════════════════
-let addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:"",linkedOrderId:""};
+let addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",sentToAccountant:false,accountingSentAt:"",expensePaid:false,expensePaidAt:"",linkedOrderId:""};
 
 function renderAdd() {
   return `
@@ -3675,12 +3694,21 @@ function renderAdd() {
       ${renderExpenseOrderLinkSelect('addForm', addForm)}
       ${['חשבונית מס','חשבונית מס קבלה'].includes(addForm.document_type)?`
       <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
-        <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">טיוטת חשבונית ספק</div>
-        <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">החשבונית תישמר כטיוטה לבדיקה בטאב ספקים. היא לא תיכנס לחובות פתוחים עד אישור ידני.</div>
+        <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">סטטוס חשבונית ספק</div>
+        <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">אם החשבונית לא שולמה או לא עברה להנה"ח, היא תופיע בטאב ספקים לפי תאריך התשלום. אם היא שולמה וגם עברה להנה"ח, היא תישמר בארכיון.</div>
         <div class="row">
           <div class="field"><label class="label">תאריך לתשלום</label><input class="input" type="date" value="${addForm.paymentDueDate||''}" oninput="addForm.paymentDueDate=this.value"></div>
           <div class="field"><label class="label">תנאי תשלום</label><input class="input" placeholder="שוטף+30..." value="${esc(addForm.paymentTerms||'')}" oninput="addForm.paymentTerms=this.value"></div>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label style="display:flex;align-items:center;gap:8px;padding:11px;border:1px solid ${addForm.sentToAccountant?'rgba(34,197,94,0.35)':'var(--border)'};border-radius:12px;background:${addForm.sentToAccountant?'rgba(34,197,94,0.10)':'var(--surface)'};font-size:13px;font-weight:800;color:${addForm.sentToAccountant?'var(--accent)':'var(--textDim)'}">
+            <input type="checkbox" ${addForm.sentToAccountant?'checked':''} onchange="addForm.sentToAccountant=this.checked;if(this.checked&&!addForm.accountingSentAt)addForm.accountingSentAt=todayISO();render()" style="width:18px;height:18px;accent-color:var(--accent)"> עבר להנה"ח
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;padding:11px;border:1px solid ${addForm.expensePaid?'rgba(34,197,94,0.35)':'var(--border)'};border-radius:12px;background:${addForm.expensePaid?'rgba(34,197,94,0.10)':'var(--surface)'};font-size:13px;font-weight:800;color:${addForm.expensePaid?'var(--accent)':'var(--textDim)'}">
+            <input type="checkbox" ${addForm.expensePaid?'checked':''} onchange="addForm.expensePaid=this.checked;if(this.checked&&!addForm.expensePaidAt)addForm.expensePaidAt=todayISO();render()" style="width:18px;height:18px;accent-color:var(--accent)"> שולם
+          </label>
+        </div>
+        ${addForm.expensePaid ? `<div class="field" style="margin-top:10px"><label class="label">תאריך תשלום בפועל</label><input class="input" type="date" value="${addForm.expensePaidAt||todayISO()}" oninput="addForm.expensePaidAt=this.value"></div>` : ''}
       </div>`:''}
       ${addForm.document_type==='תעודת משלוח'?`<div style="padding:12px 14px;border-radius:12px;background:var(--surfaceHi);border:1px solid var(--border);margin-bottom:12px;font-size:12px;color:var(--textDim);line-height:1.45">תעודת משלוח תישמר בנפרד ותהיה זמינה לשיוך עתידי לחשבונית. היא לא תהפוך לחוב פתוח.</div>`:''}
       <button class="btn-primary" onclick="submitAdd()">שמור הוצאה</button>
@@ -3705,6 +3733,10 @@ async function submitAdd() {
   addForm.supplier = supplier.name;
   if (supplier.defaultCategory) addForm.category = supplier.defaultCategory;
   const item = {...addForm, id:uid(), total_amount:+addForm.total_amount, vat_amount:+addForm.vat_amount||0, amount_before_vat:+addForm.amount_before_vat||0};
+  item.sentToAccountant = !!item.sentToAccountant;
+  item.accountingSentAt = item.sentToAccountant ? (item.accountingSentAt || todayISO()) : '';
+  item.expensePaid = !!item.expensePaid;
+  item.expensePaidAt = item.expensePaid ? (item.expensePaidAt || todayISO()) : '';
   const dup = findDuplicate(item);
   if (dup && !warnDuplicate(dup)) return;
   await queueAndSync('add_expense', {payload: item}, () => {
@@ -3714,7 +3746,7 @@ async function submitAdd() {
     else if (item.document_type === 'תעודת משלוח') pvRegisterDeliveryNoteFromExpense(item);
     processInvoiceLineItems(item);
   });
-  addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",isOpenDebt:true,linkedOrderId:""};
+  addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",sentToAccountant:false,accountingSentAt:"",expensePaid:false,expensePaidAt:"",isOpenDebt:true,linkedOrderId:""};
   toast('נשמר!', 'success');
   setState({tab:'list'});
 }
@@ -7722,7 +7754,8 @@ function pvInvoiceOpenAmount(inv) {
 }
 
 function pvIsInvoiceOpen(inv) {
-  return !inv.deleted && !inv.archived && !['שולם','טיוטה לבדיקה','נמחקה'].includes(pvCalcInvoiceStatus(inv));
+  const status = pvCalcInvoiceStatus(inv);
+  return !inv.deleted && !inv.archived && status !== 'טיוטה לבדיקה' && status !== 'נמחקה' && (status !== 'שולם' || !inv.accounting_sent);
 }
 
 function pvNormalizeInvoice(inv) {
@@ -7905,6 +7938,11 @@ function pvCreateDraftSupplierInvoiceFromExpense(item) {
   const supplier = findApprovedSupplier(item.supplier || '');
   const legacyExpense = {...item};
   delete legacyExpense.image;
+  const isPaid = !!item.expensePaid;
+  const isAccountingSent = !!item.sentToAccountant;
+  const shouldArchive = isPaid && isAccountingSent;
+  const paidAt = item.expensePaidAt || (isPaid ? todayISO() : '');
+  const dueDate = item.paymentDueDate || paidAt || heToISO(item.date || '') || todayISO();
   const inv = pvNormalizeInvoice({
     supplier_id: supplier?.id || pvSupplierIdByName(item.supplier || ''),
     supplier_name: item.supplier || '',
@@ -7914,11 +7952,14 @@ function pvCreateDraftSupplierInvoiceFromExpense(item) {
     amount_before_vat: +item.amount_before_vat || Math.max(0, (+item.total_amount || 0) - (+item.vat_amount || 0)),
     vat_amount: +item.vat_amount || 0,
     total_amount: +item.total_amount || 0,
-    payment_status: 'טיוטה לבדיקה',
+    payment_status: isPaid ? 'שולם' : 'לא שולם',
     payment_method: item.paymentMethod || '',
-    due_date: item.paymentDueDate || '',
-    accounting_sent: !!item.sentToAccountant,
-    accounting_sent_at: item.sentToAccountant ? (item.accountingSentAt || todayISO()) : '',
+    due_date: dueDate,
+    paid_at: paidAt,
+    accounting_sent: isAccountingSent,
+    accounting_sent_at: isAccountingSent ? (item.accountingSentAt || todayISO()) : '',
+    archived: shouldArchive,
+    archived_at: shouldArchive ? new Date().toISOString() : '',
     invoice_file: '',
     notes: [item.notes || '', item.paymentTerms ? 'תנאים: ' + item.paymentTerms : ''].filter(Boolean).join(' · '),
     legacy_data: {expense:legacyExpense},
@@ -7928,10 +7969,14 @@ function pvCreateDraftSupplierInvoiceFromExpense(item) {
   inv.source_expense_id = item.id;
   inv.invoice_file_ref = item.image ? `expense:${item.id}` : '';
   inv.source_type = 'scan';
-  inv.draft_origin = 'סריקה';
+  inv.draft_origin = shouldArchive ? 'סריקה לארכיון' : 'סריקה לטיפול';
   inv.supplier_match_status = supplier ? 'matched' : 'requires_manual_link';
   pv.supplierInvoices.push(inv);
-  pvInvoiceLog(inv.id, 'יצירת חשבונית', 'scan_draft', '', 'טיוטה לבדיקה', {source_expense_id:item.id, supplier_match_status:inv.supplier_match_status});
+  if (isPaid) {
+    if (!pv.supplierInvoicePayments) pv.supplierInvoicePayments = [];
+    pv.supplierInvoicePayments.push({id:uid(), invoice_id:inv.id, amount:+inv.total_amount||0, date:paidAt || todayISO(), method:inv.payment_method||'', reference:item.document_number||'', notes:'סומן שולם בקליטת הוצאה', created_at:new Date().toISOString(), created_by:pvCurrentUserName()});
+  }
+  pvInvoiceLog(inv.id, 'יצירת חשבונית', 'scan_status', '', shouldArchive ? 'שולם ועבר להנה"ח - ארכיון' : (isPaid ? 'שולם - ממתין להנה"ח' : 'לטיפול בספקים'), {source_expense_id:item.id, supplier_match_status:inv.supplier_match_status, paid:isPaid, accounting_sent:isAccountingSent});
   savePv(true);
   return inv;
 }
@@ -12070,7 +12115,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=115').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=116').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
