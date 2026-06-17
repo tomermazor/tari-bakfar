@@ -2135,8 +2135,10 @@ function setListSearch(val, cursorPos) {
     // Re-filter with updated search
     const rows = filterExpenseRows();
     const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
+    const weekRows = DB.expenses.filter(e=>isWeek(e.date));
+    const weekTotal = weekRows.reduce((s,e)=>s+(+e.total_amount||0),0);
     // Update only the list body and count/total — input element is untouched
-    if (meta) meta.innerHTML = `<span style="font-size:11.5px;color:var(--textDim);font-weight:600;letter-spacing:0.04em;text-transform:uppercase">${rows.length} רשומות</span><span class="display" style="font-size:21px;color:var(--accent)">${fmtCurr(total)}</span>`;
+    if (meta) meta.innerHTML = `<span style="font-size:11.5px;color:var(--textDim);font-weight:600;letter-spacing:0.04em;text-transform:uppercase">${rows.length} רשומות</span><span style="display:flex;flex-direction:column;align-items:flex-start;gap:2px"><span style="font-size:10.5px;color:var(--textDim);font-weight:800">סה"כ שבועי</span><span class="display" style="font-size:21px;color:var(--accent)">${fmtCurr(weekTotal)}</span></span>`;
     if (isDesktopMode()) {
       if (meta) meta.innerHTML = `<div class="desktop-kpi-label">בסינון</div><div class="desktop-kpi-value">${fmtCurr(total)}</div><div class="desktop-kpi-sub">${rows.length} רשומות</div>`;
       body.innerHTML = renderDesktopExpenseTable(rows);
@@ -3465,7 +3467,10 @@ function renderList() {
           <div style="font-size:14px;font-weight:700;color:#0F172A">הוצאות</div>
           <div id="list-meta-el" style="display:flex;align-items:baseline;gap:12px">
             <span style="font-size:12px;color:#64748B">${rows.length} רשומות</span>
-            <span class="display" style="font-size:20px;color:#15803D">${fmtCurr(total)}</span>
+            <span style="display:flex;flex-direction:column;align-items:flex-start;gap:2px">
+              <span style="font-size:10.5px;color:#64748B;font-weight:800">סה"כ שבועי</span>
+              <span class="display" style="font-size:20px;color:#15803D">${fmtCurr(weekTotal)}</span>
+            </span>
           </div>
         </div>
         ${rows.length===0
@@ -3497,7 +3502,10 @@ function renderList() {
       <div style="display:flex;gap:4px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px">${catPills}</div>
       <div id="list-meta-el" style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;padding:0 2px">
         <span style="font-size:11.5px;color:var(--textDim);font-weight:600;letter-spacing:0.04em;text-transform:uppercase">${rows.length} רשומות</span>
-        <span class="display" style="font-size:21px;color:var(--accent)">${fmtCurr(total)}</span>
+        <span style="display:flex;flex-direction:column;align-items:flex-start;gap:2px">
+          <span style="font-size:10.5px;color:var(--textDim);font-weight:800">סה"כ שבועי</span>
+          <span class="display" style="font-size:21px;color:var(--accent)">${fmtCurr(weekTotal)}</span>
+        </span>
       </div>
       <div id="expense-list-body">${renderExpenseListBody(rows)}</div>
     </div>`;
@@ -12062,7 +12070,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=114').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=115').then(reg => {
     // Force-check for a newer SW on every load
     reg.update();
     // When a new SW takes over → reload the page automatically to get latest code
