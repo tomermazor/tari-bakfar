@@ -566,6 +566,8 @@ function persistLocal() {
 let SYNC_STATUS = 'local'; // local | syncing | ok | offline
 let _autoSyncTimer = null;
 let _liveSyncTimer = null;
+let _appInitialized = false;
+let _visibilitySyncHandler = null;
 let _productsSearchTimer = null;
 let _productsSearchFocusId = '';
 const CLOUD_TIMEOUT_MS = 15000;
@@ -1643,7 +1645,7 @@ function supplierComboUpdate(input, panelId, show) {
   let exact = false;
   panel.querySelectorAll('[data-supplier-option]').forEach(function(btn) {
     const optionKey = supplierKey(btn.getAttribute('data-supplier-option'));
-    const hit = !q || optionKey.includes(q);
+    const hit = !q || searchIncludes(optionKey, q);
     if (q && optionKey === q) exact = true;
     btn.style.display = hit ? 'flex' : 'none';
     if (hit) visible++;
@@ -2117,6 +2119,23 @@ function setState(patch) {
   render();
 }
 
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\u0591-\u05C7]/g, '')
+    .replace(/[ךםןףץ]/g, ch => ({'ך':'כ','ם':'מ','ן':'נ','ף':'פ','ץ':'צ'}[ch] || ch))
+    .replace(/["'׳״`´]/g, '')
+    .replace(/[^0-9a-z\u0590-\u05FF]+/g, ' ')
+    .trim();
+}
+
+function searchIncludes(value, query) {
+  const q = normalizeSearchText(query);
+  if (!q) return true;
+  return normalizeSearchText(value).includes(q);
+}
+
 // Surgical search update — only updates list body + meta, never touches the input itself
 let _searchTimer = null;
 function setListSearch(val, cursorPos) {
@@ -2169,9 +2188,9 @@ function desktopSetGlobalSearch(value) {
 }
 
 function desktopSearchResults(query) {
-  const q = (query || '').trim().toLowerCase();
+  const q = normalizeSearchText(query);
   if (q.length < 2) return [];
-  const hit = v => String(v || '').toLowerCase().includes(q);
+  const hit = v => searchIncludes(v, q);
   const results = [];
   (DB.suppliers || []).forEach(s => {
     if (hit(s.name)) results.push({icon:'🏭', title:s.name, sub:'ספק מאושר', action:`desktopOpenSupplier('${encodeURIComponent(s.name)}')`});
@@ -3224,7 +3243,7 @@ async function saveScanResult() {
 // Standalone filter — used by renderList AND surgical search update
 function filterExpenseRows() {
   return DB.expenses.filter(e => {
-    const mq = !state.listSearch || [e.supplier,e.document_number,e.notes].join(' ').toLowerCase().includes(state.listSearch.toLowerCase());
+    const mq = searchIncludes([e.supplier,e.document_number,e.notes,e.category,e.document_type].join(' '), state.listSearch);
     const mc = state.listCat==='הכל' || e.category===state.listCat;
     const mp = state.listPer==='הכל' || (state.listPer==='היום'&&isToday(e.date)) || (state.listPer==='שבוע'&&isWeek(e.date)) || (state.listPer==='חודש'&&isMonth(e.date));
     return mq && mc && mp;
@@ -3544,7 +3563,7 @@ function openEditExpense(id) {
 function renderEditModal() {
   const f = state.editForm;
   return `
-    <div onclick="setState({editId:null,editForm:null})" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
       <div onclick="event.stopPropagation()" style="background:var(--surface);border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:20px;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));max-height:85vh;overflow-y:auto;border-top:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
           <button onclick="setState({editId:null,editForm:null})" style="width:44px;height:44px;border:none;border-radius:12px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:26px;font-weight:300;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
@@ -5977,7 +5996,7 @@ function initGoogleSignIn() {
     document.getElementById('login-err').textContent = '⚙️ יש להגדיר Client ID של Google';
     return;
   }
-  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredentialResponse, auto_select: true, cancel_on_tap_outside: false });
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredentialResponse, auto_select: false, cancel_on_tap_outside: false });
   google.accounts.id.renderButton(document.getElementById('google-signin-btn'), { type:'standard', theme:'outline', size:'large', width:260 });
   google.accounts.id.prompt();
 }
@@ -5986,6 +6005,12 @@ function onGoogleScriptLoad() {
 }
 
 function initApp() {
+  if (_appInitialized) {
+    document.getElementById('app').hidden = false;
+    render();
+    return;
+  }
+  _appInitialized = true;
   document.getElementById('app').hidden = false;
 
   // Check for pending expense passed from orders app
@@ -6028,12 +6053,14 @@ function initApp() {
   startLiveSyncLoop();
   if (CFG.webAppUrl && canRunFullSync()) syncAll();
   if (CFG.webAppUrl && canRunOrdersSync()) { syncOrders(); syncActiveOrders(); }
-  document.addEventListener('visibilitychange', function(){
+  if (_visibilitySyncHandler) document.removeEventListener('visibilitychange', _visibilitySyncHandler);
+  _visibilitySyncHandler = function(){
     if (!document.hidden && CFG.webAppUrl) {
       if (canRunFullSync()) syncAll();
       if (canRunOrdersSync()) { syncOrders(); syncActiveOrders(); }
     }
-  });
+  };
+  document.addEventListener('visibilitychange', _visibilitySyncHandler);
 }
 
 function checkAuth() {
@@ -6051,6 +6078,9 @@ function logout() {
   if (!confirm('להתנתק מהאפליקציה?')) return;
   var user = getStoredUser();
   localStorage.removeItem('google-user');
+  _appInitialized = false;
+  if (_liveSyncTimer) { clearInterval(_liveSyncTimer); _liveSyncTimer = null; }
+  if (_visibilitySyncHandler) { document.removeEventListener('visibilitychange', _visibilitySyncHandler); _visibilitySyncHandler = null; }
   if (typeof google !== 'undefined' && user) google.accounts.id.revoke(user.email, function(){});
   document.getElementById('app').hidden = true;
   document.getElementById('login-screen').hidden = false;
@@ -6879,18 +6909,18 @@ function ordersCopyHistoryRecord(index) {
 }
 
 function ordersFilterOrderProducts(query) {
-  const q = (query || '').trim().toLowerCase();
+  const q = normalizeSearchText(query);
   document.querySelectorAll('#o-order-products .o-product-row').forEach(function(row) {
     const name = (row.querySelector('.o-product-row-name-text') || {}).textContent || '';
-    row.hidden = !!(q && !name.toLowerCase().includes(q));
+    row.hidden = !!(q && !searchIncludes(name, q));
   });
 }
 
 function ordersFilterManageProducts(query) {
-  const q = (query || '').trim().toLowerCase();
+  const q = normalizeSearchText(query);
   document.querySelectorAll('#o-product-list .o-manage-row').forEach(function(row) {
     const name = (row.querySelector('.o-manage-row-name') || {}).textContent || '';
-    row.hidden = !!(q && !name.toLowerCase().includes(q));
+    row.hidden = !!(q && !searchIncludes(name, q));
   });
 }
 
@@ -7073,8 +7103,8 @@ function renderDesktopOrders() {
   const activeOrders = odb.activeOrders || [];
   const selectedOrder = activeOrders.find(o=>o.id===state.ordersDesktopOrderId);
   const selectedSupplier = suppliers.find(s=>s.id===state.ordersDesktopSupplierId) || suppliers[0] || null;
-  const q = (state.ordersSearch || '').trim().toLowerCase();
-  const filteredSuppliers = q ? suppliers.filter(s => [s.name, ...(s.products||[]).map(p=>p.name)].join(' ').toLowerCase().includes(q)) : suppliers;
+  const q = normalizeSearchText(state.ordersSearch);
+  const filteredSuppliers = q ? suppliers.filter(s => searchIncludes([s.name, ...(s.products||[]).map(p=>p.name)].join(' '), q)) : suppliers;
   const supplierRows = filteredSuppliers.map(s => `<tr class="${!selectedOrder && selectedSupplier && selectedSupplier.id===s.id?'desktop-row-selected':''}" onclick="setState({ordersDesktopSupplierId:'${s.id}',ordersDesktopOrderId:''})" style="cursor:pointer">
     <td><b>${esc(s.name)}</b><div class="desktop-muted">${s.products.length} מוצרים</div></td>
     <td>${ordersHasDraftFor(s.id)?desktopStatus('טיוטה','warn'):desktopStatus('מוכן','ok')}</td>
@@ -8184,8 +8214,8 @@ function calcMargin(p) {
 function marginClass(m) { return m==null?'gray':m>=30?'green':m>=15?'yellow':'red'; }
 function filterProductsList() {
   let list = [...pdb.products];
-  const q = (state.productsSearch||'').trim().toLowerCase();
-  if (q) list = list.filter(p => [p.name,p.category,p.subCategory,p.barcode,p.unitType].some(v=>String(v||'').toLowerCase().includes(q)) || (p.aliases||[]).some(a=>a.toLowerCase().includes(q)) || (p.supplierPrices||[]).some(sp=>String(sp.supplierName||'').toLowerCase().includes(q)));
+  const q = normalizeSearchText(state.productsSearch);
+  if (q) list = list.filter(p => searchIncludes([p.name,p.category,p.subCategory,p.barcode,p.unitType,(p.aliases||[]).join(' '),(p.supplierPrices||[]).map(sp=>sp.supplierName).join(' ')].join(' '), q));
   if (state.productsCategory==='ללא קטגוריה') list = list.filter(p=>!p.category||!p.category.trim());
   else if (state.productsCategory && state.productsCategory!=='הכל') list = list.filter(p=>p.category===state.productsCategory);
   if (state.productsSort==='name') list.sort(sortProductsByCategoryThenName);
@@ -9287,7 +9317,7 @@ function renderProductsModal() {
 }
 
 function productsModalWrap(title, body, confirmLabel, confirmFn, cancelFn) {
-  return `<div style="position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.65);display:flex;align-items:flex-end;justify-content:center" onclick="if(event.target===this){${cancelFn}}">
+  return `<div style="position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.65);display:flex;align-items:flex-end;justify-content:center">
     <div style="width:100%;max-width:480px;background:var(--surface);border-radius:var(--r-xl) var(--r-xl) 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div style="font-size:16px;font-weight:800;color:var(--text)">${title}</div>
@@ -10118,7 +10148,7 @@ function renderPayablesDashboard() {
 function renderPayablesSupplierBook() {
   const suppliers = pvGetAllSuppliers();
   const q = (state.payablesSearch||'').trim().toLowerCase();
-  const filtered = q ? suppliers.filter(s=>s.toLowerCase().includes(q)) : suppliers;
+  const filtered = q ? suppliers.filter(s=>searchIncludes(s, q)) : suppliers;
   const stats = filtered.map(s=>({name:s,...pvSupplierStats(s)})).sort((a,b)=>b.outstanding-a.outstanding);
 
   const rows = stats.length ? stats.map(s => {
@@ -10153,7 +10183,7 @@ function renderPayablesSupplierBook() {
 
 function pvBuildSupplierListHtml(q) {
   let suppliers = pvGetAllSuppliers();
-  if (q) suppliers = suppliers.filter(s => s.toLowerCase().includes(q.toLowerCase()));
+  if (q) suppliers = suppliers.filter(s => searchIncludes(s, q));
   const sorted = suppliers.map(s => ({ name: s, ...pvSupplierStats(s) }))
     .sort((a,b) => b.outstanding - a.outstanding);
   if (!sorted.length) return `<div style="text-align:center;padding:20px;color:var(--textMuted);font-size:13px">לא נמצאו ספקים</div>`;
@@ -10780,7 +10810,7 @@ function renderDesktopPayables() {
   else if (pf === 'מזומן') rows = rows.filter(p => p.method.includes('מזומן'));
   else if (pf === 'באיחור') rows = rows.filter(p => p.isOverdue);
   else if (pf === 'השבוע') rows = rows.filter(p => p.date && pvDateInDays(p.date,7));
-  if (q) rows = rows.filter(p => [p.supplier,p.invoiceNumber,p.checkNumber,p.method].join(' ').toLowerCase().includes(q));
+  if (q) rows = rows.filter(p => searchIncludes([p.supplier,p.invoiceNumber,p.checkNumber,p.method].join(' '), q));
   const filters = ['הכל',"צ'קים",'העברות','מזומן','באיחור','השבוע'];
   const openSupplierNames = [...new Set(payments.map(p=>p.supplier).filter(Boolean))];
   const rowsHtml = rows.map(p => {
@@ -10882,7 +10912,7 @@ function pvSupplierInvoiceRows() {
   let quick = state.pvInvoiceQuick || 'פתוחות';
   if (!state.pvInvoiceHistoryLoaded && historyQuicks.includes(quick)) quick = 'פתוחות';
   if (quick !== 'מחוקות') rows = rows.filter(inv => !inv.deleted);
-  if (q) rows = rows.filter(inv => [inv.supplier_name, inv.invoice_number, inv.supplier_tax_id, inv.notes].join(' ').toLowerCase().includes(q));
+  if (q) rows = rows.filter(inv => searchIncludes([inv.supplier_name, inv.invoice_number, inv.supplier_tax_id, inv.notes].join(' '), q));
   if (status !== 'הכל') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === status);
   if (method !== 'הכל') rows = rows.filter(inv => (inv.payment_method || '') === method);
   if (accounting === 'הועבר') rows = rows.filter(inv => inv.accounting_sent);
@@ -11547,7 +11577,7 @@ function renderPvModalSupplierInvoiceLinkDN() {
       </div>`).join('')}
     <button class="btn" onclick="pvConfirmSupplierInvoiceLinkDN()">שמור שיוך</button>
     <button class="btn-ghost" onclick="setState({payablesModal:'',payablesModalData:null})">ביטול</button>`;
-  return `<div onclick="setState({payablesModal:'',payablesModalData:null})" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
+  return `<div style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
     <div onclick="event.stopPropagation()" style="background:var(--surface);border-radius:24px 24px 0 0;width:100%;max-width:520px;padding:20px;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));max-height:88vh;overflow-y:auto;border-top:1px solid var(--border)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
         <button onclick="setState({payablesModal:'',payablesModalData:null})" style="width:40px;height:40px;border:none;border-radius:12px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0">×</button>
@@ -11606,7 +11636,7 @@ function renderPvModalLinkCheckToDebt() {
         }).join('')
     }`;
   // Use pvModalWrap: confirmFn gets '()' appended, so pass a no-op wrapper function name
-  return `<div onclick="setState({payablesModal:'',payablesModalData:null})" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
+  return `<div style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
     <div onclick="event.stopPropagation()" style="background:var(--surface);border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:20px;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));max-height:88vh;overflow-y:auto;border-top:1px solid var(--border)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
         <button onclick="setState({payablesModal:'',payablesModalData:null})" style="width:40px;height:40px;border:none;border-radius:12px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
@@ -11629,7 +11659,7 @@ function renderPvModalConfirmPaid() {
   const method = debt ? debt.paymentMethod : "צ'ק";
   const status = pvActionStatus(method);
 
-  return `<div class="overlay" onclick="setState({payablesModal:'',payablesModalData:null})">
+  return `<div class="overlay">
     <div class="modal" onclick="event.stopPropagation()" style="max-width:420px">
       <div class="modal-handle"></div>
       <div style="text-align:center;margin-bottom:16px">
@@ -11656,7 +11686,7 @@ function renderPvModalConfirmPaid() {
 
 function pvModalWrap(title, bodyHtml, confirmLabel, confirmFn, closeExpr) {
   return `
-    <div onclick="${closeExpr}" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:50;display:flex;align-items:flex-end;justify-content:center">
       <div onclick="event.stopPropagation()" style="background:var(--surface);border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:20px;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));max-height:88vh;overflow-y:auto;border-top:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
           <button onclick="${closeExpr}" style="width:40px;height:40px;border:none;border-radius:12px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
@@ -12115,14 +12145,8 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=116').then(reg => {
-    // Force-check for a newer SW on every load
+  navigator.serviceWorker.register('./sw.js?v=117').then(reg => {
     reg.update();
-    // When a new SW takes over → reload the page automatically to get latest code
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!refreshing) { refreshing = true; window.location.reload(); }
-    });
   }).catch(() => {});
 }
 </script>

@@ -1,16 +1,14 @@
-const CACHE = 'app-v116';
+const CACHE = 'app-v117';
 const SHELL = ['./index.html', './tari-bakfar.html', './orders.html', './manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(url => new Request(url, {cache: 'no-store'})))));
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys =>
     Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
   ));
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
