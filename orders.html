@@ -412,6 +412,78 @@ function saveDb(dirty) {
   localStorage.setItem(STORE_KEY, JSON.stringify(db));
 }
 
+function orderMergeKey(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\u0591-\u05C7]/g, '')
+    .replace(/[ךםןףץ]/g, ch => ({'ך':'כ','ם':'מ','ן':'נ','ף':'פ','ץ':'צ'}[ch] || ch))
+    .replace(/["'׳״`´]/g, '')
+    .replace(/[^0-9a-z\u0590-\u05FF]+/g, ' ')
+    .trim();
+}
+
+function mergeOrderProducts(localProducts, cloudProducts) {
+  const out = [];
+  const byId = new Map();
+  const byName = new Map();
+  const addOrMerge = product => {
+    if (!product) return;
+    const id = String(product.id || '');
+    const nameKey = orderMergeKey(product.name);
+    const existingIndex = (id && byId.has(id)) ? byId.get(id) : (nameKey && byName.has(nameKey) ? byName.get(nameKey) : -1);
+    if (existingIndex >= 0) {
+      out[existingIndex] = {...out[existingIndex], ...product};
+    } else {
+      const copy = {...product, id: id || uid()};
+      out.push(copy);
+      const idx = out.length - 1;
+      if (copy.id) byId.set(String(copy.id), idx);
+      if (nameKey) byName.set(nameKey, idx);
+    }
+  };
+  (cloudProducts || []).forEach(addOrMerge);
+  (localProducts || []).forEach(addOrMerge);
+  return out;
+}
+
+function mergeOrderSuppliers(localSuppliers, cloudSuppliers) {
+  const out = [];
+  const byId = new Map();
+  const byName = new Map();
+  const addOrMerge = supplier => {
+    if (!supplier) return;
+    const id = String(supplier.id || '');
+    const nameKey = orderMergeKey(supplier.name);
+    const existingIndex = (id && byId.has(id)) ? byId.get(id) : (nameKey && byName.has(nameKey) ? byName.get(nameKey) : -1);
+    if (existingIndex >= 0) {
+      const existing = out[existingIndex];
+      out[existingIndex] = {
+        ...existing,
+        ...supplier,
+        id: existing.id || supplier.id || uid(),
+        name: supplier.name || existing.name,
+        products: mergeOrderProducts(existing.products || [], supplier.products || [])
+      };
+    } else {
+      const copy = {...supplier, id: id || uid(), products: Array.isArray(supplier.products) ? supplier.products.slice() : []};
+      out.push(copy);
+      const idx = out.length - 1;
+      if (copy.id) byId.set(String(copy.id), idx);
+      if (nameKey) byName.set(nameKey, idx);
+    }
+  };
+  (cloudSuppliers || []).forEach(addOrMerge);
+  (localSuppliers || []).forEach(addOrMerge);
+  return out;
+}
+
+function buildOrdersCloudState() {
+  let drafts = {};
+  try { drafts = JSON.parse(localStorage.getItem('orders-all-drafts') || '{}'); } catch(e) {}
+  return {...db, drafts, _localModified: db._localModified || 0};
+}
+
 // ─── Cloud Sync (Google Sheets) ────────────────────────────────────────────
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxdXp4ZXpt2EAXYXHSKdjrNZRNFuAIiOEdyXktShtnSlRSYHXLoNlSyOf-LJYJkS7ndjw/exec';
 
@@ -430,6 +502,7 @@ async function pushSuppliers() {
   try {
     setSyncDot('syncing');
     await cloudCallOrders('save_suppliers', { payload: db.suppliers });
+    try { await cloudCallOrders('save_app_state', { key: 'orders', payload: buildOrdersCloudState() }); } catch(e) {}
     db._lastSynced = Date.now();
     saveDb();
     setSyncDot('ok');
@@ -453,10 +526,19 @@ async function syncSuppliers() {
       const cloud = await cloudCallOrders('list_suppliers', {});
       if (cloud && cloud.length > 0) {
         const prevStr = JSON.stringify(db.suppliers);
-        db.suppliers = cloud;
-        db._lastSynced = Date.now();
-        db._localModified = db._lastSynced; // mark as in sync
-        saveDb();
+        const merged = mergeOrderSuppliers(db.suppliers || [], cloud || []);
+        const preservedLocal = JSON.stringify(merged) !== JSON.stringify(cloud || []);
+        db.suppliers = merged;
+        if (preservedLocal) {
+          db._localModified = Date.now();
+          db._lastSynced = 0;
+          saveDb();
+          await pushSuppliers();
+        } else {
+          db._lastSynced = Date.now();
+          db._localModified = db._lastSynced; // mark as in sync
+          saveDb();
+        }
         // Only re-render if data actually changed, and without animation to avoid jump
         if (currentView === 'home' && JSON.stringify(db.suppliers) !== prevStr) renderHome(false);
       } else if (db.suppliers.length > 0) {

@@ -1046,15 +1046,17 @@ function applyOrdersCloudState(cloud) {
   }
   const localImgMap = {};
   (odb.activeOrders || []).forEach(o => { if (o.deliveryNoteImage) localImgMap[o.id] = o.deliveryNoteImage; });
+  const mergedSuppliers = mergeOrderSuppliers(odb.suppliers || [], Array.isArray(cloud.suppliers) ? cloud.suppliers : []);
+  const preservedLocalSuppliers = JSON.stringify(mergedSuppliers) !== JSON.stringify(Array.isArray(cloud.suppliers) ? cloud.suppliers : []);
   odb = {
-    suppliers: Array.isArray(cloud.suppliers) ? cloud.suppliers : [],
+    suppliers: mergedSuppliers,
     history: Array.isArray(cloud.history) ? cloud.history : [],
     activeOrders: Array.isArray(cloud.activeOrders) ? cloud.activeOrders.map(o => ({...o, deliveryNoteImage: localImgMap[o.id] || o.deliveryNoteImage || null})) : [],
     _localModified: +cloud._localModified || 0,
-    _lastSynced: Date.now()
+    _lastSynced: preservedLocalSuppliers ? 0 : Date.now()
   };
   saveOrdersDraftsFromSync(cloud.drafts);
-  saveOdb(false);
+  saveOdb(preservedLocalSuppliers);
 }
 
 async function syncCloudStateBlob(key, buildFn, applyFn, getLocalModified) {
@@ -1228,9 +1230,19 @@ async function syncAll(opts) {
         try { await cloudCall('save_payables', {payload: buildPayablesCloudState()}); } catch(e) {}
       }
       if (osup !== null && ((osup||[]).length > 0 || odb.suppliers.length === 0)) {
-        odb.suppliers = osup || [];
-        odb._lastSynced = Date.now();
-        saveOdb(false);
+        const mergedSuppliers = mergeOrderSuppliers(odb.suppliers || [], osup || []);
+        const preservedLocal = JSON.stringify(mergedSuppliers) !== JSON.stringify(osup || []);
+        odb.suppliers = mergedSuppliers;
+        if (preservedLocal) {
+          odb._localModified = Date.now();
+          odb._lastSynced = 0;
+          saveOdb(false);
+          try { await cloudCall('save_suppliers', {payload: odb.suppliers || []}); } catch(e) {}
+          try { await cloudCall('save_app_state', {key:'orders', payload:buildOrdersCloudState()}); } catch(e) {}
+        } else {
+          odb._lastSynced = Date.now();
+          saveOdb(false);
+        }
       }
       if (activeOrders !== null && Array.isArray(activeOrders)) {
         const localImgMap = {};
@@ -6114,6 +6126,72 @@ function saveOdb(dirty) {
 }
 loadOdb();
 
+function orderMergeKey(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\u0591-\u05C7]/g, '')
+    .replace(/[ךםןףץ]/g, ch => ({'ך':'כ','ם':'מ','ן':'נ','ף':'פ','ץ':'צ'}[ch] || ch))
+    .replace(/["'׳״`´]/g, '')
+    .replace(/[^0-9a-z\u0590-\u05FF]+/g, ' ')
+    .trim();
+}
+
+function mergeOrderProducts(localProducts, cloudProducts) {
+  const out = [];
+  const byId = new Map();
+  const byName = new Map();
+  const addOrMerge = product => {
+    if (!product) return;
+    const id = String(product.id || '');
+    const nameKey = orderMergeKey(product.name);
+    const existingIndex = (id && byId.has(id)) ? byId.get(id) : (nameKey && byName.has(nameKey) ? byName.get(nameKey) : -1);
+    if (existingIndex >= 0) {
+      out[existingIndex] = {...out[existingIndex], ...product};
+    } else {
+      const copy = {...product, id: id || uid()};
+      out.push(copy);
+      const idx = out.length - 1;
+      if (copy.id) byId.set(String(copy.id), idx);
+      if (nameKey) byName.set(nameKey, idx);
+    }
+  };
+  (cloudProducts || []).forEach(addOrMerge);
+  (localProducts || []).forEach(addOrMerge);
+  return out;
+}
+
+function mergeOrderSuppliers(localSuppliers, cloudSuppliers) {
+  const out = [];
+  const byId = new Map();
+  const byName = new Map();
+  const addOrMerge = supplier => {
+    if (!supplier) return;
+    const id = String(supplier.id || '');
+    const nameKey = orderMergeKey(supplier.name);
+    const existingIndex = (id && byId.has(id)) ? byId.get(id) : (nameKey && byName.has(nameKey) ? byName.get(nameKey) : -1);
+    if (existingIndex >= 0) {
+      const existing = out[existingIndex];
+      out[existingIndex] = {
+        ...existing,
+        ...supplier,
+        id: existing.id || supplier.id || uid(),
+        name: supplier.name || existing.name,
+        products: mergeOrderProducts(existing.products || [], supplier.products || [])
+      };
+    } else {
+      const copy = {...supplier, id: id || uid(), products: Array.isArray(supplier.products) ? supplier.products.slice() : []};
+      out.push(copy);
+      const idx = out.length - 1;
+      if (copy.id) byId.set(String(copy.id), idx);
+      if (nameKey) byName.set(nameKey, idx);
+    }
+  };
+  (cloudSuppliers || []).forEach(addOrMerge);
+  (localSuppliers || []).forEach(addOrMerge);
+  return out;
+}
+
 async function ordersCloudCall(action, payload) {
   const url = CFG.webAppUrl;
   if (!url) throw new Error('No cloud URL');
@@ -6146,10 +6224,19 @@ async function syncOrders() {
       const cloud = await ordersCloudCall('list_suppliers', {});
       if (cloud && cloud.length > 0) {
         const prevStr = JSON.stringify(odb.suppliers);
-        odb.suppliers = cloud;
-        odb._lastSynced = Date.now();
-        odb._localModified = odb._lastSynced;
-        saveOdb();
+        const merged = mergeOrderSuppliers(odb.suppliers || [], cloud || []);
+        const preservedLocal = JSON.stringify(merged) !== JSON.stringify(cloud || []);
+        odb.suppliers = merged;
+        if (preservedLocal) {
+          odb._localModified = Date.now();
+          odb._lastSynced = 0;
+          saveOdb(false);
+          await pushOrders();
+        } else {
+          odb._lastSynced = Date.now();
+          odb._localModified = odb._lastSynced;
+          saveOdb(false);
+        }
         if (state.tab === 'orders' && state.ordersView === 'home' && JSON.stringify(odb.suppliers) !== prevStr) render();
       } else if (odb.suppliers.length > 0) {
         await ordersCloudCall('save_suppliers', { payload: odb.suppliers });
@@ -6169,6 +6256,7 @@ async function pushOrders() {
   try {
     ordersSetSyncDot('syncing');
     await ordersCloudCall('save_suppliers', { payload: odb.suppliers });
+    try { await ordersCloudCall('save_app_state', { key: 'orders', payload: buildOrdersCloudState() }); } catch(e) {}
     odb._lastSynced = Date.now();
     saveOdb();
     ordersSetSyncDot('ok');
