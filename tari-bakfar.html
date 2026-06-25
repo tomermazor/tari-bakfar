@@ -795,7 +795,7 @@ function productStateCount(obj) {
 }
 function payablesStateCount(obj) {
   if (!obj || typeof obj !== 'object') return 0;
-  return ['debts','taxInvoices']
+  return ['debts','taxInvoices','cancelledDNIds','supplierInvoices','supplierInvoicePayments','supplierInvoiceDeliveryNotes','supplierInvoiceFiles','supplierInvoiceActivityLog']
     .reduce((sum, key) => sum + (Array.isArray(obj[key]) ? obj[key].length : 0), 0);
 }
 function ordersStateCount(obj) {
@@ -902,6 +902,79 @@ function buildPayablesCloudState() {
   };
 }
 
+function payablesItemTimestamp(item) {
+  if (!item || typeof item !== 'object') return 0;
+  const candidates = [
+    item.updated_at, item.updatedAt, item.closedAt, item.paid_at, item.paidDate,
+    item.created_at, item.createdAt, item.date, item.invoice_date, item.due_date
+  ];
+  for (const value of candidates) {
+    if (!value) continue;
+    const parsed = typeof value === 'number' ? value : Date.parse(String(value));
+    if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
+}
+
+function mergePayablesArrayById(localArr, cloudArr, idFields) {
+  const fields = idFields || ['id'];
+  const out = [];
+  const index = new Map();
+  const getKey = item => {
+    if (!item || typeof item !== 'object') return '';
+    for (const field of fields) {
+      if (item[field] !== undefined && item[field] !== null && String(item[field]) !== '') {
+        return field + ':' + String(item[field]);
+      }
+    }
+    return '';
+  };
+  const addOrMerge = item => {
+    if (!item || typeof item !== 'object') return;
+    const key = getKey(item);
+    if (!key) {
+      out.push({...item});
+      return;
+    }
+    if (!index.has(key)) {
+      index.set(key, out.length);
+      out.push({...item});
+      return;
+    }
+    const i = index.get(key);
+    const existing = out[i];
+    const existingTs = payablesItemTimestamp(existing);
+    const itemTs = payablesItemTimestamp(item);
+    const newer = itemTs >= existingTs ? item : existing;
+    const older = itemTs >= existingTs ? existing : item;
+    out[i] = {...older, ...newer};
+  };
+  (cloudArr || []).forEach(addOrMerge);
+  (localArr || []).forEach(addOrMerge);
+  return out;
+}
+
+function mergePayablesState(localState, cloudState) {
+  const local = localState || {};
+  const cloud = cloudState || {};
+  const merged = {
+    ...cloud,
+    ...local,
+    taxInvoices: mergePayablesArrayById(local.taxInvoices, cloud.taxInvoices, ['id','legacy_tax_invoice_id']),
+    debts: mergePayablesArrayById(local.debts, cloud.debts, ['id','legacy_debt_id','expenseId']),
+    cancelledDNIds: [...new Set([...(cloud.cancelledDNIds || []), ...(local.cancelledDNIds || [])])],
+    suppliers: mergePayablesArrayById(local.suppliers, cloud.suppliers, ['id','name']),
+    supplierInvoices: mergePayablesArrayById(local.supplierInvoices, cloud.supplierInvoices, ['id','legacy_debt_id','legacy_tax_invoice_id','source_expense_id']),
+    supplierInvoicePayments: mergePayablesArrayById(local.supplierInvoicePayments, cloud.supplierInvoicePayments, ['id']),
+    supplierInvoiceDeliveryNotes: mergePayablesArrayById(local.supplierInvoiceDeliveryNotes, cloud.supplierInvoiceDeliveryNotes, ['id','delivery_note_id']),
+    supplierInvoiceFiles: mergePayablesArrayById(local.supplierInvoiceFiles, cloud.supplierInvoiceFiles, ['id']),
+    supplierInvoiceActivityLog: mergePayablesArrayById(local.supplierInvoiceActivityLog, cloud.supplierInvoiceActivityLog, ['id']).slice(0, 1200),
+  };
+  merged._localModified = Math.max(+local._localModified || 0, +cloud._localModified || 0);
+  merged._lastSynced = Date.now();
+  return merged;
+}
+
 function applyPayablesCloudState(cloud) {
   if (!cloud || typeof cloud !== 'object') return;
   if (payablesStateCount(cloud) === 0 && payablesStateCount(pv) > 0) {
@@ -910,13 +983,25 @@ function applyPayablesCloudState(cloud) {
   }
   const localImages = {};
   (pv.debts||[]).forEach(d => { if (d.invoiceImage) localImages[d.id] = d.invoiceImage; });
-  pv = {...cloud};
+  const localInvoiceFiles = {};
+  (pv.supplierInvoices||[]).forEach(inv => {
+    if (inv.invoice_file) localInvoiceFiles[inv.id] = inv.invoice_file;
+  });
+  const mergedPayables = mergePayablesState(pv, cloud);
+  const preservedLocalPayables = payablesStateCount(mergedPayables) > payablesStateCount(cloud);
+  pv = mergedPayables;
   if (!pv.taxInvoices) pv.taxInvoices = [];
   if (!pv.debts) pv.debts = [];
   if (!pv.cancelledDNIds) pv.cancelledDNIds = [];
   (pv.debts||[]).forEach(d => { if (!d.invoiceImage && localImages[d.id]) d.invoiceImage = localImages[d.id]; });
+  if (!pv.supplierInvoices) pv.supplierInvoices = [];
+  if (!pv.supplierInvoicePayments) pv.supplierInvoicePayments = [];
+  if (!pv.supplierInvoiceDeliveryNotes) pv.supplierInvoiceDeliveryNotes = [];
+  if (!pv.supplierInvoiceFiles) pv.supplierInvoiceFiles = [];
+  if (!pv.supplierInvoiceActivityLog) pv.supplierInvoiceActivityLog = [];
+  (pv.supplierInvoices||[]).forEach(inv => { if (!inv.invoice_file && localInvoiceFiles[inv.id]) inv.invoice_file = localInvoiceFiles[inv.id]; });
   pv._lastSynced = Date.now();
-  savePv(false);
+  savePv(preservedLocalPayables);
 }
 
 function buildProductsCloudState() {
@@ -11085,6 +11170,66 @@ function renderSupplierInvoicesDashboard() {
   </div>`;
 }
 
+function renderSupplierTrackingPanel() {
+  const source = (pv.supplierInvoices || []).filter(inv => !inv.deleted && !inv.archived);
+  const open = source.filter(pvIsInvoiceOpen);
+  const overdue = open.filter(inv => pvCalcInvoiceStatus(inv) === 'באיחור');
+  const week = open.filter(inv => inv.due_date && pvDateInDays(inv.due_date, 7));
+  const missingDate = open.filter(inv => !pvDateISO(inv.due_date));
+  const drafts = source.filter(inv => pvCalcInvoiceStatus(inv) === 'טיוטה לבדיקה');
+  const notAccounting = source.filter(inv => !inv.accounting_sent);
+  const checkPending = open.filter(inv => pvIsCheckMethod(inv.payment_method) && pvCalcInvoiceStatus(inv) !== 'שולם');
+  const supplierMap = new Map();
+  open.forEach(inv => {
+    const name = inv.supplier_name || 'ספק';
+    const prev = supplierMap.get(name) || {name, count:0, amount:0, overdue:0};
+    prev.count += 1;
+    prev.amount += pvInvoiceOpenAmount(inv);
+    if (pvCalcInvoiceStatus(inv) === 'באיחור') prev.overdue += 1;
+    supplierMap.set(name, prev);
+  });
+  const topSuppliers = [...supplierMap.values()].sort((a,b)=>b.amount-a.amount).slice(0, 5);
+  const action = (label, count, amount, quick, tone) => {
+    const color = tone === 'danger' ? 'var(--danger)' : tone === 'warn' ? 'var(--amber)' : tone === 'info' ? 'var(--info)' : 'var(--accent)';
+    return `<button onclick="pvInvoiceFilterChange({pvInvoiceQuick:'${quick}'})" style="border:1px solid ${color}33;background:${color}12;border-radius:13px;padding:11px 10px;text-align:right;font-family:inherit;cursor:pointer;color:var(--text)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="font-size:12px;font-weight:900;color:${color}">${label}</span>
+        <span style="min-width:24px;height:24px;border-radius:999px;background:${color};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900">${count}</span>
+      </div>
+      <div class="display" style="font-size:15px;color:${color};font-weight:900;margin-top:4px">${amount != null ? fmtCurr(amount) : 'לטיפול'}</div>
+    </button>`;
+  };
+  const supplierRows = topSuppliers.length ? topSuppliers.map(s => `
+    <button onclick="setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(s.name)}')})" style="width:100%;display:flex;align-items:center;gap:10px;border:none;border-bottom:1px solid var(--border);background:transparent;color:var(--text);padding:9px 0;font-family:inherit;text-align:right;cursor:pointer">
+      <span style="width:8px;height:8px;border-radius:50%;background:${s.overdue ? 'var(--danger)' : 'var(--amber)'};flex-shrink:0"></span>
+      <span style="flex:1;min-width:0">
+        <span style="display:block;font-size:13px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</span>
+        <span style="display:block;font-size:11px;color:var(--textDim)">${s.count} חשבוניות פתוחות${s.overdue ? ' · ' + s.overdue + ' באיחור' : ''}</span>
+      </span>
+      <span class="display" style="font-size:14px;font-weight:900;color:${s.overdue ? 'var(--danger)' : 'var(--text)'}">${fmtCurr(s.amount)}</span>
+    </button>`).join('') : `<div style="font-size:12px;color:var(--textMuted);text-align:center;padding:14px">אין ספקים עם חוב פתוח</div>`;
+
+  return `<section style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:13px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+      <div>
+        <div style="font-size:14px;font-weight:950;color:var(--text)">מעקב מהיר</div>
+        <div style="font-size:11px;color:var(--textDim);margin-top:2px">כל מה שדורש פעולה עכשיו, בלי לחפש ברשימה</div>
+      </div>
+      <button onclick="triggerTopSync()" style="border:1px solid var(--border);border-radius:10px;background:var(--surfaceHi);color:var(--textDim);font-size:11px;font-weight:900;font-family:inherit;padding:7px 10px;cursor:pointer">סנכרן</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px">
+      ${action('באיחור', overdue.length, overdue.reduce((s,inv)=>s+pvInvoiceOpenAmount(inv),0), 'באיחור', overdue.length?'danger':'ok')}
+      ${action('השבוע', week.length, week.reduce((s,inv)=>s+pvInvoiceOpenAmount(inv),0), 'השבוע', 'info')}
+      ${action('חסר תאריך', missingDate.length, null, 'חסר תאריך', missingDate.length?'warn':'ok')}
+      ${action('לא עבר הנה"ח', notAccounting.length, null, 'לא עבר להנה"ח', notAccounting.length?'warn':'ok')}
+      ${action('טיוטות', drafts.length, null, 'טיוטות לבדיקה', drafts.length?'warn':'ok')}
+      ${action("צ'קים פתוחים", checkPending.length, checkPending.reduce((s,inv)=>s+pvInvoiceOpenAmount(inv),0), "צ'קים פתוחים", 'info')}
+    </div>
+    <div style="font-size:11px;font-weight:900;color:var(--textDim);letter-spacing:.04em;text-transform:uppercase;margin:2px 0 6px">ספקים עם יתרה גבוהה</div>
+    ${supplierRows}
+  </section>`;
+}
+
 function renderSupplierInvoicesTab() {
   pvEnsureSupplierInvoiceMigration();
   const rows = pvSupplierInvoiceRows();
@@ -11149,6 +11294,7 @@ function renderSupplierInvoicesTab() {
       <button onclick="setState({payablesModal:'add-direct',payablesModalData:{}})" style="border:none;border-radius:10px;background:var(--accent);color:#071302;padding:9px 12px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer">+ חשבונית</button>
     </div>
     ${renderSupplierInvoicesDashboard()}
+    ${renderSupplierTrackingPanel()}
     <div style="position:relative;margin-bottom:10px">
       <input id="pv-invoice-search-inp" class="input" placeholder="חיפוש ספק / חשבונית / הערה" value="${esc(state.payablesSearch||'')}" oninput="pvInvoiceSearchInput(this.value)">
       ${state.payablesSearch ? `<button onclick="state.payablesSearch='';state.pvInvoiceLimit=30;render()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;border-radius:50%;background:var(--borderHi);color:var(--textDim);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>` : ''}
