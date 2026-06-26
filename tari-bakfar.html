@@ -1442,6 +1442,7 @@ function saveCategories(skipDirty) {
   if (!skipDirty) markCoreStateDirty();
 }
 const DTYPES = ["חשבונית מס","חשבונית מס קבלה","תעודת משלוח","קבלה"];
+const DEFAULT_EXPENSE_DOCUMENT_TYPE = "תעודת משלוח";
 const FIXED_CATS = ["שכירות","חשמל","מים","ארנונה","אינטרנט","טלפון","ביטוח","הנהלת חשבונות","רישיונות","משכורות","שיווק","אבטחה","תחזוקה","אחר"];
 const FIXED_FREQ = ["חודשי","דו-חודשי","רבעוני","חצי שנתי","שנתי"];
 
@@ -3076,7 +3077,7 @@ async function runScan() {
         date: data.date||todayStr(), supplier: data.supplier||'',
         total_amount: +data.total_amount||0, vat_amount: +data.vat_amount||0,
         amount_before_vat: +data.amount_before_vat||0,
-        category: data.category||'אחר', document_type: data.document_type||'חשבונית מס',
+        category: data.category||'אחר', document_type: data.document_type||DEFAULT_EXPENSE_DOCUMENT_TYPE,
         document_number: data.document_number||'', notes: data.notes||'',
         linkedOrderId: '',
         sentToAccountant: false, accountingSentAt: '',
@@ -3096,7 +3097,7 @@ async function runScan() {
           id: uid(), image: state.scanImg,
           date: todayStr(), supplier: addForm.supplier || '',
           total_amount:0, vat_amount:0, amount_before_vat:0,
-          category: CATS[0]||'אחר', document_type:'חשבונית מס',
+          category: CATS[0]||'אחר', document_type:DEFAULT_EXPENSE_DOCUMENT_TYPE,
           document_number:'', notes: addForm.notes || '',
           linkedOrderId: addForm.linkedOrderId || '',
           sentToAccountant: false, accountingSentAt: '',
@@ -3115,7 +3116,7 @@ function manualForm() {
     date:todayStr(),
     supplier: addForm.supplier || '',   // use pre-filled supplier if came from orders
     total_amount:0, vat_amount:0, amount_before_vat:0, category: CATS[0]||'אחר',
-    document_type:'חשבונית מס', document_number:'', line_items: [],
+    document_type:DEFAULT_EXPENSE_DOCUMENT_TYPE, document_number:'', line_items: [],
     linkedOrderId: addForm.linkedOrderId || '',
     sentToAccountant: false, accountingSentAt: '',
     expensePaid: false, expensePaidAt: '',
@@ -3225,7 +3226,7 @@ function normalizeScanExpenseItem(raw) {
   item.id = item.id || uid();
   item.supplier = String(item.supplier || '').trim();
   item.category = item.category || CATS[0] || 'אחר';
-  item.document_type = item.document_type || 'חשבונית מס';
+  item.document_type = item.document_type || DEFAULT_EXPENSE_DOCUMENT_TYPE;
   item.document_number = String(item.document_number || '').trim();
   item.notes = String(item.notes || '').trim();
   const parsedDate = parseD(item.date || todayStr());
@@ -3791,7 +3792,7 @@ async function pushExpenseToCloud(id) {
 // ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — ADD
 // ═══════════════════════════════════════════════════════════════════════════
-let addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",sentToAccountant:false,accountingSentAt:"",expensePaid:false,expensePaidAt:"",linkedOrderId:""};
+let addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:DEFAULT_EXPENSE_DOCUMENT_TYPE,document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",sentToAccountant:false,accountingSentAt:"",expensePaid:false,expensePaidAt:"",linkedOrderId:""};
 
 function renderAdd() {
   return `
@@ -3862,7 +3863,7 @@ async function submitAdd() {
     else if (item.document_type === 'תעודת משלוח') pvRegisterDeliveryNoteFromExpense(item);
     processInvoiceLineItems(item);
   });
-  addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:"חשבונית מס",document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",sentToAccountant:false,accountingSentAt:"",expensePaid:false,expensePaidAt:"",isOpenDebt:true,linkedOrderId:""};
+  addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:DEFAULT_EXPENSE_DOCUMENT_TYPE,document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",sentToAccountant:false,accountingSentAt:"",expensePaid:false,expensePaidAt:"",isOpenDebt:true,linkedOrderId:""};
   toast('נשמר!', 'success');
   setState({tab:'list'});
 }
