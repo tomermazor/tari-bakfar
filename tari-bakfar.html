@@ -1135,11 +1135,13 @@ function applyOrdersCloudState(cloud) {
   const preservedLocalSuppliers = JSON.stringify(mergedSuppliers) !== JSON.stringify(Array.isArray(cloud.suppliers) ? cloud.suppliers : []);
   odb = {
     suppliers: mergedSuppliers,
+    categories: mergeOrderCategories(odb.categories || [], Array.isArray(cloud.categories) ? cloud.categories : []),
     history: Array.isArray(cloud.history) ? cloud.history : [],
     activeOrders: Array.isArray(cloud.activeOrders) ? cloud.activeOrders.map(o => ({...o, deliveryNoteImage: localImgMap[o.id] || o.deliveryNoteImage || null})) : [],
     _localModified: +cloud._localModified || 0,
     _lastSynced: preservedLocalSuppliers ? 0 : Date.now()
   };
+  ordersNormalizeCategories();
   saveOrdersDraftsFromSync(cloud.drafts);
   saveOdb(preservedLocalSuppliers);
 }
@@ -2177,6 +2179,8 @@ let state = {
   ordersManageFrom: 'home',
   ordersState: {},
   ordersNewProductUnit: 'קרטון',
+  ordersNewProductCategory: '',
+  ordersCategoryFilter: 'הכל',
   ordersManualAddState: { name: '', qty: 1, unit: 'קרטון' },
   ordersTransferData: null,
   ordersModal: '',
@@ -6192,13 +6196,16 @@ function logout() {
 const ORDERS_KEY = 'orders-v1';
 const ORDERS_ALL_DRAFTS_KEY = 'orders-all-drafts';
 const ORDERS_ICONS = ['🍎','🥦','🍋','🧅','🥕','🍇','🥬','🍓','🌽','🧄','🧀','🥚','🐟','🥩','🫙'];
-let odb = { suppliers: [], history: [], activeOrders: [], _localModified: 0, _lastSynced: 0 };
+const ORDERS_DEFAULT_CATEGORIES = ['פירות','פירות קיץ','ירקות'];
+let odb = { suppliers: [], categories: [], history: [], activeOrders: [], _localModified: 0, _lastSynced: 0 };
 
 function loadOdb() {
   try { const s = localStorage.getItem(ORDERS_KEY); if (s) odb = JSON.parse(s); } catch(e) {}
   if (!odb.suppliers) odb.suppliers = [];
+  if (!Array.isArray(odb.categories)) odb.categories = [];
   if (!odb.history) odb.history = [];
   if (!odb.activeOrders) odb.activeOrders = [];
+  ordersNormalizeCategories();
   if (!odb._localModified) {
     const hasData = odb.suppliers.length || odb.history.length || odb.activeOrders.length;
     odb._localModified = hasData ? Date.now() : 0;
@@ -6211,6 +6218,67 @@ function saveOdb(dirty) {
   if (dirty) scheduleAutoSync();
 }
 loadOdb();
+
+function ordersNormalizeCategoryName(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+function ordersEnsureCategory(name) {
+  name = ordersNormalizeCategoryName(name);
+  if (!name) return '';
+  if (!Array.isArray(odb.categories)) odb.categories = [];
+  const exists = odb.categories.some(c => orderMergeKey(c) === orderMergeKey(name));
+  if (!exists) odb.categories.push(name);
+  return name;
+}
+
+function ordersNormalizeCategories() {
+  if (!Array.isArray(odb.categories)) odb.categories = [];
+  ORDERS_DEFAULT_CATEGORIES.forEach(ordersEnsureCategory);
+  (odb.suppliers || []).forEach(s => (s.products || []).forEach(p => {
+    if (p.category) p.category = ordersEnsureCategory(p.category);
+  }));
+}
+
+function ordersGetCategories() {
+  ordersNormalizeCategories();
+  return (odb.categories || []).slice();
+}
+
+function ordersProductCategory(p) {
+  return ordersNormalizeCategoryName(p && p.category);
+}
+
+function ordersCategoryLabel(cat) {
+  return ordersProductCategory({category: cat}) || 'ללא קטגוריה';
+}
+
+function ordersCategoryOptionsHtml(selected, includeEmpty) {
+  const cats = ordersGetCategories();
+  const sel = ordersNormalizeCategoryName(selected);
+  return (includeEmpty ? `<option value="" ${!sel?'selected':''}>ללא קטגוריה</option>` : '')
+    + cats.map(c => `<option value="${esc(c)}" ${sel===c?'selected':''}>${esc(c)}</option>`).join('');
+}
+
+function mergeOrderCategories(localCategories, cloudCategories) {
+  const out = [];
+  const seen = new Set();
+  [...(cloudCategories || []), ...(localCategories || [])].forEach(name => {
+    name = ordersNormalizeCategoryName(name);
+    const key = orderMergeKey(name);
+    if (!name || seen.has(key)) return;
+    seen.add(key);
+    out.push(name);
+  });
+  ORDERS_DEFAULT_CATEGORIES.forEach(name => {
+    const key = orderMergeKey(name);
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(name);
+    }
+  });
+  return out;
+}
 
 function orderMergeKey(value) {
   return String(value || '')
@@ -6304,6 +6372,7 @@ async function syncOrders() {
     const hasPending = odb._localModified > odb._lastSynced;
     if (hasPending) {
       await ordersCloudCall('save_suppliers', { payload: odb.suppliers });
+      try { await ordersCloudCall('save_app_state', { key: 'orders', payload: buildOrdersCloudState() }); } catch(e) {}
       odb._lastSynced = Date.now();
       saveOdb();
     } else {
@@ -6326,6 +6395,7 @@ async function syncOrders() {
         if (state.tab === 'orders' && state.ordersView === 'home' && JSON.stringify(odb.suppliers) !== prevStr) render();
       } else if (odb.suppliers.length > 0) {
         await ordersCloudCall('save_suppliers', { payload: odb.suppliers });
+        try { await ordersCloudCall('save_app_state', { key: 'orders', payload: buildOrdersCloudState() }); } catch(e) {}
         odb._lastSynced = Date.now();
         odb._localModified = odb._lastSynced;
         saveOdb();
@@ -6586,7 +6656,8 @@ function ordersAddManualProduct() {
   if (qty <= 0) { toast('הזן כמות', 'error'); return; }
   const sup = findSupplierOdb(state.ordersSupplierId);
   if (!sup) return;
-  const newProduct = { id: uid(), name, defaultUnit: s.unit, active: true };
+  const currentCat = state.ordersCategoryFilter && !['הכל','ללא קטגוריה'].includes(state.ordersCategoryFilter) ? state.ordersCategoryFilter : '';
+  const newProduct = { id: uid(), name, defaultUnit: s.unit, active: true, category: ordersEnsureCategory(currentCat) };
   sup.products.push(newProduct);
   state.ordersState[newProduct.id] = { qty: String(qty), unit: s.unit, notes: '' };
   state.ordersManualAddState = { name: '', qty: 1, unit: 'קרטון' };
@@ -6799,12 +6870,73 @@ function ordersAddProduct() {
   if (!name) { inp?.focus(); return; }
   const sup = findSupplierOdb(state.ordersSupplierId);
   if (!sup) return;
-  sup.products.push({ id: uid(), name, defaultUnit: state.ordersNewProductUnit || 'קרטון' });
+  const category = ordersEnsureCategory(state.ordersNewProductCategory || '');
+  sup.products.push({ id: uid(), name, defaultUnit: state.ordersNewProductUnit || 'קרטון', category });
   saveOdb(true); pushOrders();
   if (inp) inp.value = '';
   render();
   toast('מוצר נוסף ✓', 'success');
   setTimeout(() => { const el = document.getElementById('o-new-p-name'); if (el) el.focus(); }, 50);
+}
+
+function ordersAddCategory() {
+  const inp = document.getElementById('o-new-category-name');
+  const name = ordersNormalizeCategoryName(inp?.value || '');
+  if (!name) { inp?.focus(); return; }
+  ordersEnsureCategory(name);
+  if (inp) inp.value = '';
+  saveOdb(true); pushOrders(); render();
+  toast('קטגוריה נוספה ✓', 'success');
+}
+
+function ordersRenameCategory(encodedName) {
+  const oldName = decodeURIComponent(encodedName || '');
+  const next = ordersNormalizeCategoryName(prompt('שם קטגוריה:', oldName));
+  if (!next || next === oldName) return;
+  if ((odb.categories || []).some(c => c !== oldName && orderMergeKey(c) === orderMergeKey(next))) {
+    toast('קטגוריה בשם הזה כבר קיימת', 'error');
+    return;
+  }
+  odb.categories = (odb.categories || []).map(c => c === oldName ? next : c);
+  (odb.suppliers || []).forEach(s => (s.products || []).forEach(p => {
+    if (ordersProductCategory(p) === oldName) p.category = next;
+  }));
+  if (state.ordersNewProductCategory === oldName) state.ordersNewProductCategory = next;
+  if (state.ordersCategoryFilter === oldName) state.ordersCategoryFilter = next;
+  saveOdb(true); pushOrders(); render();
+  toast('קטגוריה עודכנה ✓', 'success');
+}
+
+function ordersDeleteCategory(encodedName) {
+  const name = decodeURIComponent(encodedName || '');
+  const inUse = (odb.suppliers || []).reduce((n, s) => n + (s.products || []).filter(p => ordersProductCategory(p) === name).length, 0);
+  const msg = inUse
+    ? `למחוק את הקטגוריה "${name}" ולהעביר ${inUse} מוצרים ללא קטגוריה?`
+    : `למחוק את הקטגוריה "${name}"?`;
+  if (!confirm(msg)) return;
+  odb.categories = (odb.categories || []).filter(c => c !== name);
+  (odb.suppliers || []).forEach(s => (s.products || []).forEach(p => {
+    if (ordersProductCategory(p) === name) p.category = '';
+  }));
+  if (state.ordersNewProductCategory === name) state.ordersNewProductCategory = '';
+  if (state.ordersCategoryFilter === name) state.ordersCategoryFilter = 'הכל';
+  saveOdb(true); pushOrders(); render();
+  toast('קטגוריה נמחקה');
+}
+
+function ordersSetCategoryFilter(encodedName) {
+  state.ordersCategoryFilter = decodeURIComponent(encodedName || 'הכל') || 'הכל';
+  render();
+}
+
+function ordersSetProductCategory(pid, value) {
+  const sup = findSupplierOdb(state.ordersSupplierId);
+  if (!sup) return;
+  const p = sup.products.find(x => x.id === pid);
+  if (!p) return;
+  p.category = ordersEnsureCategory(value || '');
+  saveOdb(true); pushOrders(); render();
+  toast('קטגוריה נשמרה ✓', 'success');
 }
 
 function ordersSetNewUnit(unit) {
@@ -7088,13 +7220,18 @@ function ordersFilterOrderProducts(query) {
     const name = (row.querySelector('.o-product-row-name-text') || {}).textContent || '';
     row.hidden = !!(q && !searchIncludes(name, q));
   });
+  document.querySelectorAll('#o-order-products .o-category-group').forEach(function(group) {
+    const visible = Array.from(group.querySelectorAll('.o-product-row')).some(row => !row.hidden);
+    group.hidden = !visible;
+  });
 }
 
 function ordersFilterManageProducts(query) {
   const q = normalizeSearchText(query);
   document.querySelectorAll('#o-product-list .o-manage-row').forEach(function(row) {
     const name = (row.querySelector('.o-manage-row-name') || {}).textContent || '';
-    row.hidden = !!(q && !searchIncludes(name, q));
+    const cat = row.getAttribute('data-category') || '';
+    row.hidden = !!(q && !searchIncludes(name + ' ' + cat, q));
   });
 }
 
@@ -7392,17 +7529,21 @@ function renderOrdersOrderView() {
   const sup = findSupplierOdb(state.ordersSupplierId);
   if (!sup) return renderOrdersHomeView();
   const hasDraft = ordersHasDraftFor(state.ordersSupplierId);
-  const activeProducts = sup.products.filter(p => p.active !== false);
+  const allActiveProducts = sup.products.filter(p => p.active !== false);
+  const categoryFilter = state.ordersCategoryFilter || 'הכל';
+  const activeProducts = categoryFilter === 'הכל'
+    ? allActiveProducts
+    : allActiveProducts.filter(p => ordersProductCategory(p) === categoryFilter || (categoryFilter === 'ללא קטגוריה' && !ordersProductCategory(p)));
 
   let productsHtml = '';
-  if (!activeProducts.length) {
+  if (!allActiveProducts.length) {
     productsHtml = `<div style="text-align:center;padding:60px 20px">
       <div style="font-size:52px;margin-bottom:16px">🛒</div>
       <div style="font-size:18px;font-weight:700;margin-bottom:8px">אין מוצרים פעילים</div>
       <div style="font-size:14px;color:var(--textDim)">לחץ ⚙ למעלה כדי להוסיף או להפעיל מוצרים</div>
     </div>`;
   } else {
-    const rows = activeProducts.map((p, i) => {
+    const productRowHtml = (p, i) => {
       const st = state.ordersState[p.id] || (p.defaultUnit === 'both' ? { unit:'both', carton:'0', units:'0' } : { qty:'0', unit:p.defaultUnit });
       const transferBtn = `<button class="o-transfer-btn" onclick="ordersOpenTransferSheet('${p.id}','${p.name.replace(/'/g,"\\'")}')">⇄</button>`;
       if (st.unit === 'both') {
@@ -7451,7 +7592,21 @@ function renderOrdersOrderView() {
         </div>
         <input class="o-product-row-note" id="onote-${p.id}" type="text" placeholder="✏️ הערה למוצר..." value="${esc(st.notes||'')}" oninput="ordersSetProductNote('${p.id}',this.value)" autocomplete="off">
       </div>`;
-    }).join('');
+    };
+    const orderedCats = [...ordersGetCategories(), 'ללא קטגוריה'];
+    const groups = orderedCats.map(cat => {
+      const items = activeProducts.filter(p => cat === 'ללא קטגוריה' ? !ordersProductCategory(p) : ordersProductCategory(p) === cat);
+      return { cat, items };
+    }).filter(g => g.items.length);
+    const rows = groups.length ? groups.map((g, gi) => `
+      <section class="o-category-group" data-order-category="${esc(g.cat)}" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;padding:0 2px">
+          <span style="font-size:13px;font-weight:900;color:var(--text)">${esc(g.cat)}</span>
+          <span style="height:1px;background:var(--border);flex:1"></span>
+          <span style="font-size:11px;font-weight:800;color:var(--textMuted)">${g.items.length}</span>
+        </div>
+        ${g.items.map((p, i) => productRowHtml(p, gi * 100 + i)).join('')}
+      </section>`).join('') : `<div style="text-align:center;padding:34px 16px;color:var(--textDim);font-size:13px">אין מוצרים בקטגוריה הזאת</div>`;
 
     const manualKeys = Object.keys(state.ordersState).filter(k => k.startsWith('manual_'));
     const manualHtml = manualKeys.length === 0 ? '' : `
@@ -7483,6 +7638,16 @@ function renderOrdersOrderView() {
       }).join('')}`;
 
     const s = state.ordersManualAddState;
+    const usedCats = new Set(allActiveProducts.map(p => ordersProductCategory(p)).filter(Boolean));
+    const hasUncategorized = allActiveProducts.some(p => !ordersProductCategory(p));
+    const filterCats = ['הכל', ...ordersGetCategories().filter(c => usedCats.has(c)), ...(hasUncategorized ? ['ללא קטגוריה'] : [])];
+    const categoryFilters = filterCats.length <= 1 ? '' : `
+      <div style="display:flex;gap:7px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px;scrollbar-width:none">
+        ${filterCats.map(c => {
+          const active = (state.ordersCategoryFilter || 'הכל') === c;
+          return `<button onclick="ordersSetCategoryFilter('${encodeURIComponent(c)}')" style="flex-shrink:0;border:1px solid ${active?'rgba(110,198,58,0.42)':'var(--border)'};border-radius:999px;background:${active?'var(--accentSoft)':'var(--surface)'};color:${active?'var(--accent)':'var(--textDim)'};font-size:12px;font-weight:800;font-family:inherit;padding:7px 12px;cursor:pointer">${esc(c)}</button>`;
+        }).join('')}
+      </div>`;
     const addForm = `
       <div style="margin-top:16px;padding:14px 16px;background:var(--surface);border:1.5px dashed rgba(110,198,58,0.35);border-radius:var(--r-md)">
         <div style="font-size:10.5px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">+ הוספת מוצר לרשימה</div>
@@ -7507,6 +7672,7 @@ function renderOrdersOrderView() {
 
     productsHtml = `
       ${hasDraft ? `<div style="background:var(--accentSoft);border:1px solid rgba(110,198,58,0.22);border-radius:var(--r-md);padding:9px 14px;font-size:12px;color:var(--accent);font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span style="flex:1">📋 ממשיך הזמנה שמורה</span><button onclick="ordersClearOrder()" style="background:none;border:none;color:var(--textDim);font-size:13px;cursor:pointer;padding:2px 4px;border-radius:6px;font-family:inherit">✕ נקה</button></div>` : ''}
+      ${categoryFilters}
       <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">${activeProducts.length} מוצרים פעילים</div>
       ${activeProducts.length > 4 ? `<div style="position:relative;margin-bottom:12px"><input type="search" id="o-order-search" placeholder="🔍 חיפוש מוצר..." oninput="ordersFilterOrderProducts(this.value)" autocomplete="off" style="width:100%;padding:10px 42px 10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);color:var(--text);font-size:14px;font-family:inherit;outline:none"><span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--textMuted);font-size:14px;pointer-events:none">🔍</span></div>` : ''}
       <div id="o-order-products">${rows}</div>
@@ -7546,6 +7712,31 @@ function renderOrdersManageView() {
   if (!sup) return renderOrdersHomeView();
   const suppIdx = odb.suppliers.findIndex(s => s.id === state.ordersSupplierId);
   const suppTotal = odb.suppliers.length;
+  const orderCats = ordersGetCategories();
+  const categoryManagerHtml = `
+      <div style="margin:18px 0 18px;padding:14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+          <div>
+            <div style="font-size:11px;color:var(--textDim);font-weight:700;letter-spacing:0.05em;text-transform:uppercase">קטגוריות הזמנה</div>
+            <div style="font-size:12px;color:var(--textDim);margin-top:2px">פירות, פירות קיץ, ירקות - וכל חלוקה שנוחה לך</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <input class="input" id="o-new-category-name" placeholder="שם קטגוריה חדשה..." onkeydown="if(event.key==='Enter') ordersAddCategory()" style="flex:1;padding:10px 12px;font-size:13px">
+          <button onclick="ordersAddCategory()" style="flex-shrink:0;border:none;border-radius:var(--r-md);padding:0 14px;background:var(--accent);color:#051201;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer">הוסף</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:7px">
+          ${orderCats.map(c => {
+            const count = (sup.products || []).filter(p => ordersProductCategory(p) === c).length;
+            const enc = encodeURIComponent(c);
+            return `<span style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;background:var(--surfaceHi);padding:5px 8px;font-size:12px;color:var(--text)">
+              <button onclick="ordersRenameCategory('${enc}')" title="ערוך שם" style="border:none;background:transparent;color:var(--text);font-family:inherit;font-weight:800;cursor:pointer;padding:0">${esc(c)}</button>
+              <span style="color:var(--textMuted);font-size:11px">${count}</span>
+              <button onclick="ordersDeleteCategory('${enc}')" title="מחק קטגוריה" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:13px;padding:0 2px">×</button>
+            </span>`;
+          }).join('')}
+        </div>
+      </div>`;
 
   setTimeout(() => ordersInitDragDrop(), 50);
 
@@ -7566,6 +7757,8 @@ function renderOrdersManageView() {
         </div>
       </div>
 
+      ${categoryManagerHtml}
+
       <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin:20px 0 10px">מוצרים (${sup.products.length})</div>
 
       ${sup.products.length > 4 ? `<div style="position:relative;margin-bottom:10px"><input type="search" id="o-product-search" placeholder="🔍 חיפוש מוצר..." oninput="ordersFilterManageProducts(this.value)" autocomplete="off" style="width:100%;padding:10px 42px 10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);color:var(--text);font-size:14px;font-family:inherit;outline:none"><span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--textMuted);font-size:14px;pointer-events:none">🔍</span></div>` : ''}
@@ -7575,9 +7768,10 @@ function renderOrdersManageView() {
           const isActive = p.active !== false;
           const uClass = p.defaultUnit === 'קרטון' ? 'carton' : p.defaultUnit === 'יחידות' ? 'units' : 'both';
           const uText = p.defaultUnit === 'both' ? '📦+🔢' : p.defaultUnit;
-          return `<div class="o-manage-row fade-up${isActive?'':' inactive'}" id="omr-${p.id}" style="animation-delay:${i*.03}s">
+          return `<div class="o-manage-row fade-up${isActive?'':' inactive'}" id="omr-${p.id}" data-category="${esc(ordersCategoryLabel(p.category))}" style="animation-delay:${i*.03}s;flex-wrap:wrap">
             <div class="o-drag-handle" title="גרור לסידור מחדש">⠿</div>
-            <span class="o-manage-row-name" onclick="ordersEditProductName('${p.id}')" title="לחץ לעריכה">${esc(p.name)}</span>
+            <span class="o-manage-row-name" onclick="ordersEditProductName('${p.id}')" title="לחץ לעריכה" style="min-width:110px">${esc(p.name)}</span>
+            <select class="input" onchange="ordersSetProductCategory('${p.id}',this.value)" title="קטגוריה" style="width:118px;height:32px;padding:4px 8px;border-radius:9px;font-size:11px;flex-shrink:0">${ordersCategoryOptionsHtml(p.category, true)}</select>
             <span class="o-unit-badge ${uClass}" onclick="ordersToggleDefaultUnit('${p.id}')" title="לחץ לשנות יחידה">${uText}</span>
             <button class="o-active-toggle ${isActive?'on':'off'}" onclick="ordersToggleProductActive('${p.id}')" title="${isActive?'פעיל':'לא פעיל'}">${isActive?'✓':'✗'}</button>
             <button onclick="ordersDeleteProduct('${p.id}')" style="width:30px;height:30px;border:none;border-radius:8px;background:var(--dangerSoft);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--danger);flex-shrink:0">✕</button>
@@ -7598,6 +7792,10 @@ function renderOrdersManageView() {
           <button class="o-unit-pill" id="o-pill-u" onclick="ordersSetNewUnit('יחידות')">🔢 יחידות</button>
           <button class="o-unit-pill" id="o-pill-b" onclick="ordersSetNewUnit('both')">📦+🔢 שניהם</button>
         </div>
+        <div style="font-size:10.5px;color:var(--textDim);margin-bottom:6px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase">קטגוריה</div>
+        <select class="input" onchange="state.ordersNewProductCategory=this.value" style="margin-bottom:12px">
+          ${ordersCategoryOptionsHtml(state.ordersNewProductCategory, true)}
+        </select>
         <button onclick="ordersAddProduct()" style="width:100%;border:1px solid rgba(110,198,58,0.3);border-radius:var(--r-md);padding:12px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;background:var(--accentSoft);color:var(--accent)">+ הוסף מוצר</button>
       </div>
 
