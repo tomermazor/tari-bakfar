@@ -7430,7 +7430,7 @@ function renderDesktopOrders() {
     </tr>`;
   }).join('');
   return `<div class="desktop-page fade-up">
-    ${desktopPageHead('הזמנות', 'עבודה מהירה מול ספקים, טיוטות והזמנות פתוחות', `<button class="desktop-mini-btn primary" onclick="setState({ordersModal:'add-supplier'})">+ ספק להזמנות</button><button class="desktop-mini-btn" onclick="setState({ordersView:'history'})">היסטוריה</button>`)}
+    ${desktopPageHead('הזמנות', 'עבודה מהירה מול ספקים, טיוטות והזמנות פתוחות', `<button class="desktop-mini-btn primary" onclick="setState({ordersModal:'add-supplier'})">+ ספק להזמנות</button><button class="desktop-mini-btn" onclick="setState({ordersModal:'categories'})">קטגוריות</button><button class="desktop-mini-btn" onclick="setState({ordersView:'history'})">היסטוריה</button>`)}
     <div class="desktop-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
       ${desktopKpi('ספקים להזמנות', suppliers.length, 'כרטיסי הזמנה')}
       ${desktopKpi('הזמנות פתוחות', activeOrders.length, 'בתהליך', activeOrders.length?'warn':'ok')}
@@ -7516,6 +7516,7 @@ function renderOrdersHomeView() {
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <div id="orders-sync-dot" style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0" title="מסנכרן..."></div>
+        <button onclick="setState({ordersModal:'categories'})" style="height:36px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--textDim);font-family:inherit;padding:0 10px" title="קטגוריות">קטגוריות</button>
         <button onclick="setState({ordersView:'history'})" style="width:36px;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--textDim)" title="היסטוריה">📋</button>
         <button onclick="setState({ordersModal:'add-supplier'})" style="display:flex;align-items:center;gap:5px;padding:7px 13px;border:none;border-radius:10px;background:var(--accent);color:#051201;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap">+ ספק</button>
       </div>
@@ -7918,6 +7919,39 @@ function renderOrdersActiveView() {
 function renderOrdersModals() {
   const m = state.ordersModal;
   if (!m) return '';
+
+  if (m === 'categories') {
+    const cats = ordersGetCategories();
+    const totalProducts = (odb.suppliers || []).reduce((n, s) => n + (s.products || []).length, 0);
+    const countFor = cat => (odb.suppliers || []).reduce((n, s) => n + (s.products || []).filter(p => ordersProductCategory(p) === cat).length, 0);
+    const uncategorized = (odb.suppliers || []).reduce((n, s) => n + (s.products || []).filter(p => !ordersProductCategory(p)).length, 0);
+    return `<div class="o-overlay" onclick="setState({ordersModal:''})">
+      <div class="o-modal" onclick="event.stopPropagation()">
+        <div class="o-modal-handle"></div>
+        <h2 class="display" style="font-size:20px;margin:0 0 4px">קטגוריות הזמנה</h2>
+        <p style="font-size:13px;color:var(--textDim);margin:0 0 16px">${totalProducts} מוצרים בכל הספקים</p>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <input class="input" id="o-new-category-name" type="text" placeholder="שם קטגוריה חדשה..." autocomplete="off" onkeydown="if(event.key==='Enter') ordersAddCategory()" style="flex:1">
+          <button onclick="ordersAddCategory()" style="flex-shrink:0;border:none;border-radius:var(--r-md);padding:0 16px;background:var(--accent);color:#051201;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer">הוסף</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto;margin-bottom:12px">
+          ${cats.map(c => {
+            const enc = encodeURIComponent(c);
+            return `<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:13px;background:var(--surfaceHi);padding:10px 12px">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:900;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c)}</div>
+                <div style="font-size:11px;color:var(--textDim);margin-top:2px">${countFor(c)} מוצרים</div>
+              </div>
+              <button onclick="ordersRenameCategory('${enc}')" style="border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--textDim);font-size:12px;font-weight:800;font-family:inherit;padding:7px 10px;cursor:pointer">ערוך</button>
+              <button onclick="ordersDeleteCategory('${enc}')" style="border:none;border-radius:9px;background:var(--dangerSoft);color:var(--danger);font-size:12px;font-weight:800;font-family:inherit;padding:8px 10px;cursor:pointer">מחק</button>
+            </div>`;
+          }).join('')}
+          ${uncategorized ? `<div style="border:1px dashed var(--border);border-radius:13px;padding:10px 12px;color:var(--textDim);font-size:13px">ללא קטגוריה · ${uncategorized} מוצרים</div>` : ''}
+        </div>
+        <button onclick="setState({ordersModal:''})" style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:13px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;background:transparent;color:var(--textDim)">סגור</button>
+      </div>
+    </div>`;
+  }
 
   if (m === 'add-supplier') {
     return `<div class="o-overlay" onclick="setState({ordersModal:''})">
