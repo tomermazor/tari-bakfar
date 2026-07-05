@@ -2155,21 +2155,39 @@ function supplierComboAddCurrent(inputId, targetExpr, panelId, formStateRef, cat
   toast('ספק מורשה נוסף ונבחר ✓', 'success');
 }
 
-document.addEventListener('click', function(e) {
-  const paidInvoiceBtn = e.target.closest('[data-pv-paid-invoice]');
+let pvPaidInvoiceClickLockUntil = 0;
+function pvClosestEventElement(target, selector) {
+  let el = target;
+  if (el && el.nodeType !== 1) el = el.parentElement;
+  return el && typeof el.closest === 'function' ? el.closest(selector) : null;
+}
+function pvHandlePaidInvoiceActionEvent(e) {
+  const paidInvoiceBtn = pvClosestEventElement(e.target, '[data-pv-paid-invoice]');
   if (paidInvoiceBtn) {
     e.preventDefault();
     e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    const now = Date.now();
+    if (now < pvPaidInvoiceClickLockUntil) return;
+    pvPaidInvoiceClickLockUntil = now + 700;
     const encodedInvId = paidInvoiceBtn.getAttribute('data-pv-paid-invoice') || '';
     paidInvoiceBtn.disabled = true;
     try {
-      pvMarkSupplierInvoicePaidFromButton(encodedInvId);
+      pvOpenSupplierInvoicePaidConfirmFromButton(encodedInvId);
     } finally {
-      setTimeout(function() { if (paidInvoiceBtn.isConnected) paidInvoiceBtn.disabled = false; }, 0);
+      setTimeout(function() { if (paidInvoiceBtn.isConnected) paidInvoiceBtn.disabled = false; }, 700);
     }
     return;
   }
+}
+document.addEventListener('click', pvHandlePaidInvoiceActionEvent, true);
+try {
+  document.addEventListener('touchend', pvHandlePaidInvoiceActionEvent, {capture:true, passive:false});
+} catch(e) {
+  document.addEventListener('touchend', pvHandlePaidInvoiceActionEvent, true);
+}
 
+document.addEventListener('click', function(e) {
   document.querySelectorAll('[data-supplier-panel]').forEach(function(panel) {
     if (!panel.parentElement || !panel.parentElement.contains(e.target)) panel.style.display = 'none';
   });
@@ -12488,22 +12506,37 @@ function pvApproveSupplierInvoice(invId) {
   }
 }
 
-function pvMarkSupplierInvoicePaidFromButton(encodedInvId) {
+function pvOpenSupplierInvoicePaidConfirmFromButton(encodedInvId) {
   try {
     const invId = decodeURIComponent(encodedInvId || '');
-    pvMarkSupplierInvoicePaid(invId);
+    pvOpenSupplierInvoicePaidConfirm(invId);
   } catch(e) {
     console.error('[supplier-invoice-paid-click] failed', e);
     toast('סימון החשבונית כשולמה נכשל: ' + (e.message || 'שגיאה לא ידועה'), 'error');
   }
 }
 
+function pvOpenSupplierInvoicePaidConfirm(invId) {
+  const inv = pvGetInvoice(invId);
+  if (!inv) {
+    toast('חשבונית לא נמצאה', 'error');
+    return;
+  }
+  setState({payablesModal:'confirm-invoice-paid', payablesModalData:{invoiceId:inv.id}});
+}
+
+function pvConfirmSupplierInvoicePaid() {
+  const invId = (state.payablesModalData || {}).invoiceId || '';
+  if (!invId) {
+    setState({payablesModal:'', payablesModalData:null});
+    return;
+  }
+  pvMarkSupplierInvoicePaid(invId);
+}
+
 function pvMarkSupplierInvoicePaid(invId) {
   const inv = pvGetInvoice(invId);
   if (!inv) return;
-  const supplier = inv.supplier_name || 'ספק';
-  const amountText = fmtCurr(+inv.total_amount || 0);
-  if (!confirm(`לסמן את החשבונית של ${supplier} בסך ${amountText} כשולמה ולהעביר אותה לארכיון?\n\nהיא לא תופיע יותר במסך הזה.`)) return;
   const remaining = pvInvoiceOpenAmount(inv);
   const paidDate = todayISO();
   const paidAt = new Date().toISOString();
@@ -12552,7 +12585,7 @@ function pvMarkSupplierInvoicePaid(invId) {
   pvInvoiceLog(inv.id, 'סימון שולם', 'payment_status', old, 'שולם');
   if (!wasArchived) pvInvoiceLog(inv.id, 'העברה לארכיון', 'archived', 'פעיל', 'בארכיון', {source:'mark-paid'});
   savePv(true);
-  setState({});
+  setState({payablesModal:'', payablesModalData:null, payablesView:'invoices', payablesInvoiceId:''});
   toast('החשבונית שולמה והועברה לארכיון ✓', 'success');
 }
 
@@ -12685,6 +12718,7 @@ function renderPayablesModal() {
     case 'record-payment': return renderPvModalRecordPayment();
     case 'link-check-to-debt': return renderPvModalLinkCheckToDebt();
     case 'confirm-paid': return renderPvModalConfirmPaid();
+    case 'confirm-invoice-paid': return renderPvModalConfirmInvoicePaid();
     default: return '';
   }
 }
@@ -12830,6 +12864,37 @@ function renderPvModalConfirmPaid() {
         כן, שולם
       </button>
       <button onclick="setState({payablesModal:'',payablesModalData:null})"
+        style="width:100%;padding:13px;border:1px solid var(--border);border-radius:14px;background:transparent;color:var(--textDim);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">
+        ביטול
+      </button>
+    </div>
+  </div>`;
+}
+
+function renderPvModalConfirmInvoicePaid() {
+  const d = state.payablesModalData || {};
+  const inv = pvGetInvoice(d.invoiceId || '');
+  if (!inv) return '';
+  const supplier = inv.supplier_name || 'ספק';
+  const amount = +inv.total_amount || 0;
+  return `<div class="overlay">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:420px">
+      <div class="modal-handle"></div>
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:34px;margin-bottom:8px">✅</div>
+        <div style="font-size:15px;font-weight:800;color:var(--accent);margin-bottom:8px">אישור תשלום חשבונית</div>
+        <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px">${esc(supplier)}</div>
+        <div class="display" style="font-size:28px;font-weight:700;color:var(--text);margin-bottom:8px">${fmtCurr(amount)}</div>
+        <div style="font-size:13px;color:var(--textDim);line-height:1.45">
+          לסמן את החשבונית כשולמה ולהעביר אותה לארכיון?<br>
+          היא לא תופיע יותר במסך חשבוניות הספק.
+        </div>
+      </div>
+      <button type="button" onclick="pvConfirmSupplierInvoicePaid()"
+        style="width:100%;padding:15px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--accent),#52a428);color:#051201;font-size:16px;font-weight:800;font-family:inherit;cursor:pointer;margin-bottom:10px">
+        כן, שולם והעבר לארכיון
+      </button>
+      <button type="button" onclick="setState({payablesModal:'',payablesModalData:null})"
         style="width:100%;padding:13px;border:1px solid var(--border);border-radius:14px;background:transparent;color:var(--textDim);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">
         ביטול
       </button>
@@ -13297,7 +13362,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=123').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=124').then(reg => {
     reg.update();
   }).catch(() => {});
 }
