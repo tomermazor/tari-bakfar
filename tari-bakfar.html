@@ -11334,34 +11334,19 @@ function renderPayablesDashboard() {
       ? `<div style="text-align:center;padding:28px 16px;color:var(--textMuted)"><div style="font-size:28px;margin-bottom:6px">✅</div><div style="font-size:13px;font-weight:600">אין תשלומים פתוחים${pf!=='הכל'?' בפילטר הנוכחי':''}</div></div>`
       : timelineRows + undatedHtml}`;
 
-  // ── 5. FAB ───────────────────────────────────────────────────────────────
-  const fabItems = [
-    {icon:'📦', label:'תעודת משלוח'},
-    {icon:'🧾', label:'חשבונית'},
-    {icon:'💳', label:'תשלום'},
-    {icon:'📝', label:"צ'ק"},
-    {icon:'📋', label:'חשבוניות ספק', action:`setState({pvFabOpen:false,payablesView:'invoices'})`},
-  ];
+  // ── 5. Add invoice action ───────────────────────────────────────────────
   const fabHtml = `
-    ${state.pvFabOpen ? `
-      <div onclick="pvCloseFab()" style="position:fixed;inset:0;z-index:29"></div>
-      <div style="position:fixed;bottom:calc(146px + env(safe-area-inset-bottom,0px));left:16px;z-index:30;display:flex;flex-direction:column-reverse;gap:8px">
-        ${fabItems.map(it=>`
-          <button onclick="${it.action||`pvQuickAddDoc('${it.label}')`}"
-            style="display:flex;align-items:center;gap:10px;padding:9px 16px;border:none;border-radius:24px;background:var(--surface);color:var(--text);font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.3);white-space:nowrap">
-            <span style="font-size:16px">${it.icon}</span>${it.label}
-          </button>`).join('')}
-      </div>` : ''}
-    <button onclick="pvToggleFab()"
-      style="position:fixed;bottom:calc(88px + env(safe-area-inset-bottom,0px));left:16px;z-index:30;width:52px;height:52px;border:none;border-radius:50%;background:var(--accent);color:#071302;font-size:26px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(143,198,80,0.5);display:flex;align-items:center;justify-content:center;transition:transform 0.2s;transform:rotate(${state.pvFabOpen?'45':'0'}deg)">+</button>`;
+    <button onclick="setState({pvFabOpen:false,payablesModal:'add-direct',payablesModalData:{docType:'חשבונית'}})"
+      style="position:fixed;bottom:calc(88px + env(safe-area-inset-bottom,0px));left:16px;z-index:30;height:50px;padding:0 18px;border:none;border-radius:999px;background:var(--accent);color:#071302;font-size:14px;font-weight:900;font-family:inherit;cursor:pointer;box-shadow:0 4px 16px rgba(143,198,80,0.5);display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap">
+      <span style="font-size:18px">🧾</span><span>הוספת חשבונית</span>
+    </button>`;
 
-  return `<div style="padding:14px 14px 140px" class="fade-up" onclick="${state.pvFabOpen?'pvCloseFab()':''}">
+  return `<div style="padding:14px 14px 140px" class="fade-up">
     ${accountingAlert}
     ${overdueAlert}
     ${nextPaymentHtml}
     ${summaryHtml}
     ${timelineHtml}
-    ${renderPaidPaymentsSection()}
     ${fabHtml}
   </div>`;
 }
@@ -12088,7 +12073,7 @@ function renderDesktopPayables() {
     </tr>`;
   }).join('');
   return `<div class="desktop-page fade-up">
-    ${desktopPageHead('תשלומי ספקים', 'מה צפוי לרדת או לעבור, מסודר כרונולוגית לפי תאריכי פירעון', `<button class="desktop-mini-btn primary" onclick="setState({payablesModal:'add-direct',payablesModalData:{}})">+ התחייבות</button>`)}
+    ${desktopPageHead('תשלומי ספקים', 'מה צפוי לרדת או לעבור, מסודר כרונולוגית לפי תאריכי פירעון', `<button class="desktop-mini-btn primary" onclick="setState({payablesModal:'add-direct',payablesModalData:{docType:'חשבונית'}})">+ חשבונית</button>`)}
     <div class="desktop-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
       ${desktopKpi('חוב פתוח', fmtCurr(payments.reduce((s,p)=>s+p.amount,0)), payments.length+' תשלומים')}
       ${desktopKpi('השבוע', fmtCurr(payments.filter(p=>p.date&&pvDateInDays(p.date,7)).reduce((s,p)=>s+p.amount,0)), 'לתשלום בקרוב', 'warn')}
@@ -13227,12 +13212,13 @@ function pvLinkDNConfirm() {
 // Modal: add direct debt
 function renderPvModalAddDirect() {
   const d = state.payablesModalData || {};
+  const isInvoiceEntry = d.docType === 'חשבונית';
   const selectedPaymentMethod = d.paymentMethod || "צ'ק";
   const body = `
     <div class="field"><label class="label">ספק *</label>${approvedSupplierInput('state.payablesModalData.supplier', d.supplier||'', 'בחר ספק מאושר...')}</div>
     <div class="field"><label class="label">מספר חשבונית</label><input class="input" placeholder="123456" value="${esc(d.invoiceNumber||'')}" oninput="state.payablesModalData.invoiceNumber=this.value"></div>
     <div class="row">
-      <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${d.date||todayISO()}" oninput="state.payablesModalData.date=this.value"></div>
+      <div class="field"><label class="label">${isInvoiceEntry ? 'תאריך חשבונית' : 'תאריך'}</label><input class="input" type="date" value="${d.date||todayISO()}" oninput="state.payablesModalData.date=this.value"></div>
       <div class="field"><label class="label">תאריך פירעון</label><input class="input" type="date" value="${d.dueDate||''}" oninput="state.payablesModalData.dueDate=this.value"></div>
     </div>
     <div class="field"><label class="label">סכום ₪ *</label><input class="input" type="number" inputmode="decimal" placeholder="0.00" value="${d.amount||''}" oninput="state.payablesModalData.amount=this.value"></div>
@@ -13242,7 +13228,7 @@ function renderPvModalAddDirect() {
     ${selectedPaymentMethod === "צ'ק" ? `<div class="field"><label class="label">מספר צ'ק</label><input class="input" value="${esc(d.checkNumber||'')}" oninput="state.payablesModalData.checkNumber=this.value"></div>` : ''}
     ${pvInvoiceImagePickerHtml(d.invoiceImage||'')}
     <div class="field"><label class="label">הערות</label><input class="input" value="${esc(d.notes||'')}" oninput="state.payablesModalData.notes=this.value"></div>`;
-  return pvModalWrap('הוספת התחייבות לתשלום', body, 'שמור', 'pvAddDirectConfirm', `setState({payablesModal:'',payablesModalData:null})`);
+  return pvModalWrap(isInvoiceEntry ? 'הוספת חשבונית ספק' : 'הוספת התחייבות לתשלום', body, 'שמור', 'pvAddDirectConfirm', `setState({payablesModal:'',payablesModalData:null})`);
 }
 
 function pvAddDirectConfirm() {
@@ -13275,7 +13261,7 @@ function pvAddDirectConfirm() {
   pvCreateSupplierInvoiceFromDebt(debt, {source:'direct-debt'});
   savePv(true);
   setState({payablesModal:'', payablesModalData:null, payablesView:'debt', payablesDebtId:debt.id});
-  toast('התחייבות נוספה ✓', 'success');
+  toast((d.docType === 'חשבונית' ? 'חשבונית נוספה כחוב פתוח' : 'התחייבות נוספה') + ' ✓', 'success');
 }
 
 function renderPvModalEditDebt() {
@@ -13564,7 +13550,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=126').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=127').then(reg => {
     reg.update();
   }).catch(() => {});
 }
