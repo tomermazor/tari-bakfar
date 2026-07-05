@@ -2156,6 +2156,20 @@ function supplierComboAddCurrent(inputId, targetExpr, panelId, formStateRef, cat
 }
 
 document.addEventListener('click', function(e) {
+  const paidInvoiceBtn = e.target.closest('[data-pv-paid-invoice]');
+  if (paidInvoiceBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const encodedInvId = paidInvoiceBtn.getAttribute('data-pv-paid-invoice') || '';
+    paidInvoiceBtn.disabled = true;
+    try {
+      pvMarkSupplierInvoicePaidFromButton(encodedInvId);
+    } finally {
+      setTimeout(function() { if (paidInvoiceBtn.isConnected) paidInvoiceBtn.disabled = false; }, 0);
+    }
+    return;
+  }
+
   document.querySelectorAll('[data-supplier-panel]').forEach(function(panel) {
     if (!panel.parentElement || !panel.parentElement.contains(e.target)) panel.style.display = 'none';
   });
@@ -12131,7 +12145,7 @@ function renderSupplierInvoicesTab() {
         <button onclick="setState({payablesView:'invoice',payablesInvoiceId:'${inv.id}'})" class="desktop-mini-btn" style="background:rgba(59,130,246,0.10);border-color:rgba(59,130,246,0.20);color:#2563EB">פתח</button>
         <button onclick="pvOpenInvoiceLinkDN('${inv.id}')" class="desktop-mini-btn" style="background:rgba(99,102,241,0.10);border-color:rgba(99,102,241,0.20);color:#4F46E5">שייך תעודות</button>
         <button onclick="pvToggleSupplierInvoiceAccounting('${inv.id}', 'main-card')" class="desktop-mini-btn" style="background:${inv.accounting_sent?'rgba(34,197,94,0.12)':'rgba(245,158,11,0.14)'};border-color:${inv.accounting_sent?'rgba(34,197,94,0.25)':'rgba(245,158,11,0.28)'};color:${inv.accounting_sent?'var(--accent)':'var(--amber)'}">הנה"ח ${inv.accounting_sent?'כן':'לא'}</button>
-        ${isDraft ? `<button type="button" onclick="event.preventDefault();event.stopPropagation();pvApproveSupplierInvoice(decodeURIComponent('${invArg}'))" class="desktop-mini-btn primary">אשר חשבונית</button>` : `<button type="button" onclick="event.preventDefault();event.stopPropagation();pvMarkSupplierInvoicePaidFromButton('${invArg}')" class="desktop-mini-btn primary" style="background:var(--accent);border-color:var(--accent);color:#071302">סמן שולם</button>`}
+        ${isDraft ? `<button type="button" onclick="event.preventDefault();event.stopPropagation();pvApproveSupplierInvoice(decodeURIComponent('${invArg}'))" class="desktop-mini-btn primary">אשר חשבונית</button>` : `<button type="button" data-pv-paid-invoice="${invArg}" class="desktop-mini-btn primary" style="background:var(--accent);border-color:var(--accent);color:#071302">סמן שולם</button>`}
       </div>
     </div>`;
   }).join('') + (hiddenCount ? `<div style="display:grid;gap:8px;text-align:center;color:var(--textDim);font-size:12px;padding:10px 4px">
@@ -12261,7 +12275,7 @@ function renderSupplierInvoiceDetail() {
         <button onclick="pvStartSupplierInvoiceEdit('${inv.id}')" class="btn-secondary" style="margin:0">ערוך חשבונית</button>
         <button onclick="pvStartSupplierInvoiceEdit('${inv.id}')" class="btn-secondary" style="margin:0">שנה אמצעי תשלום</button>
         ${isDraftInvoice ? `<button onclick="pvApproveSupplierInvoice('${inv.id}')" class="btn-primary" style="margin:0">אשר חשבונית</button>` : ''}
-        ${!isDraftInvoice ? `<button type="button" onclick="event.preventDefault();event.stopPropagation();pvMarkSupplierInvoicePaidFromButton('${invArg}')" class="btn-primary" style="margin:0">סמן שולם</button>` : ''}
+        ${!isDraftInvoice ? `<button type="button" data-pv-paid-invoice="${invArg}" class="btn-primary" style="margin:0">סמן שולם</button>` : ''}
         <button onclick="pvToggleSupplierInvoiceAccounting('${inv.id}')" class="btn-secondary" style="margin:0">הנה"ח ${inv.accounting_sent?'✓':'לא'}</button>
         ${!isDraftInvoice ? `<button onclick="pvAddSupplierInvoicePartialPayment('${inv.id}')" class="btn-secondary" style="margin:0">תשלום חלקי</button>` : ''}
         <button onclick="pvOpenInvoiceLinkDN('${inv.id}')" class="btn-secondary" style="margin:0">שייך ת"מ</button>
@@ -13283,7 +13297,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=122').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=123').then(reg => {
     reg.update();
   }).catch(() => {});
 }
