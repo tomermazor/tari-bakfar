@@ -12475,20 +12475,59 @@ function pvApproveSupplierInvoice(invId) {
 function pvMarkSupplierInvoicePaid(invId) {
   const inv = pvGetInvoice(invId);
   if (!inv) return;
-  if (pvIsCheckMethod(inv.payment_method) && !confirm('התשלום בצ׳ק. לסמן שהצ׳ק נפרע בפועל והחשבונית שולמה?')) return;
+  const supplier = inv.supplier_name || 'ספק';
+  const amountText = fmtCurr(+inv.total_amount || 0);
+  if (!confirm(`לסמן את החשבונית של ${supplier} בסך ${amountText} כשולמה ולהעביר אותה לארכיון?\n\nהיא לא תופיע יותר במסך הזה.`)) return;
   const remaining = pvInvoiceOpenAmount(inv);
+  const paidDate = todayISO();
+  const paidAt = new Date().toISOString();
+  let invoicePaymentId = '';
   if (remaining > 0) {
-    pv.supplierInvoicePayments.push({id:uid(), invoice_id:inv.id, amount:remaining, date:todayISO(), method:inv.payment_method||'', reference:inv.check_number||'', notes:'סימון שולם', created_at:new Date().toISOString(), created_by:pvCurrentUserName()});
+    invoicePaymentId = uid();
+    pv.supplierInvoicePayments.push({id:invoicePaymentId, invoice_id:inv.id, amount:remaining, date:paidDate, method:inv.payment_method||'', reference:inv.check_number||'', notes:'סימון שולם והועבר לארכיון', created_at:paidAt, created_by:pvCurrentUserName()});
   }
   const old = inv.payment_status;
+  const wasArchived = !!inv.archived;
   inv.payment_status = 'שולם';
-  inv.paid_at = todayISO();
+  inv.paid_at = paidDate;
   inv.check_cleared = true;
+  inv.archived = true;
+  inv.archived_at = inv.archived_at || paidAt;
+  if (inv.legacy_debt_id) {
+    const debt = (pv.debts || []).find(d => d.id === inv.legacy_debt_id);
+    if (debt) {
+      const debtRemaining = Math.max(0, (+debt.amount || 0) - (+debt.paidAmount || 0));
+      if (debtRemaining > 0) {
+        const debtPaymentId = uid();
+        debt.payments = debt.payments || [];
+        debt.payments.push({
+          id: debtPaymentId,
+          amount: debtRemaining,
+          date: paidDate,
+          method: debt.paymentMethod || inv.payment_method || '',
+          reference: debt.checkNumber || inv.check_number || '',
+          notes: 'סומן שולם מחשבונית ספק',
+          finalStatus: 'שולם',
+          createdAt: Date.now()
+        });
+        if (invoicePaymentId) {
+          const payment = pv.supplierInvoicePayments.find(p => p.id === invoicePaymentId);
+          if (payment) payment.legacy_data = {legacy_debt_id: debt.id, legacy_debt_payment_id: debtPaymentId};
+        }
+      }
+      debt.status = 'paid';
+      debt.paymentStatus = 'שולם';
+      debt.paidAmount = +debt.amount || 0;
+      debt.paidDate = paidDate;
+      debt.closedAt = Date.now();
+    }
+  }
   pvTouchInvoice(inv);
   pvInvoiceLog(inv.id, 'סימון שולם', 'payment_status', old, 'שולם');
+  if (!wasArchived) pvInvoiceLog(inv.id, 'העברה לארכיון', 'archived', 'פעיל', 'בארכיון', {source:'mark-paid'});
   savePv(true);
   setState({});
-  toast('החשבונית סומנה כשולמה ✓', 'success');
+  toast('החשבונית שולמה והועברה לארכיון ✓', 'success');
 }
 
 function pvAddSupplierInvoicePartialPayment(invId) {
