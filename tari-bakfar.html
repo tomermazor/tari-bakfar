@@ -514,6 +514,34 @@ body { color-scheme:dark; }
 .o-stepper,.stepper { border-radius:10px; }
 .o-step-btn,.step-btn { min-width:44px; }
 .o-modal,.modal { border-radius:18px 18px 0 0; box-shadow:var(--shadow-xl); }
+.overlay {
+  position:fixed;
+  inset:0;
+  z-index:5000;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  background:rgba(0,0,0,0.72);
+  padding-top:calc(18px + env(safe-area-inset-top,0px));
+}
+.overlay .modal {
+  width:100%;
+  max-width:480px;
+  max-height:88vh;
+  overflow-y:auto;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-bottom:none;
+  padding:20px;
+  padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));
+}
+.modal-handle {
+  width:42px;
+  height:4px;
+  border-radius:999px;
+  background:var(--borderHi);
+  margin:0 auto 14px;
+}
 .login-logo { border-radius:18px; background:var(--accentSoft); box-shadow:var(--shadow-accent); }
 @media (min-width:768px) {
   .app { grid-template-columns:236px 1fr; grid-template-rows:56px 70px 1fr; background:var(--bg); }
@@ -2155,32 +2183,69 @@ function supplierComboAddCurrent(inputId, targetExpr, panelId, formStateRef, cat
   toast('ספק מורשה נוסף ונבחר ✓', 'success');
 }
 
-let pvPaidInvoiceClickLockUntil = 0;
+let pvPaidActionLock = { key: '', until: 0 };
 function pvClosestEventElement(target, selector) {
   let el = target;
   if (el && el.nodeType !== 1) el = el.parentElement;
   return el && typeof el.closest === 'function' ? el.closest(selector) : null;
 }
+function pvRunPaidActionEvent(e, btn, lockKey, fn) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+  const now = Date.now();
+  if (pvPaidActionLock.key === lockKey && now < pvPaidActionLock.until) return;
+  pvPaidActionLock = { key: lockKey, until: now + 700 };
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try {
+    fn();
+  } catch(err) {
+    console.error('[paid-action] failed', err);
+    toast('הפעולה נכשלה: ' + (err.message || 'שגיאה לא ידועה'), 'error');
+  } finally {
+    setTimeout(function() { if (btn.isConnected) btn.disabled = false; }, 700);
+  }
+}
 function pvHandlePaidInvoiceActionEvent(e) {
   const paidInvoiceBtn = pvClosestEventElement(e.target, '[data-pv-paid-invoice]');
   if (paidInvoiceBtn) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-    const now = Date.now();
-    if (now < pvPaidInvoiceClickLockUntil) return;
-    pvPaidInvoiceClickLockUntil = now + 700;
     const encodedInvId = paidInvoiceBtn.getAttribute('data-pv-paid-invoice') || '';
-    paidInvoiceBtn.disabled = true;
-    try {
+    pvRunPaidActionEvent(e, paidInvoiceBtn, 'invoice:' + encodedInvId, function() {
       pvOpenSupplierInvoicePaidConfirmFromButton(encodedInvId);
-    } finally {
-      setTimeout(function() { if (paidInvoiceBtn.isConnected) paidInvoiceBtn.disabled = false; }, 700);
-    }
+    });
+    return;
+  }
+  const confirmPaidBtn = pvClosestEventElement(e.target, '[data-pv-confirm-paid]');
+  if (confirmPaidBtn) {
+    const id = confirmPaidBtn.getAttribute('data-pv-confirm-paid') || '';
+    const type = confirmPaidBtn.getAttribute('data-pv-confirm-type') || 'debt';
+    pvRunPaidActionEvent(e, confirmPaidBtn, 'confirm:' + type + ':' + id, function() {
+      pvOpenConfirm(id, type);
+    });
+    return;
+  }
+  const confirmPaidFinalBtn = pvClosestEventElement(e.target, '[data-pv-confirm-paid-final]');
+  if (confirmPaidFinalBtn) {
+    pvRunPaidActionEvent(e, confirmPaidFinalBtn, 'confirm-final:' + ((state.payablesModalData || {}).type || '') + ':' + ((state.payablesModalData || {}).id || ''), function() {
+      pvConfirmPaidFromModal();
+    });
+    return;
+  }
+  const confirmInvoiceFinalBtn = pvClosestEventElement(e.target, '[data-pv-confirm-invoice-paid-final]');
+  if (confirmInvoiceFinalBtn) {
+    pvRunPaidActionEvent(e, confirmInvoiceFinalBtn, 'invoice-final:' + ((state.payablesModalData || {}).invoiceId || ''), function() {
+      pvConfirmSupplierInvoicePaid();
+    });
     return;
   }
 }
 document.addEventListener('click', pvHandlePaidInvoiceActionEvent, true);
+try {
+  document.addEventListener('pointerup', pvHandlePaidInvoiceActionEvent, {capture:true, passive:false});
+} catch(e) {
+  document.addEventListener('pointerup', pvHandlePaidInvoiceActionEvent, true);
+}
 try {
   document.addEventListener('touchend', pvHandlePaidInvoiceActionEvent, {capture:true, passive:false});
 } catch(e) {
@@ -10632,6 +10697,36 @@ function pvOpenLabel(method) {
 function pvOpenConfirm(id, type) {
   setState({payablesModal:'confirm-paid', payablesModalData:{id, type}});
 }
+function pvConfirmPaidFromModal() {
+  const d = state.payablesModalData || {};
+  if (!d.id || !d.type) {
+    setState({payablesModal:'', payablesModalData:null});
+    return;
+  }
+  if (d.type === 'debt') {
+    const debt = pv.debts.find(x => x.id === d.id);
+    if (!debt) {
+      setState({payablesModal:'', payablesModalData:null});
+      toast('התחייבות לא נמצאה', 'error');
+      return;
+    }
+    pvSetPaymentStatus(d.id, pvActionStatus(debt.paymentMethod));
+    setState({payablesModal:'', payablesModalData:null});
+    return;
+  }
+  if (d.type === 'check') {
+    const check = (DB.checks || []).find(x => x.id === d.id);
+    if (!check) {
+      setState({payablesModal:'', payablesModalData:null});
+      toast('צ׳ק לא נמצא', 'error');
+      return;
+    }
+    if (!check.cleared) toggleCheckCleared(d.id);
+    else setState({payablesModal:'', payablesModalData:null});
+    return;
+  }
+  setState({payablesModal:'', payablesModalData:null});
+}
 
 function pvInvoiceImagePickerHtml(image) {
   return `
@@ -11107,8 +11202,6 @@ function renderPayablesDashboard() {
       const itemColor = itemOverdue ? 'var(--danger)' : 'var(--accent)';
       const itemBg = itemOverdue ? 'rgba(220,98,98,0.08)' : 'rgba(143,198,80,0.08)';
       const itemBorder = itemOverdue ? 'rgba(220,98,98,0.28)' : 'rgba(143,198,80,0.28)';
-      // Use encoded IDs to avoid onclick breakage with special chars
-      const safeId = encodeURIComponent(p.debtId || p.checkId || '');
       const pendingType = p.debtId ? 'debt' : 'check';
 
       timelineRows += `
@@ -11121,7 +11214,7 @@ function renderPayablesDashboard() {
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
             <div class="display" style="font-size:15px;font-weight:700;color:${itemColor}">${fmtCurr(p.amount)}</div>
-            <button type="button" onclick="event.preventDefault();event.stopPropagation();pvOpenConfirm(decodeURIComponent('${safeId}'),'${pendingType}')"
+            <button type="button" data-pv-confirm-paid="${esc(p.debtId || p.checkId || '')}" data-pv-confirm-type="${pendingType}"
               style="padding:4px 10px;border:1px solid ${itemBorder};border-radius:999px;background:var(--surface);color:${itemColor};font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap">
               ${pvActionLabel(p.method)}
             </button>
@@ -11151,7 +11244,7 @@ function renderPayablesDashboard() {
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
             <div class="display" style="font-size:14px;font-weight:700;color:var(--accent)">${fmtCurr(p.amount)}</div>
-            <button type="button" onclick="event.preventDefault();event.stopPropagation();pvOpenConfirm(decodeURIComponent('${encodeURIComponent(p.debtId || p.checkId || '')}'),'${p.debtId?'debt':'check'}')"
+            <button type="button" data-pv-confirm-paid="${esc(p.debtId || p.checkId || '')}" data-pv-confirm-type="${p.debtId?'debt':'check'}"
               style="padding:4px 10px;border:1px solid rgba(143,198,80,0.28);border-radius:999px;background:var(--surface);color:var(--accent);font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap">
               ${pvActionLabel(p.method)}
             </button>
@@ -11489,7 +11582,7 @@ function _renderPayablesSupplierInner() {
               <div style="font-size:11px;color:${urgColor};margin-top:1px">⏳ ${fmtDate(c.clearDate)}${c.checkNum?' · #'+esc(c.checkNum):''}</div>
             </div>
             ${badge}
-            <button type="button" onclick="event.preventDefault();event.stopPropagation();pvOpenConfirm('${c.id}','check')" style="font-size:11px;padding:4px 9px;border:1px solid ${urgBorder};border-radius:999px;background:var(--surface);color:${urgColor};cursor:pointer;font-family:inherit;font-weight:800">שולם</button>
+            <button type="button" data-pv-confirm-paid="${esc(c.id)}" data-pv-confirm-type="check" style="font-size:11px;padding:4px 9px;border:1px solid ${urgBorder};border-radius:999px;background:var(--surface);color:${urgColor};cursor:pointer;font-family:inherit;font-weight:800">שולם</button>
             ${linkBtn}
           </div>`;
         }).join('')}
@@ -11505,7 +11598,7 @@ function _renderPayablesSupplierInner() {
         const debtOverdue = pvDateISO(d.dueDate) && pvDateISO(d.dueDate) < todayISO();
         const debtColor = debtOverdue ? 'var(--danger)' : 'var(--accent)';
         const debtBorder = debtOverdue ? 'rgba(220,98,98,0.28)' : 'rgba(143,198,80,0.28)';
-        const actionBtn = `<button type="button" onclick="event.preventDefault();event.stopPropagation();pvOpenConfirm('${d.id}','debt')" style="font-size:10px;padding:4px 9px;border:1px solid ${debtBorder};border-radius:999px;background:var(--surface);color:${debtColor};cursor:pointer;font-family:inherit;font-weight:800;white-space:nowrap">שולם</button>`;
+        const actionBtn = `<button type="button" data-pv-confirm-paid="${esc(d.id)}" data-pv-confirm-type="debt" style="font-size:10px;padding:4px 9px;border:1px solid ${debtBorder};border-radius:999px;background:var(--surface);color:${debtColor};cursor:pointer;font-family:inherit;font-weight:800;white-space:nowrap">שולם</button>`;
         return `<div onclick="setState({payablesView:'debt',payablesDebtId:'${d.id}'})" style="display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer">
           <span style="font-size:18px;flex-shrink:0;margin-top:1px">${pvGetMethodIcon(d.paymentMethod||'')}</span>
           <div style="flex:1;min-width:0">
@@ -11666,7 +11759,7 @@ function renderPayablesDebt() {
     <!-- Actions -->
     ${debt.status !== 'cancelled' ? `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      ${remaining > 0 ? `<button type="button" onclick="pvOpenConfirm('${debt.id}','debt')" style="flex:1;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#071302;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer">שולם</button>` : ''}
+      ${remaining > 0 ? `<button type="button" data-pv-confirm-paid="${esc(debt.id)}" data-pv-confirm-type="debt" style="flex:1;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#071302;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer">שולם</button>` : ''}
       <button onclick="pvOpenEditDebt('${debt.id}')" style="padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">ערוך תנועה</button>
       <button onclick="setState({payablesModal:'record-payment',payablesModalData:{debtId:'${debt.id}'}})" style="padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">תשלום חלקי</button>
       <button onclick="pvCancelDebt('${debt.id}')" style="padding:13px 16px;border:none;border-radius:12px;background:var(--dangerSoft);color:var(--danger);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">בטל</button>
@@ -11846,9 +11939,9 @@ function renderDesktopPayablesDrawer(item) {
       <div style="display:grid;gap:8px">
         ${debt?`<button class="desktop-mini-btn primary" onclick="setState({payablesView:'debt',payablesDebtId:'${item.id}'})">פתח תנועה מלאה</button>`:''}
         ${debt?`<button class="desktop-mini-btn" onclick="pvOpenEditDebt('${item.id}')">ערוך תנועה</button>`:''}
-        ${debt?`<button class="desktop-mini-btn" onclick="pvOpenConfirm('${item.id}','debt')">סמן שולם</button>`:''}
+        ${debt?`<button type="button" class="desktop-mini-btn" data-pv-confirm-paid="${esc(item.id)}" data-pv-confirm-type="debt">סמן שולם</button>`:''}
         ${check?`<button class="desktop-mini-btn primary" onclick="pvOpenEditCheck('${item.id}')">ערוך צ׳ק</button>`:''}
-        ${check?`<button class="desktop-mini-btn" onclick="pvOpenConfirm('${item.id}','check')">סמן נפרע</button>`:''}
+        ${check?`<button type="button" class="desktop-mini-btn" data-pv-confirm-paid="${esc(item.id)}" data-pv-confirm-type="check">סמן נפרע</button>`:''}
       </div>
     </div>
   </aside>`;
@@ -12856,10 +12949,7 @@ function renderPvModalConfirmPaid() {
         <div class="display" style="font-size:28px;font-weight:700;color:var(--text);margin-bottom:8px">${fmtCurr(amount)}</div>
         <div style="font-size:13px;color:var(--textDim)">האם לסמן שההתחייבות הזו שולמה?${debt&&debt.invoiceNumber?' · #'+esc(debt.invoiceNumber):''}${check&&check.checkNum?' · מס\' '+esc(check.checkNum):''}</div>
       </div>
-      <button onclick="
-        if('${d.type}'==='debt'){pvSetPaymentStatus('${d.id}','${status}');}
-        else{toggleCheckCleared('${d.id}');}
-        setState({payablesModal:'',payablesModalData:null});"
+      <button type="button" data-pv-confirm-paid-final="1"
         style="width:100%;padding:15px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--accent),#52a428);color:#051201;font-size:16px;font-weight:800;font-family:inherit;cursor:pointer;margin-bottom:10px">
         כן, שולם
       </button>
@@ -12890,7 +12980,7 @@ function renderPvModalConfirmInvoicePaid() {
           היא לא תופיע יותר במסך חשבוניות הספק.
         </div>
       </div>
-      <button type="button" onclick="pvConfirmSupplierInvoicePaid()"
+      <button type="button" data-pv-confirm-invoice-paid-final="1"
         style="width:100%;padding:15px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--accent),#52a428);color:#051201;font-size:16px;font-weight:800;font-family:inherit;cursor:pointer;margin-bottom:10px">
         כן, שולם והעבר לארכיון
       </button>
@@ -13362,7 +13452,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=124').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=125').then(reg => {
     reg.update();
   }).catch(() => {});
 }
