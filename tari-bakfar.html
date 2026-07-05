@@ -734,6 +734,8 @@ const SYNC_MIN_INTERVAL_MS = 12000;
 const CLOUD_READ_CACHE = new Map();
 let LAST_SYNC_AT = 0;
 let _syncQueued = false;
+let SYNC_NETWORK_BACKOFF_UNTIL = 0;
+let LAST_TRANSIENT_SYNC_TOAST = 0;
 function setSyncStatus(s) {
   SYNC_STATUS = s;
   const badge = document.getElementById('sync-badge');
@@ -882,6 +884,43 @@ function isQuotaError(err) {
   return msg.includes('quota') || msg.includes('exceeded') || msg.includes('billing') || msg.includes('מכסה') || msg.includes('חרגת') || msg.includes('אין יתרה');
 }
 
+function isTransientSyncError(err) {
+  const rawMsg = err && typeof err === 'object' && 'message' in err ? err.message : err;
+  const msg = String(rawMsg || '').toLowerCase();
+  const networkish = msg.includes('load failed') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('networkerror') ||
+    msg.includes('network request failed') ||
+    msg.includes('err_failed') ||
+    msg.includes('offline') ||
+    msg.includes('internet') ||
+    msg.includes('timeout') ||
+    msg.includes('15 שניות');
+  return networkish ||
+    err?.name === 'AbortError' ||
+    (err?.name === 'TypeError' && !msg) ||
+    (typeof navigator !== 'undefined' && navigator.onLine === false);
+}
+
+function handleSyncFailure(err, opts) {
+  opts = opts || {};
+  if (isQuotaError(err)) {
+    pauseSyncForQuota(err);
+    return;
+  }
+  setSyncStatus('offline');
+  if (isTransientSyncError(err)) {
+    SYNC_NETWORK_BACKOFF_UNTIL = Date.now() + (opts.silent ? 90 * 1000 : 30 * 1000);
+    console.warn('Transient sync failure; will retry later:', err?.message || err);
+    if (!opts.silent && Date.now() - LAST_TRANSIENT_SYNC_TOAST > 90 * 1000) {
+      LAST_TRANSIENT_SYNC_TOAST = Date.now();
+      toast('אין חיבור יציב כרגע. נשמר מקומית וינוסה שוב אוטומטית.', 'info');
+    }
+    return;
+  }
+  toast('סנכרון נכשל: ' + (err?.message || 'שגיאה לא ידועה'), 'error');
+}
+
 function pauseSyncForQuota(err) {
   SYNC_PAUSED_UNTIL = Date.now() + 15 * 60 * 1000;
   setSyncStatus('offline');
@@ -897,7 +936,12 @@ async function triggerTopSync() {
   const btn = document.getElementById('sync-top-btn');
   if (btn) btn.classList.add('spinning');
   await syncAll();
-  if (btn) { btn.classList.remove('spinning'); btn.textContent = '✓'; setTimeout(() => { btn.textContent = '🔄'; }, 1500); }
+  if (!btn) return;
+  btn.classList.remove('spinning');
+  if (SYNC_STATUS === 'ok') {
+    btn.textContent = '✓';
+    setTimeout(() => { btn.textContent = '🔄'; }, 1500);
+  }
 }
 
 let _syncLock = false; // prevent concurrent syncAll calls → duplicates
@@ -1556,6 +1600,7 @@ async function syncAll(opts) {
   opts = opts || {};
   if (!CFG.webAppUrl) { setSyncStatus('local'); return; }
   if (Date.now() < SYNC_PAUSED_UNTIL) { setSyncStatus('offline'); return; }
+  if (opts.silent && Date.now() < SYNC_NETWORK_BACKOFF_UNTIL) { setSyncStatus('offline'); return; }
   if (_syncLock) { _syncQueued = true; console.log('syncAll: already running, queued'); return; }
   if (opts.silent && !hasLocalSyncWork() && Date.now() - LAST_SYNC_AT < SYNC_MIN_INTERVAL_MS) {
     console.log('syncAll: throttled silent sync');
@@ -1564,7 +1609,7 @@ async function syncAll(opts) {
   _syncLock = true;
   setSyncStatus('syncing');
   const slowSyncTimer = setTimeout(function() {
-    toast('הסנכרון עדיין עובד ברקע. המסך נשאר פעיל.', 'info');
+    if (!opts.silent) toast('הסנכרון עדיין עובד ברקע. המסך נשאר פעיל.', 'info');
   }, CLOUD_TIMEOUT_MS);
   try {
     // 1. Push pending changes — skip "Row not found" errors (row already gone or was never synced)
@@ -1722,12 +1767,7 @@ async function syncAll(opts) {
     console.log('✅ Sync OK — exp:', (exp||[]).length, 'chk:', (chk||[]).length, 'inc:', (inc||[]).length);
   } catch(e) {
     console.error('Sync failed:', e);
-    if (isQuotaError(e)) {
-      pauseSyncForQuota(e);
-      return;
-    }
-    setSyncStatus('offline');
-    toast('סנכרון נכשל: ' + e.message, 'error');
+    handleSyncFailure(e, opts);
   } finally {
     clearTimeout(slowSyncTimer);
     LAST_SYNC_AT = Date.now();
@@ -13603,7 +13643,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=129').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=130').then(reg => {
     reg.update();
   }).catch(() => {});
 }
