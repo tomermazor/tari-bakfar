@@ -1902,6 +1902,12 @@ function changeIncomeWeek(delta) {
   render();
 }
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const jsStr = s => JSON.stringify(String(s==null?'':s))
+  .replace(/</g,'\\u003C')
+  .replace(/>/g,'\\u003E')
+  .replace(/&/g,'\\u0026')
+  .replace(/\u2028/g,'\\u2028')
+  .replace(/\u2029/g,'\\u2029');
 
 // Deduplicate array by id — removes cloud duplicates caused by concurrent syncs
 function dedup(arr) {
@@ -10778,8 +10784,7 @@ function pvConfirmPaidFromModal() {
       toast('התחייבות לא נמצאה', 'error');
       return;
     }
-    pvSetPaymentStatus(d.id, pvActionStatus(debt.paymentMethod));
-    setState({payablesModal:'', payablesModalData:null});
+    pvSetPaymentStatus(d.id, pvActionStatus(debt.paymentMethod), {closeModal:true});
     return;
   }
   if (d.type === 'check') {
@@ -10860,7 +10865,8 @@ function pvActionStatus(method) {
 function pvIsOpenStatus(s) {
   return !s || !['נפרע','שולם','בוטל'].includes(s);
 }
-function pvSetPaymentStatus(debtId, newStatus) {
+function pvSetPaymentStatus(debtId, newStatus, options) {
+  options = options || {};
   const debt = pv.debts.find(d => d.id === debtId);
   if (!debt) return;
   debt.paymentStatus = newStatus;
@@ -10887,9 +10893,13 @@ function pvSetPaymentStatus(debtId, newStatus) {
     debt.status = 'cancelled';
     debt.closedAt = Date.now();
   }
-  pvSyncSupplierInvoiceFromDebt(debt, 'payment-status');
+  try {
+    pvSyncSupplierInvoiceFromDebt(debt, 'payment-status');
+  } catch(syncErr) {
+    console.warn('[payables] supplier invoice sync after payment failed', syncErr);
+  }
   savePv(true);
-  setState({});
+  setState(options.closeModal ? {payablesModal:'', payablesModalData:null} : {});
   toast(newStatus==='שולם'?'✅ סומן כשולם':'סטטוס עודכן', 'success');
 }
 function pvNextStatus(debt) {
@@ -11488,24 +11498,24 @@ function _renderPayablesSupplierInner() {
         <div style="margin-bottom:10px">
           <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:4px">תנאי תשלום</div>
           <input class="input" style="font-size:13px;padding:8px 12px" placeholder="שוטף+30, 60 יום, מזומן..." value="${esc(profile.paymentTerms||'')}"
-            onchange="saveSupplierProfileField('${esc(sup).replace(/'/g,'&apos;')}','paymentTerms',this.value);toast('נשמר ✓','success')">
+              onchange="saveSupplierProfileField(${jsStr(sup)},'paymentTerms',this.value);toast('נשמר ✓','success')">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
           <div>
             <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:4px">איש קשר</div>
             <input class="input" style="font-size:13px;padding:8px 12px" placeholder="שם" value="${esc(profile.contactPerson||'')}"
-              onchange="saveSupplierProfileField('${esc(sup).replace(/'/g,'&apos;')}','contactPerson',this.value)">
+            onchange="saveSupplierProfileField(${jsStr(sup)},'contactPerson',this.value)">
           </div>
           <div>
             <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:4px">טלפון</div>
             <input class="input" style="font-size:13px;padding:8px 12px" type="tel" placeholder="050-..." value="${esc(profile.contactPhone||'')}"
-              onchange="saveSupplierProfileField('${esc(sup).replace(/'/g,'&apos;')}','contactPhone',this.value)">
+            onchange="saveSupplierProfileField(${jsStr(sup)},'contactPhone',this.value)">
           </div>
         </div>
         <div>
           <div style="font-size:10px;color:var(--textDim);font-weight:600;margin-bottom:4px">הערות</div>
           <input class="input" style="font-size:13px;padding:8px 12px" placeholder="הערות..." value="${esc(profile.notes||'')}"
-            onchange="saveSupplierProfileField('${esc(sup).replace(/'/g,'&apos;')}','notes',this.value)">
+            onchange="saveSupplierProfileField(${jsStr(sup)},'notes',this.value)">
         </div>
       </div>
       <!-- Quick actions -->
@@ -11543,7 +11553,7 @@ function _renderPayablesSupplierInner() {
             </div>
             <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:${st.bg};color:${st.color}">${st.label}</span>
             <button onclick="ordersOpenLinkOrderForDN('${e.id}')" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--textDim);cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap">🔗</button>
-            ${isOpen ? `<button onclick="setState({payablesModal:'link-dn',payablesModalData:{supplier:'${esc(sup)}'}})" style="font-size:11px;padding:4px 8px;border:none;border-radius:7px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap">שייך</button>` : ''}
+            ${isOpen ? `<button onclick="setState({payablesModal:'link-dn',payablesModalData:{supplier:${jsStr(sup)}}})" style="font-size:11px;padding:4px 8px;border:none;border-radius:7px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap">שייך</button>` : ''}
             ${isOpen ? `<button onclick="pvCancelDN('${e.id}')" style="width:26px;height:26px;border:none;border-radius:7px;background:var(--dangerSoft);color:var(--danger);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>` : ''}
           </div>`;
         }).join('');
@@ -11950,7 +11960,7 @@ function renderPayablesReconcile() {
         <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(e.supplier||'—')} · ${fmtDate(e.date)}</div>
         <div style="font-size:11px;color:var(--textDim)">${fmtCurr(e.total_amount)}</div>
       </div>
-      <button onclick="setState({payablesModal:'link-dn',payablesModalData:{supplier:'${esc(e.supplier||'')}',step:1,selectedDNIds:['${e.id}']}})" style="font-size:11px;padding:4px 10px;border:none;border-radius:7px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit;font-weight:700">שייך</button>
+      <button onclick="setState({payablesModal:'link-dn',payablesModalData:{supplier:${jsStr(e.supplier||'')},step:1,selectedDNIds:[${jsStr(e.id)}]}})" style="font-size:11px;padding:4px 10px;border:none;border-radius:7px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit;font-weight:700">שייך</button>
     </div>`);
 
   const debtItems = sectionHtml('🔴', 'חשבוניות באיחור', 'var(--danger)', overdueDebts, d => `
@@ -13550,7 +13560,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=127').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=128').then(reg => {
     reg.update();
   }).catch(() => {});
 }
