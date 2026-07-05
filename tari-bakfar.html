@@ -2208,6 +2208,15 @@ function pvRunPaidActionEvent(e, btn, lockKey, fn) {
   }
 }
 function pvHandlePaidInvoiceActionEvent(e) {
+  const accountingBtn = pvClosestEventElement(e.target, '[data-pv-accounting-toggle]');
+  if (accountingBtn) {
+    const id = accountingBtn.getAttribute('data-pv-accounting-toggle') || '';
+    const type = accountingBtn.getAttribute('data-pv-accounting-type') || '';
+    pvRunPaidActionEvent(e, accountingBtn, 'accounting:' + type + ':' + id, function() {
+      pvTogglePaymentAccounting(type, id);
+    });
+    return;
+  }
   const paidInvoiceBtn = pvClosestEventElement(e.target, '[data-pv-paid-invoice]');
   if (paidInvoiceBtn) {
     const encodedInvId = paidInvoiceBtn.getAttribute('data-pv-paid-invoice') || '';
@@ -3053,6 +3062,64 @@ function desktopPaymentStatusText(item) {
   return [status || 'ממתין לתשלום', item.isOverdue ? 'danger' : 'neutral'];
 }
 
+function pvPaymentAccountingRef(item) {
+  if (!item) return { type: '', id: '', passed: false };
+  const debtId = item.debtId || (item.type === 'debt' ? item.id : '');
+  if (debtId) {
+    const debt = (pv.debts || []).find(d => d.id === debtId);
+    return { type: 'debt', id: debtId, passed: !!(debt ? debt.accountingPassed : item.accountingPassed) };
+  }
+
+  const checkId = item.checkId || (item.type === 'check' ? item.id : '');
+  if (checkId) {
+    const check = (DB.checks || []).find(c => c.id === checkId);
+    const linkedDebtId = (check && check.linkedDebtId) || item.linkedDebtId || '';
+    const linkedDebt = linkedDebtId ? (pv.debts || []).find(d => d.id === linkedDebtId) : null;
+    if (linkedDebt) return { type: 'debt', id: linkedDebt.id, passed: !!linkedDebt.accountingPassed };
+    return { type: 'check', id: checkId, passed: !!(check ? check.accountingPassed : item.accountingPassed) };
+  }
+
+  return {
+    type: item.accountingType || '',
+    id: item.accountingId || '',
+    passed: !!item.accountingPassed
+  };
+}
+
+function pvDecoratePaymentAccounting(item) {
+  const ref = pvPaymentAccountingRef(item);
+  item.accountingType = ref.type;
+  item.accountingId = ref.id;
+  item.accountingPassed = ref.passed;
+  return item;
+}
+
+function pvAccountingToggleButtonHtml(item, options) {
+  options = options || {};
+  const ref = pvPaymentAccountingRef(item);
+  if (!ref.id) return '';
+  const passed = !!ref.passed;
+  const label = options.label || 'הנה"ח';
+  const text = passed
+    ? (options.passedText || (label + ' כן'))
+    : (options.pendingText || (label + ' לא'));
+  const defaultStyle = [
+    'padding:4px 10px',
+    'border:1px solid ' + (passed ? 'rgba(143,198,80,0.36)' : 'var(--border)'),
+    'border-radius:999px',
+    'background:' + (passed ? 'rgba(143,198,80,0.14)' : 'var(--surface)'),
+    'color:' + (passed ? 'var(--accent)' : 'var(--textMuted)'),
+    'font-size:11px',
+    'font-weight:800',
+    'font-family:inherit',
+    'cursor:pointer',
+    'white-space:nowrap'
+  ].join(';');
+  const classAttr = options.className ? ` class="${esc(options.className)}"` : '';
+  const styleAttr = options.style === false ? '' : ` style="${options.style || defaultStyle}"`;
+  return `<button type="button"${classAttr} data-pv-accounting-toggle="${esc(ref.id)}" data-pv-accounting-type="${esc(ref.type)}"${styleAttr}>${esc(text)}</button>`;
+}
+
 function desktopPaymentsData() {
   const today = pvTodayISO();
   const activeDebts = ((pv && pv.debts) || []).filter(d => !['paid','cancelled'].includes(d.status) && (typeof pvIsOpenStatus !== 'function' || pvIsOpenStatus(d.paymentStatus)));
@@ -3062,19 +3129,20 @@ function desktopPaymentsData() {
   activeDebts.forEach(d => {
     if (linkedOpenDebtIds.has(d.id)) return;
     const amount = (+d.amount || 0) - (+d.paidAmount || 0);
-    payments.push({
+    payments.push(pvDecoratePaymentAccounting({
       id: d.id, type: 'debt', date: pvDateISO(d.dueDate || d.date), supplier: d.supplierName || '',
       amount, method: d.paymentMethod || '', paymentStatus: d.paymentStatus || 'ממתין לתשלום',
       invoiceNumber: d.invoiceNumber || '', isOverdue: pvDateISO(d.dueDate || d.date) < today
-    });
+    }));
   });
   openChecks.forEach(c => {
     const date = pvDateISO(c.clearDate);
-    payments.push({
+    payments.push(pvDecoratePaymentAccounting({
       id: c.id, type: 'check', date, supplier: c.supplier || '', amount: +c.amount || 0,
       method: "צ'ק", paymentStatus: 'ממתין לפירעון', checkNumber: c.checkNum || '',
+      linkedDebtId: c.linkedDebtId || '',
       isOverdue: date && date < today
-    });
+    }));
   });
   return payments.sort((a,b) => {
     if (!a.date && !b.date) return 0;
@@ -11059,7 +11127,7 @@ function renderPayablesDashboard() {
     if (!pvIsOpenStatus(d.paymentStatus)) return;
     if (linkedOpenDebtIds.has(d.id)) return;
     const dateToUse = pvDateISO(d.dueDate);
-    payments.push({
+    payments.push(pvDecoratePaymentAccounting({
       date: dateToUse,
       supplier: d.supplierName || '',
       amount: (+d.amount||0)-(+d.paidAmount||0),
@@ -11069,11 +11137,11 @@ function renderPayablesDashboard() {
       debtId: d.id,
       invoiceNumber: d.invoiceNumber || '',
       isOverdue: dateToUse ? dateToUse < today : false,
-    });
+    }));
   });
 
   openChecks.forEach(c => {
-    payments.push({
+    payments.push(pvDecoratePaymentAccounting({
       date: pvDateISO(c.clearDate),
       supplier: c.supplier || '',
       amount: +c.amount || 0,
@@ -11081,8 +11149,9 @@ function renderPayablesDashboard() {
       checkNumber: c.checkNum || '',
       paymentStatus: 'ממתין לפירעון',
       checkId: c.id,
+      linkedDebtId: c.linkedDebtId || '',
       isOverdue: pvDateISO(c.clearDate) ? pvDateISO(c.clearDate) < today : false,
-    });
+    }));
   });
 
   const allDatedPayments = payments.filter(p => p.date).sort((a,b)=>a.date.localeCompare(b.date));
@@ -11125,6 +11194,7 @@ function renderPayablesDashboard() {
   else if (pf === 'באיחור') filteredPayments = payments.filter(p => p.isOverdue || (p.date && p.date < today));
   else if (pf === 'השבוע') filteredPayments = payments.filter(p => p.date && p.date >= today && pvDateInDays(p.date,7));
   else if (pf === 'החודש') filteredPayments = payments.filter(p => p.date && p.date >= today && pvDateInDays(p.date,30));
+  else if (pf === 'לא עבר הנה"ח') filteredPayments = payments.filter(p => !p.accountingPassed);
 
   // Sort: no-date items last, overdue first, then future asc
   const noDate = filteredPayments.filter(p => !p.date);
@@ -11134,7 +11204,7 @@ function renderPayablesDashboard() {
   const sortedPayments = [...overdueP, ...futureP, ...noDate];
 
   // ── Filter bar ──────────────────────────────────────────────────────────
-  const filterOptions = ['הכל',"צ'קים",'העברות','מזומן','אשראי','אחר','באיחור','השבוע','החודש'];
+  const filterOptions = ['הכל',"צ'קים",'העברות','מזומן','אשראי','אחר','באיחור','השבוע','החודש','לא עבר הנה"ח'];
   const filterBar = `
     <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none">
       ${filterOptions.map(f=>`
@@ -11218,6 +11288,7 @@ function renderPayablesDashboard() {
               style="padding:4px 10px;border:1px solid ${itemBorder};border-radius:999px;background:var(--surface);color:${itemColor};font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap">
               ${pvActionLabel(p.method)}
             </button>
+            ${pvAccountingToggleButtonHtml(p)}
           </div>
         </div>`;
     });
@@ -11248,6 +11319,7 @@ function renderPayablesDashboard() {
               style="padding:4px 10px;border:1px solid rgba(143,198,80,0.28);border-radius:999px;background:var(--surface);color:var(--accent);font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap">
               ${pvActionLabel(p.method)}
             </button>
+            ${pvAccountingToggleButtonHtml(p)}
           </div>
         </div>`).join('')}
     </div>` : '';
@@ -11808,6 +11880,43 @@ function pvToggleAccounting(debtId) {
   debt.accountingPassed = !debt.accountingPassed;
   savePv(true);
   setState({});
+  toast(debt.accountingPassed ? 'סומן כעבר להנה"ח' : 'סימון הנה"ח בוטל', debt.accountingPassed ? 'success' : 'info');
+}
+
+function pvTogglePaymentAccounting(type, id) {
+  if (!id) return;
+  if (type === 'debt') {
+    pvToggleAccounting(id);
+    return;
+  }
+
+  const check = (DB.checks || []).find(c => c.id === id);
+  if (!check) return;
+  if (check.linkedDebtId && (pv.debts || []).some(d => d.id === check.linkedDebtId)) {
+    pvToggleAccounting(check.linkedDebtId);
+    return;
+  }
+
+  check.accountingPassed = !check.accountingPassed;
+  persistLocal();
+  render();
+  toast(check.accountingPassed ? 'סומן כעבר להנה"ח' : 'סימון הנה"ח בוטל', check.accountingPassed ? 'success' : 'info');
+
+  if (CFG.webAppUrl) {
+    setSyncStatus('syncing');
+    (async () => {
+      try {
+        await cloudCall('delete_check', {id});
+        await cloudCall('add_check', {payload: check});
+        setSyncStatus('ok');
+      } catch(e) {
+        PENDING.push({action:'delete_check', payload:{id}});
+        PENDING.push({action:'add_check', payload:{payload: check}});
+        localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+        setSyncStatus('offline');
+      }
+    })();
+  }
 }
 
 // ── Reconciliation sub-view ───────────────────────────────────────────────────
@@ -11935,6 +12044,7 @@ function renderDesktopPayablesDrawer(item) {
         <div><div class="desktop-muted">מספר</div><b>${esc(item.invoiceNumber||item.checkNumber||'—')}</b></div>
         <div><div class="desktop-muted">תאריך פירעון</div><b>${fmtDate(item.date)}</b></div>
         <div><div class="desktop-muted">סכום</div><b>${fmtCurr(item.amount)}</b></div>
+        <div><div class="desktop-muted">עבר להנה"ח</div>${pvAccountingToggleButtonHtml(item)}</div>
       </div>
       <div style="display:grid;gap:8px">
         ${debt?`<button class="desktop-mini-btn primary" onclick="setState({payablesView:'debt',payablesDebtId:'${item.id}'})">פתח תנועה מלאה</button>`:''}
@@ -11961,8 +12071,9 @@ function renderDesktopPayables() {
   else if (pf === 'מזומן') rows = rows.filter(p => p.method.includes('מזומן'));
   else if (pf === 'באיחור') rows = rows.filter(p => p.isOverdue);
   else if (pf === 'השבוע') rows = rows.filter(p => p.date && pvDateInDays(p.date,7));
+  else if (pf === 'לא עבר הנה"ח') rows = rows.filter(p => !p.accountingPassed);
   if (q) rows = rows.filter(p => searchIncludes([p.supplier,p.invoiceNumber,p.checkNumber,p.method].join(' '), q));
-  const filters = ['הכל',"צ'קים",'העברות','מזומן','באיחור','השבוע'];
+  const filters = ['הכל',"צ'קים",'העברות','מזומן','באיחור','השבוע','לא עבר הנה"ח'];
   const nextPayment = payments.find(p => p.date && !p.isOverdue) || payments.find(p => p.isOverdue) || payments[0] || null;
   const rowsHtml = rows.map(p => {
     const pair = desktopPaymentStatusText(p);
@@ -11971,6 +12082,7 @@ function renderDesktopPayables() {
       <td>${fmtDate(p.date)}</td>
       <td>${esc(p.method||'—')}</td>
       <td>${desktopStatus(pair[0],pair[1])}</td>
+      <td>${pvAccountingToggleButtonHtml(p)}</td>
       <td style="text-align:left"><b>${fmtCurr(p.amount)}</b></td>
       <td><button class="desktop-mini-btn" onclick="event.stopPropagation();setState({payablesDesktopPaymentId:'${p.id}',payablesDebtId:'${p.type==='debt'?p.id:''}'})">פתח</button></td>
     </tr>`;
@@ -11989,7 +12101,7 @@ function renderDesktopPayables() {
           <input class="input" placeholder="חיפוש ספק / צ׳ק / חשבונית" value="${esc(state.payablesSearch||'')}" oninput="pvInvoiceSearchInput(this.value)">
           ${filters.map(f=>`<button class="desktop-mini-btn ${pf===f?'primary':''}" onclick="setState({pvPaymentFilter:'${f}'})">${f}</button>`).join('')}
         </div>
-        <div class="desktop-table-wrap">${rows.length ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>תאריך</th><th>אמצעי</th><th>סטטוס</th><th style="text-align:left">סכום</th><th>פעולה</th></tr></thead><tbody>${rowsHtml}</tbody></table>` : desktopEmpty('✅','אין תשלומים להצגה','הכול מסודר לפי הפילטר הנוכחי')}</div>
+        <div class="desktop-table-wrap">${rows.length ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>תאריך</th><th>אמצעי</th><th>סטטוס</th><th>הנה"ח</th><th style="text-align:left">סכום</th><th>פעולה</th></tr></thead><tbody>${rowsHtml}</tbody></table>` : desktopEmpty('✅','אין תשלומים להצגה','הכול מסודר לפי הפילטר הנוכחי')}</div>
       </section>
       ${renderDesktopPayablesDrawer(selected)}
     </div>
@@ -13452,7 +13564,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=125').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=126').then(reg => {
     reg.update();
   }).catch(() => {});
 }
