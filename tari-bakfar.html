@@ -3127,9 +3127,10 @@ function pvAccountingToggleButtonHtml(item, options) {
 }
 
 function desktopPaymentsData() {
+  pvNormalizePaidPayables();
   const today = pvTodayISO();
-  const activeDebts = ((pv && pv.debts) || []).filter(d => !['paid','cancelled'].includes(d.status) && (typeof pvIsOpenStatus !== 'function' || pvIsOpenStatus(d.paymentStatus)));
-  const openChecks = (DB.checks || []).filter(c => !c.cleared);
+  const activeDebts = ((pv && pv.debts) || []).filter(pvIsDebtOpenForPayables);
+  const openChecks = (DB.checks || []).filter(pvIsCheckOpenForPayables);
   const linkedOpenDebtIds = new Set(openChecks.map(c => c.linkedDebtId).filter(Boolean));
   const payments = [];
   activeDebts.forEach(d => {
@@ -10697,15 +10698,15 @@ function pvGetAllSuppliers() {
 
 function pvSupplierStats(supplierName) {
   const norm = pvSupplierNorm(supplierName);
-  const debts = pv.debts.filter(d => pvSupplierNorm(d.supplierName) === norm && !['paid','cancelled'].includes(d.status));
+  const debts = pv.debts.filter(d => pvSupplierNorm(d.supplierName) === norm && pvIsDebtOpenForPayables(d));
   const total = debts.reduce((s,d) => s + (+d.amount||0), 0);
   const paid = debts.reduce((s,d) => s + (+d.paidAmount||0), 0);
   const outstanding = total - paid;
   const openDNs = pvGetOpenDNsForSupplier(supplierName).length;
   let status = 'none';
   if (debts.length > 0) {
-    if (debts.some(d => pvIsOverdue(d.dueDate) && !['paid','cancelled'].includes(d.status))) status = 'overdue';
-    else if (debts.some(d => pvDateInDays(d.dueDate, 7) && !['paid','cancelled'].includes(d.status))) status = 'soon';
+    if (debts.some(d => pvIsOverdue(d.dueDate))) status = 'overdue';
+    else if (debts.some(d => pvDateInDays(d.dueDate, 7))) status = 'soon';
     else status = 'ok';
   }
   return { outstanding, openDNs, status, debtCount: debts.length };
@@ -10865,6 +10866,84 @@ function pvActionStatus(method) {
 function pvIsOpenStatus(s) {
   return !s || !['נפרע','שולם','בוטל'].includes(s);
 }
+
+function pvDebtRemainingAmount(debt) {
+  return Math.max(0, (+((debt || {}).amount) || 0) - (+((debt || {}).paidAmount) || 0));
+}
+
+function pvSupplierInvoiceForDebt(debt) {
+  if (!debt) return null;
+  return (pv.supplierInvoices || []).find(inv =>
+    !inv.deleted &&
+    (inv.legacy_debt_id === debt.id || (debt.taxInvoiceId && inv.legacy_tax_invoice_id === debt.taxInvoiceId))
+  ) || null;
+}
+
+function pvSupplierInvoiceIsPaid(inv) {
+  if (!inv || inv.deleted) return false;
+  const total = +inv.total_amount || 0;
+  const paid = pvInvoicePaidAmount(inv.id);
+  const status = pvCalcInvoiceStatus(inv);
+  return status === 'שולם' || inv.payment_status === 'שולם' || !!inv.paid_at || (total > 0 && paid >= total);
+}
+
+function pvDebtIsClosedForPayables(debt) {
+  if (!debt) return true;
+  if (debt.status === 'cancelled' || debt.paymentStatus === 'בוטל') return true;
+  if (debt.status === 'paid' || !pvIsOpenStatus(debt.paymentStatus)) return true;
+  const total = +debt.amount || 0;
+  if (total > 0 && (+debt.paidAmount || 0) >= total) return true;
+  return pvSupplierInvoiceIsPaid(pvSupplierInvoiceForDebt(debt));
+}
+
+function pvIsDebtOpenForPayables(debt) {
+  return !pvDebtIsClosedForPayables(debt) && pvDebtRemainingAmount(debt) > 0;
+}
+
+function pvNormalizePaidPayables() {
+  let changed = false;
+  (pv.debts || []).forEach(debt => {
+    if (!debt || debt.status === 'cancelled' || debt.paymentStatus === 'בוטל') return;
+    const total = +debt.amount || 0;
+    if (total <= 0) return;
+    const inv = pvSupplierInvoiceForDebt(debt);
+    const shouldClose = pvSupplierInvoiceIsPaid(inv) || debt.status === 'paid' || !pvIsOpenStatus(debt.paymentStatus) || (+debt.paidAmount || 0) >= total;
+    if (!shouldClose) return;
+
+    const paidDate = pvDateISO(inv?.paid_at || debt.paidDate || '') || pvTodayISO();
+    if (debt.status !== 'paid') { debt.status = 'paid'; changed = true; }
+    if (debt.paymentStatus !== 'שולם') { debt.paymentStatus = 'שולם'; changed = true; }
+    if ((+debt.paidAmount || 0) !== total) { debt.paidAmount = total; changed = true; }
+    if (debt.paidDate !== paidDate) { debt.paidDate = paidDate; changed = true; }
+    if (!debt.closedAt) { debt.closedAt = Date.now(); changed = true; }
+    if (!Array.isArray(debt.payments)) { debt.payments = []; changed = true; }
+
+    const paidInHistory = debt.payments.reduce((s,p)=>s+(+p.amount||0),0);
+    if (paidInHistory < total) {
+      debt.payments.push({
+        id: uid(),
+        amount: total - paidInHistory,
+        date: paidDate,
+        method: debt.paymentMethod || inv?.payment_method || '',
+        reference: debt.checkNumber || inv?.check_number || '',
+        notes: inv ? 'יושר מחשבונית ספק ששולמה' : 'יושר מחוב שסומן כשולם',
+        finalStatus: 'שולם',
+        createdAt: Date.now()
+      });
+      changed = true;
+    }
+  });
+  if (changed) savePv(true);
+  return changed;
+}
+
+function pvIsCheckOpenForPayables(check) {
+  if (!check || check.cleared) return false;
+  if (!check.linkedDebtId) return true;
+  const linkedDebt = (pv.debts || []).find(d => d.id === check.linkedDebtId);
+  return !linkedDebt || pvIsDebtOpenForPayables(linkedDebt);
+}
+
 function pvSetPaymentStatus(debtId, newStatus, options) {
   options = options || {};
   const debt = pv.debts.find(d => d.id === debtId);
@@ -10926,46 +11005,8 @@ function pvMigratePaymentStatuses() {
 
 function pvReopenMistakenPaidCommitments() {
   if (pv._reopenedMistakenPaidCommitmentsV1) return;
-  let changed = false;
-  const reopenedChecks = [];
-
-  (pv.debts||[]).forEach(d => {
-    if (d.status === 'cancelled' || d.paymentStatus === 'בוטל') return;
-    if (d.status === 'paid' || !pvIsOpenStatus(d.paymentStatus)) {
-      const lastPaymentDate = pvDateISO(d.paidDate || (d.payments||[]).slice(-1)[0]?.date || '');
-      if (lastPaymentDate && !pvDateISO(d.dueDate)) d.dueDate = lastPaymentDate;
-      d.status = 'open';
-      d.paymentStatus = pvIsCheckMethod(d.paymentMethod) ? 'ממתין לפירעון' : 'ממתין';
-      d.paidAmount = 0;
-      d.payments = [];
-      delete d.paidDate;
-      delete d.closedAt;
-      changed = true;
-    }
-  });
-
-  (DB.checks||[]).forEach(c => {
-    if (!c.cleared) return;
-    c.cleared = false;
-    delete c.clearedDate;
-    reopenedChecks.push(c);
-    changed = true;
-  });
-
   pv._reopenedMistakenPaidCommitmentsV1 = true;
-  if (reopenedChecks.length) {
-    reopenedChecks.forEach(c => {
-      PENDING.push({action:'delete_check', payload:{id:c.id}});
-      PENDING.push({action:'add_check', payload:{payload:c}});
-    });
-    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
-  }
-  if (changed) {
-    savePv(true);
-    persistLocal();
-  } else {
-    savePv(false);
-  }
+  savePv(false);
 }
 
 function pvQuickMarkPaid(debtId) {
@@ -11056,8 +11097,9 @@ function renderPayablesDashboard() {
   if (!DB.checks) DB.checks = [];
   pvMigratePaymentStatuses();
   pvReopenMistakenPaidCommitments();
-  const activeDebts = pv.debts.filter(d => !['paid','cancelled'].includes(d.status) && pvIsOpenStatus(d.paymentStatus));
-  const openChecks  = DB.checks.filter(c => !c.cleared);
+  pvNormalizePaidPayables();
+  const activeDebts = pv.debts.filter(pvIsDebtOpenForPayables);
+  const openChecks  = DB.checks.filter(pvIsCheckOpenForPayables);
   const linkedOpenDebtIds = new Set(openChecks.map(c => c.linkedDebtId).filter(Boolean));
 
   // ── 1. Compute summary numbers ──────────────────────────────────────────
@@ -11121,7 +11163,7 @@ function renderPayablesDashboard() {
     </div>` : '';
 
   // Accounting alert
-  const notPassed = pv.debts.filter(d=>!d.accountingPassed&&!['cancelled','paid'].includes(d.status));
+  const notPassed = pv.debts.filter(d=>!d.accountingPassed && pvIsDebtOpenForPayables(d));
   const accountingAlert = notPassed.length>0 ? `
     <div onclick="setState({payablesView:'reconcile'})" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:rgba(244,185,66,0.07);border:1px solid rgba(244,185,66,0.3);margin-bottom:12px;cursor:pointer">
       <span style="font-size:18px">📋</span>
@@ -11460,7 +11502,7 @@ function _renderPayablesSupplierInner() {
   // ── TAB: סיכום ──
   let tabContent = '';
   if (activeTab === 'summary') {
-    const debts = pv.debts.filter(d => pvSupplierNorm(d.supplierName) === norm && !['paid','cancelled'].includes(d.status));
+    const debts = pv.debts.filter(d => pvSupplierNorm(d.supplierName) === norm && pvIsDebtOpenForPayables(d));
     const openDebt = debts.reduce((s,d) => s + Math.max(0, (+d.amount||0)-(+d.paidAmount||0)), 0);
     // Stats
     const now = new Date();
@@ -11630,7 +11672,7 @@ function _renderPayablesSupplierInner() {
   if (activeTab === 'payments') {
     const supChecks = (DB.checks||[]).filter(c => pvSupplierNorm(c.supplier)===norm);
     const debts = pv.debts.filter(d => pvSupplierNorm(d.supplierName)===norm);
-    const openChecks = supChecks.filter(c => !c.cleared);
+    const openChecks = supChecks.filter(pvIsCheckOpenForPayables);
     const clearedChecks = supChecks.filter(c => c.cleared);
 
     const checksHtml = openChecks.length === 0 ? '' : `
@@ -11656,8 +11698,9 @@ function _renderPayablesSupplierInner() {
       </div>`;
 
     pvMigratePaymentStatuses();
-    const openDebts = debts.filter(d => !['paid','cancelled'].includes(d.status) && pvIsOpenStatus(d.paymentStatus));
-    const closedDebts = debts.filter(d => !pvIsOpenStatus(d.paymentStatus));
+    const allSupplierDebts = pv.debts.filter(d => pvSupplierNorm(d.supplierName) === norm);
+    const openDebts = allSupplierDebts.filter(pvIsDebtOpenForPayables);
+    const closedDebts = allSupplierDebts.filter(d => !pvIsDebtOpenForPayables(d));
 
     const openDebtsHtml = openDebts.length === 0 ? `<div style="font-size:12px;color:var(--textMuted);padding:6px 0">אין חובות פתוחים</div>` :
       openDebts.sort((a,b)=>String(a.dueDate||'').localeCompare(String(b.dueDate||''))).map(d => {
@@ -11925,10 +11968,10 @@ function renderPayablesReconcile() {
   ).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
 
   // 2. חשבוניות באיחור
-  const overdueDebts = pv.debts.filter(d => pvDateISO(d.dueDate) && pvDateISO(d.dueDate) < today && !['paid','cancelled'].includes(d.status));
+  const overdueDebts = pv.debts.filter(d => pvIsDebtOpenForPayables(d) && pvDateISO(d.dueDate) && pvDateISO(d.dueDate) < today);
 
   // 3. צ'קים מתקרבים (7 ימים)
-  const openChecks = (DB.checks||[]).filter(c => !c.cleared);
+  const openChecks = (DB.checks||[]).filter(pvIsCheckOpenForPayables);
   const soonChecks = openChecks.filter(c => c.clearDate && pvDateInDays(c.clearDate, 7));
 
   // 4. צ'קים שעברו פירעון
@@ -13560,7 +13603,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=128').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=129').then(reg => {
     reg.update();
   }).catch(() => {});
 }
