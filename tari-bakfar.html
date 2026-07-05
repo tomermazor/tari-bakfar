@@ -13,6 +13,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Frank+Ruhl+Libre:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script>
+window.__googleScriptLoaded = false;
+window.onGoogleScriptLoad = window.onGoogleScriptLoad || function() {
+  window.__googleScriptLoaded = true;
+  if (typeof window.initGoogleSignIn === 'function') window.initGoogleSignIn();
+};
+</script>
 <script src="https://accounts.google.com/gsi/client" async defer onload="onGoogleScriptLoad()"></script>
 <style>
 /* ── Design tokens ───────────────────────────────────────────────── */
@@ -405,6 +412,129 @@ body.role-orders-only #settings-sw-btn,
 body.role-orders-only #theme-btn { display:none !important; }
 body.role-orders-only .app-switcher { justify-content:space-between; }
 body.role-orders-only .nav button:not(.active) { display:none !important; }
+
+/* ── Comfort Work UI refresh ────────────────────────────────────── */
+:root {
+  --bg:#0b100d; --surface:#111814; --surfaceHi:#18211c; --surfaceMid:#131c17;
+  --border:#243128; --borderHi:#344639; --borderFocus:#6bbf45;
+  --text:#edf5ea; --textDim:#9daf98; --textMuted:#6d7d70;
+  --accent:#78c64a; --accentHover:#8bd85c; --accentSoft:rgba(120,198,74,0.13); --accentGlow:rgba(120,198,74,0.22);
+  --accent2:#c8955e; --accent2Soft:rgba(200,149,94,0.13);
+  --amber:#e7a72a; --amberSoft:rgba(231,167,42,0.14);
+  --danger:#e05c5c; --dangerSoft:rgba(224,92,92,0.13);
+  --info:#62a8e8; --infoSoft:rgba(98,168,232,0.13);
+  --r-xs:5px; --r-sm:8px; --r-md:10px; --r-lg:12px; --r-xl:14px; --r-2xl:16px;
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.28),0 8px 18px rgba(0,0,0,0.12);
+  --shadow:0 1px 2px rgba(0,0,0,0.34),0 14px 30px rgba(0,0,0,0.18);
+  --shadow-lg:0 16px 38px rgba(0,0,0,0.36);
+  --shadow-xl:0 24px 58px rgba(0,0,0,0.46);
+  --shadow-accent:0 12px 24px rgba(120,198,74,0.18);
+}
+[data-theme="light"] {
+  --bg:#f4f7f2; --surface:#ffffff; --surfaceHi:#eef3eb; --surfaceMid:#f8faf6;
+  --border:#dce6d7; --borderHi:#c4d4bd; --borderFocus:#3b8a2f;
+  --text:#142016; --textDim:#4f624f; --textMuted:#879381;
+  --accent:#2f7d32; --accentHover:#256b2b; --accentSoft:#e7f5df; --accentGlow:rgba(47,125,50,0.16);
+  --accent2:#a9632e; --accent2Soft:#f5ebdf;
+  --amber:#b87608; --amberSoft:#fff1c8;
+  --danger:#c83434; --dangerSoft:#fde7e7;
+  --info:#2768c6; --infoSoft:#e4eefc;
+  --shadow-sm:0 1px 2px rgba(25,38,25,0.05),0 8px 18px rgba(25,38,25,0.05);
+  --shadow:0 1px 2px rgba(25,38,25,0.06),0 14px 28px rgba(25,38,25,0.07);
+  --shadow-lg:0 18px 42px rgba(25,38,25,0.13);
+  --shadow-xl:0 26px 64px rgba(25,38,25,0.18);
+  --shadow-accent:0 10px 22px rgba(47,125,50,0.18);
+}
+html,body { background:var(--bg); color:var(--text); font-size:15px; }
+body { color-scheme:dark; }
+[data-theme="light"] body { color-scheme:light; }
+.display { letter-spacing:0; }
+.app { background:var(--bg); }
+.main { background:var(--bg); scrollbar-gutter:stable; }
+.app-switcher,.header,.nav { backdrop-filter:saturate(130%) blur(18px); }
+.app-switcher { gap:6px; padding-inline:10px; box-shadow:0 1px 0 rgba(255,255,255,0.03) inset; }
+.sw-btn { min-height:36px; display:flex; align-items:center; justify-content:center; border-radius:9px; font-weight:800; }
+.sw-btn.active { background:var(--accent2Soft); border-color:rgba(200,149,94,0.32); }
+.theme-toggle-btn,.sw-icon-btn,.icon-btn,.desktop-panel-close { min-width:36px; min-height:36px; display:inline-flex; align-items:center; justify-content:center; }
+.header { min-height:62px; box-shadow:0 1px 0 rgba(255,255,255,0.03) inset; }
+.logo { width:42px; height:42px; border-radius:12px; background:var(--accentSoft); color:var(--accent); box-shadow:none; }
+.sync-badge { min-height:24px; border-radius:999px; font-weight:900; }
+.nav { min-height:64px; box-shadow:0 -8px 28px rgba(0,0,0,0.18); }
+.nav button { flex-basis:64px; min-height:58px; padding:7px 3px 8px; gap:3px; }
+.nav button span { font-size:10px; line-height:1.15; letter-spacing:0; }
+.nav-icon-wrap { width:38px; height:28px; border-radius:9px; }
+.nav button.active .nav-icon-wrap { box-shadow:none; border:1px solid rgba(120,198,74,0.24); }
+.nav-fab { width:54px; height:54px; background:linear-gradient(145deg,var(--accent),#2f8a3e); box-shadow:0 8px 22px rgba(47,125,50,0.26); }
+.input,select.input,textarea.input {
+  min-height:46px;
+  border-width:1px;
+  border-radius:10px;
+  background:var(--surfaceHi);
+  color:var(--text);
+}
+.input::placeholder,textarea.input::placeholder { color:var(--textMuted); }
+.input:focus,select.input:focus,textarea.input:focus { background:var(--surface); border-color:var(--borderFocus); box-shadow:0 0 0 3px var(--accentGlow); }
+.label,.section-title,.desktop-kpi-label,.desktop-muted { letter-spacing:0; }
+.btn-primary,.btn-secondary,.btn-ghost,.desktop-action-btn,.desktop-mini-btn,.pill {
+  border-radius:10px;
+  min-height:38px;
+  font-weight:800;
+}
+.btn-primary { background:linear-gradient(135deg,var(--accent),#3f9b39); color:#071205; box-shadow:var(--shadow-accent); }
+[data-theme="light"] .btn-primary { color:#fff; }
+.btn-secondary,.btn-ghost { background:var(--surfaceHi); border-color:var(--border); }
+.btn-secondary:hover,.btn-ghost:hover,.desktop-mini-btn:hover,.desktop-action-btn:hover { transform:translateY(-1px); }
+.card,.sync-tile,.desktop-kpi,.desktop-section,.desktop-drawer,.scard,
+.o-supplier-card,.o-product-row,.o-manage-row,.product-card,.detail-section,.pending-card,
+.debt-card,.summary-card,.debt-supplier-row,.invoice-row,.payment-row,.info-block,.progress-wrap,.ao-card {
+  border-radius:12px;
+  border-color:var(--border);
+  box-shadow:var(--shadow-sm);
+}
+.card:hover,.desktop-section:hover,.sync-tile:hover,.product-card:hover,.debt-card:hover {
+  border-color:var(--borderHi);
+  box-shadow:var(--shadow);
+}
+.sync-overview { gap:12px; }
+.sync-tile { background:var(--surface); padding:15px; }
+.sync-tile-value { color:var(--text); letter-spacing:0; }
+.sync-tile-label { color:var(--textDim); }
+.desktop-page { background:var(--bg); }
+.desktop-title { letter-spacing:0; }
+.desktop-section { overflow:hidden; }
+.desktop-section-head { background:var(--surface); }
+.desktop-table th { letter-spacing:0; background:var(--surfaceHi); }
+.desktop-table td { line-height:1.35; }
+.desktop-table tr:hover td { background:var(--surfaceMid); }
+.desktop-status { letter-spacing:0; border:1px solid transparent; }
+.desktop-filterbar { background:var(--surfaceMid); }
+.desktop-search-popover,.desktop-quick-menu,.desktop-side-panel { border-radius:12px; box-shadow:var(--shadow-lg); }
+.desktop-side-panel { border-radius:0; }
+.toast { border-radius:12px; box-shadow:var(--shadow-lg); white-space:normal; }
+.o-stepper,.stepper { border-radius:10px; }
+.o-step-btn,.step-btn { min-width:44px; }
+.o-modal,.modal { border-radius:18px 18px 0 0; box-shadow:var(--shadow-xl); }
+.login-logo { border-radius:18px; background:var(--accentSoft); box-shadow:var(--shadow-accent); }
+@media (min-width:768px) {
+  .app { grid-template-columns:236px 1fr; grid-template-rows:56px 70px 1fr; background:var(--bg); }
+  .app-switcher { padding-inline:20px; }
+  .header { min-height:70px; padding-inline:26px; }
+  .main > div { padding:22px 26px 28px !important; }
+  .nav { box-shadow:4px 0 26px rgba(0,0,0,0.08); }
+  .nav button { min-height:54px; border-radius:10px; margin:4px 10px; }
+  .nav-icon-wrap { width:34px; height:34px; border-radius:9px; }
+  .nav button span { font-size:14px; }
+  .nav-fab { height:46px; border-radius:10px; }
+  .desktop-kpi { min-height:96px; padding:14px; }
+  .desktop-kpi-value { font-size:24px; }
+  .desktop-work-grid { gap:14px; }
+  .desktop-table-wrap { max-height:calc(100vh - 300px); }
+}
+@media (max-width:420px) {
+  .nav button { flex-basis:58px; }
+  .nav button span { font-size:9.5px; }
+  .main > div { padding-inline:14px !important; }
+}
 </style>
 </head>
 <body>
@@ -827,17 +957,19 @@ function applyDataCloudState(cloud) {
     DB.expenses = dedup([...(DB.expenses || []), ...withStableIds(cloud.expenses, 'expense')]).map(e => (!e.image && localExpenseImages[e.id]) ? {...e, image: localExpenseImages[e.id]} : e);
     mergeAccFlags(DB.expenses);
   }
-  if (Array.isArray(cloud.fixed)) DB.fixed = dedup(cloud.fixed);
-  if (Array.isArray(cloud.installments)) DB.installments = dedup(cloud.installments);
+  if (Array.isArray(cloud.fixed)) DB.fixed = mergeByIdPreferCloud(DB.fixed, cloud.fixed);
+  if (Array.isArray(cloud.installments)) DB.installments = mergeByIdPreferCloud(DB.installments, cloud.installments);
   if (Array.isArray(cloud.income)) DB.income = dedup([...(DB.income || []), ...withStableIds(cloud.income, 'income')]);
   if (Array.isArray(cloud.credits)) DB.credits = dedup([...(DB.credits || []), ...withStableIds(cloud.credits, 'credit')]).map(c => (!c.image && localCreditImages[c.id]) ? {...c, image: localCreditImages[c.id]} : c);
-  if (Array.isArray(cloud.workers)) DB.workers = dedup(cloud.workers);
-  if (Array.isArray(cloud.advances)) DB.advances = dedup(cloud.advances);
-  if (Array.isArray(cloud.checks)) DB.checks = dedup(cloud.checks);
-  APP_META.dataLocalModified = +cloud._localModified || 0;
-  APP_META.dataLastSynced = Date.now();
+  if (Array.isArray(cloud.workers)) DB.workers = mergeByIdPreferCloud(DB.workers, cloud.workers);
+  if (Array.isArray(cloud.advances)) DB.advances = mergeByIdPreferCloud(DB.advances, cloud.advances);
+  if (Array.isArray(cloud.checks)) DB.checks = mergeByIdPreferCloud(DB.checks, cloud.checks);
+  const preservedLocalData = dataStateCount(DB) > dataStateCount(cloud);
+  APP_META.dataLocalModified = preservedLocalData ? Date.now() : (+cloud._localModified || 0);
+  APP_META.dataLastSynced = preservedLocalData ? 0 : Date.now();
   saveAppMeta();
   persistLocal();
+  if (preservedLocalData) scheduleAutoSync();
 }
 
 function applyCoreCloudState(cloud) {
@@ -846,8 +978,13 @@ function applyCoreCloudState(cloud) {
   const localMod = +APP_META.coreLocalModified || 0;
   if (Array.isArray(cloud.users)) localStorage.setItem('tari_users_v1', JSON.stringify(cloud.users));
   if (cloudMod < localMod && (DB.suppliers||[]).length) return;
-  if (Array.isArray(cloud.suppliers)) DB.suppliers = cloud.suppliers;
-  if (Array.isArray(cloud.supplierProfiles)) supplierProfiles = cloud.supplierProfiles;
+  const cloudSuppliers = Array.isArray(cloud.suppliers) ? cloud.suppliers : [];
+  const cloudProfiles = Array.isArray(cloud.supplierProfiles) ? cloud.supplierProfiles : [];
+  const mergedSuppliers = mergeByIdPreferCloud(DB.suppliers, cloudSuppliers);
+  const mergedProfiles = mergeByIdPreferCloud(supplierProfiles, cloudProfiles);
+  const preservedLocalCore = mergedSuppliers.length > cloudSuppliers.length || mergedProfiles.length > cloudProfiles.length;
+  if (Array.isArray(cloud.suppliers)) DB.suppliers = mergedSuppliers;
+  if (Array.isArray(cloud.supplierProfiles)) supplierProfiles = mergedProfiles;
   if (Array.isArray(cloud.categories) && cloud.categories.length) CATS = cloud.categories;
   if (cloud.accFlags && typeof cloud.accFlags === 'object') {
     Object.keys(ACC_FLAGS).forEach(k => delete ACC_FLAGS[k]);
@@ -857,13 +994,14 @@ function applyCoreCloudState(cloud) {
     Object.keys(DN_ORDER_LINKS).forEach(k => delete DN_ORDER_LINKS[k]);
     Object.assign(DN_ORDER_LINKS, cloud.dnOrderLinks);
   }
-  APP_META.coreLocalModified = cloudMod;
-  APP_META.coreLastSynced = Date.now();
+  APP_META.coreLocalModified = preservedLocalCore ? Date.now() : cloudMod;
+  APP_META.coreLastSynced = preservedLocalCore ? 0 : Date.now();
   saveAppMeta();
   saveAccFlags(true);
   saveSupplierProfiles(true);
   saveCategories(true);
   persistLocal();
+  if (preservedLocalCore) scheduleAutoSync();
 }
 
 function ensureExistingLocalStoresCanSync() {
@@ -1014,18 +1152,34 @@ function applyProductsCloudState(cloud) {
     console.warn('Blocked empty products app_state from overwriting local products');
     return;
   }
+  const cloudAliases = cloud.aliases && typeof cloud.aliases === 'object' ? cloud.aliases : {};
+  const cloudSettings = cloud.settings && typeof cloud.settings === 'object' ? cloud.settings : {};
+  const mergedProducts = mergeByIdPreferCloud(pdb.products, Array.isArray(cloud.products) ? cloud.products : []);
+  const mergedPending = mergeByIdPreferCloud(pdb.pending, Array.isArray(cloud.pending) ? cloud.pending : []);
+  const mergedHistory = mergeByIdPreferCloud(pdb.orderHistory, Array.isArray(cloud.orderHistory) ? cloud.orderHistory : []);
+  const mergedOcrQueue = mergeByIdPreferCloud(pdb.ocrQueue, Array.isArray(cloud.ocrQueue) ? cloud.ocrQueue : []);
+  const mergedAliases = {...(pdb.aliases || {}), ...cloudAliases};
+  const mergedSettings = {...(pdb.settings || {}), ...cloudSettings};
+  const preservedLocalProducts = productStateCount({
+    products: mergedProducts,
+    pending: mergedPending,
+    orderHistory: mergedHistory,
+    ocrQueue: mergedOcrQueue
+  }) > productStateCount(cloud)
+    || JSON.stringify(mergedAliases) !== JSON.stringify(cloudAliases)
+    || JSON.stringify(mergedSettings) !== JSON.stringify(cloudSettings);
   pdb = {
-    products: Array.isArray(cloud.products) ? cloud.products : [],
-    pending: Array.isArray(cloud.pending) ? cloud.pending : [],
-    orderHistory: Array.isArray(cloud.orderHistory) ? cloud.orderHistory : [],
-    aliases: cloud.aliases && typeof cloud.aliases === 'object' ? cloud.aliases : {},
-    ocrQueue: Array.isArray(cloud.ocrQueue) ? cloud.ocrQueue : [],
-    settings: cloud.settings && typeof cloud.settings === 'object' ? cloud.settings : {},
-    _localModified: +cloud._localModified || 0,
-    _lastSynced: Date.now()
+    products: mergedProducts,
+    pending: mergedPending,
+    orderHistory: mergedHistory,
+    aliases: mergedAliases,
+    ocrQueue: mergedOcrQueue,
+    settings: mergedSettings,
+    _localModified: Math.max(+pdb._localModified || 0, +cloud._localModified || 0),
+    _lastSynced: preservedLocalProducts ? 0 : Date.now()
   };
   normalizeProductCommandData();
-  savePdb(false);
+  savePdb(preservedLocalProducts);
 }
 
 function buildOrdersCloudState() {
@@ -1067,8 +1221,182 @@ function buildFullBackupPayload() {
     payables: buildPayablesCloudState(),
     products: buildProductsCloudState(),
     orders: buildOrdersCloudState(),
+    pendingSync: (PENDING || []).slice(),
   };
   return backupSanitize(payload);
+}
+
+const SAFETY_SNAPSHOT_KEY = 'tari_safety_snapshot_latest';
+const BEFORE_RESTORE_SNAPSHOT_KEY = 'tari_safety_snapshot_before_restore';
+
+function saveLocalSafetySnapshotToKey(key, reason, extra) {
+  const payload = buildFullBackupPayload();
+  payload.reason = reason || 'manual_safety_snapshot';
+  payload.extra = extra || {};
+  localStorage.setItem(key, JSON.stringify(payload));
+  return payload;
+}
+
+function saveLocalSafetySnapshot(reason, extra) {
+  try {
+    saveLocalSafetySnapshotToKey(SAFETY_SNAPSHOT_KEY, reason, extra);
+    return true;
+  } catch(e) {
+    console.warn('Could not save local safety snapshot:', e.message || e);
+    return false;
+  }
+}
+
+function getLocalSafetySnapshot() {
+  try {
+    const raw = localStorage.getItem(SAFETY_SNAPSHOT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) {
+    console.warn('Could not read local safety snapshot:', e.message || e);
+    return null;
+  }
+}
+
+function safetySnapshotCountsText(snapshot) {
+  const c = snapshot?.counts || {};
+  return `${c.expenses || 0} הוצאות · ${c.products || 0} מוצרים · ${c.payables || 0} ספקים/חובות · ${c.activeOrders || 0} הזמנות`;
+}
+
+function renderSafetySnapshotPanel() {
+  const snap = getLocalSafetySnapshot();
+  if (!snap) {
+    return `<div style="margin:10px 0 8px;padding:10px 12px;border:1px dashed var(--borderHi);border-radius:10px;color:var(--textDim);font-size:12px;line-height:1.55">עדיין אין snapshot מקומי לשחזור. Snapshot נשמר אוטומטית לפני מחיקה, ניקוי תור או ייבוא.</div>`;
+  }
+  const created = snap.createdAt ? new Date(snap.createdAt).toLocaleString('he-IL') : 'לא ידוע';
+  const reason = snap.reason || 'snapshot';
+  return `
+    <div style="margin:10px 0 8px;padding:12px;border:1px solid rgba(91,156,246,0.25);border-radius:10px;background:rgba(91,156,246,0.06)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--info);flex-shrink:0"></div>
+        <div style="font-size:12px;font-weight:800;color:var(--text)">Snapshot מקומי אחרון</div>
+      </div>
+      <div style="font-size:11px;color:var(--textDim);line-height:1.55;margin-bottom:9px">${created} · ${esc(reason)}<br>${esc(safetySnapshotCountsText(snap))}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button onclick="restoreLocalSafetySnapshot()" style="padding:9px;border:1px solid rgba(91,156,246,0.32);border-radius:9px;background:rgba(91,156,246,0.10);color:var(--info);font-size:12px;font-weight:800;font-family:inherit;cursor:pointer">שחזר snapshot</button>
+        <button onclick="downloadLocalSafetySnapshot()" style="padding:9px;border:1px solid var(--border);border-radius:9px;background:transparent;color:var(--textDim);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">הורד snapshot</button>
+      </div>
+    </div>`;
+}
+
+function downloadLocalSafetySnapshot() {
+  const snap = getLocalSafetySnapshot();
+  if (!snap) { toast('אין snapshot מקומי להורדה', 'info'); return; }
+  downloadFullBackup(snap);
+  toast('snapshot הורד', 'success');
+}
+
+function restoreLocalSafetySnapshot() {
+  const snap = getLocalSafetySnapshot();
+  if (!snap || snap.schema !== 'tari-bakfar-full-backup-v1') {
+    toast('אין snapshot תקין לשחזור', 'error');
+    return;
+  }
+  const summary = safetySnapshotCountsText(snap);
+  const ok = confirm(`לשחזר את ה-snapshot המקומי האחרון?\n\n${summary}\n\nלפני השחזור יישמר snapshot נפרד של המצב הנוכחי, כדי שיהיה אפשר לחזור אחורה ידנית במקרה הצורך.`);
+  if (!ok) return;
+  const typed = prompt('כדי לאשר שחזור מלא, הקלד: שחזר');
+  if (typed !== 'שחזר') { toast('השחזור בוטל', 'info'); return; }
+  try {
+    saveLocalSafetySnapshotToKey(BEFORE_RESTORE_SNAPSHOT_KEY, 'before_restore_snapshot', {restoringCreatedAt:snap.createdAt || ''});
+    applyLocalSafetySnapshot(snap);
+    toast('snapshot שוחזר ונשמר גיבוי למצב הקודם', 'success');
+    render();
+    if (CFG.webAppUrl) syncAll({silent:true, reason:'restore-snapshot'});
+  } catch(e) {
+    console.error('restore snapshot failed:', e);
+    toast('שחזור נכשל: ' + (e.message || e), 'error');
+  }
+}
+
+function normalizeRestoredPayablesStore() {
+  if (!pv || typeof pv !== 'object') pv = {};
+  if (!Array.isArray(pv.taxInvoices)) pv.taxInvoices = [];
+  if (!Array.isArray(pv.debts)) pv.debts = [];
+  if (!Array.isArray(pv.cancelledDNIds)) pv.cancelledDNIds = [];
+  if (!Array.isArray(pv.suppliers)) pv.suppliers = [];
+  if (!Array.isArray(pv.supplierInvoices)) pv.supplierInvoices = [];
+  if (!Array.isArray(pv.supplierInvoicePayments)) pv.supplierInvoicePayments = [];
+  if (!Array.isArray(pv.supplierInvoiceDeliveryNotes)) pv.supplierInvoiceDeliveryNotes = [];
+  if (!Array.isArray(pv.supplierInvoiceFiles)) pv.supplierInvoiceFiles = [];
+  if (!Array.isArray(pv.supplierInvoiceActivityLog)) pv.supplierInvoiceActivityLog = [];
+  pvEnsureSupplierInvoiceMigration();
+}
+
+function normalizeRestoredProductsStore() {
+  if (!pdb || typeof pdb !== 'object') pdb = {};
+  if (!Array.isArray(pdb.products)) pdb.products = [];
+  if (!Array.isArray(pdb.pending)) pdb.pending = [];
+  if (!Array.isArray(pdb.orderHistory)) pdb.orderHistory = [];
+  if (!pdb.aliases || typeof pdb.aliases !== 'object') pdb.aliases = {};
+  if (!Array.isArray(pdb.ocrQueue)) pdb.ocrQueue = [];
+  if (!pdb.settings || typeof pdb.settings !== 'object') pdb.settings = {};
+  if (!pdb.settings.defaultTargetMargin) pdb.settings.defaultTargetMargin = 40;
+  if (!pdb.settings.defaultMinMargin) pdb.settings.defaultMinMargin = 25;
+  normalizeProductCommandData();
+}
+
+function normalizeRestoredOrdersStore() {
+  if (!odb || typeof odb !== 'object') odb = {};
+  if (!Array.isArray(odb.suppliers)) odb.suppliers = [];
+  if (!Array.isArray(odb.categories)) odb.categories = [];
+  if (!Array.isArray(odb.history)) odb.history = [];
+  if (!Array.isArray(odb.activeOrders)) odb.activeOrders = [];
+  ordersNormalizeCategories();
+}
+
+function applyLocalSafetySnapshot(snap) {
+  const now = Date.now();
+  const data = snap.data || {};
+  const core = snap.core || {};
+  if (Array.isArray(data.expenses)) DB.expenses = data.expenses;
+  if (Array.isArray(data.fixed)) DB.fixed = data.fixed;
+  if (Array.isArray(data.installments)) DB.installments = data.installments;
+  if (Array.isArray(data.income)) DB.income = data.income;
+  if (Array.isArray(data.credits)) DB.credits = data.credits;
+  if (Array.isArray(data.workers)) DB.workers = data.workers;
+  if (Array.isArray(data.advances)) DB.advances = data.advances;
+  if (Array.isArray(data.checks)) DB.checks = data.checks;
+
+  if (Array.isArray(core.suppliers)) DB.suppliers = core.suppliers;
+  if (Array.isArray(core.supplierProfiles)) supplierProfiles = core.supplierProfiles;
+  if (Array.isArray(core.categories) && core.categories.length) CATS = core.categories;
+  if (core.accFlags && typeof core.accFlags === 'object') {
+    Object.keys(ACC_FLAGS).forEach(k => delete ACC_FLAGS[k]);
+    Object.assign(ACC_FLAGS, core.accFlags);
+  }
+  if (core.dnOrderLinks && typeof core.dnOrderLinks === 'object') {
+    Object.keys(DN_ORDER_LINKS).forEach(k => delete DN_ORDER_LINKS[k]);
+    Object.assign(DN_ORDER_LINKS, core.dnOrderLinks);
+  }
+  if (Array.isArray(core.users)) localStorage.setItem('tari_users_v1', JSON.stringify(core.users));
+
+  if (snap.payables && typeof snap.payables === 'object') pv = {...snap.payables, _localModified: now, _lastSynced: 0};
+  if (snap.products && typeof snap.products === 'object') pdb = {...snap.products, _localModified: now, _lastSynced: 0};
+  if (snap.orders && typeof snap.orders === 'object') odb = {...snap.orders, _localModified: now, _lastSynced: 0};
+  normalizeRestoredPayablesStore();
+  normalizeRestoredProductsStore();
+  normalizeRestoredOrdersStore();
+
+  PENDING.length = 0;
+  (Array.isArray(snap.pendingSync) ? snap.pendingSync : []).forEach(op => PENDING.push(op));
+  const restoredAppMeta = snap.appMeta && typeof snap.appMeta === 'object' ? snap.appMeta : {};
+  APP_META = {...restoredAppMeta, coreLocalModified: now, coreLastSynced: 0, dataLocalModified: now, dataLastSynced: 0};
+  saveAppMeta();
+  saveAccFlags(true);
+  saveDnOrderLinks(true);
+  saveSupplierProfiles(true);
+  saveCategories(true);
+  persistLocal();
+  savePv(true);
+  savePdb(true);
+  saveOdb(true);
+  localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+  ensureExistingLocalStoresCanSync();
 }
 
 function downloadFullBackup(payload) {
@@ -1133,17 +1461,25 @@ function applyOrdersCloudState(cloud) {
   (odb.activeOrders || []).forEach(o => { if (o.deliveryNoteImage) localImgMap[o.id] = o.deliveryNoteImage; });
   const mergedSuppliers = mergeOrderSuppliers(odb.suppliers || [], Array.isArray(cloud.suppliers) ? cloud.suppliers : []);
   const preservedLocalSuppliers = JSON.stringify(mergedSuppliers) !== JSON.stringify(Array.isArray(cloud.suppliers) ? cloud.suppliers : []);
+  const cloudHistory = Array.isArray(cloud.history) ? cloud.history : [];
+  const mergedHistory = mergeByIdPreferCloud(odb.history, cloudHistory);
+  const preservedLocalHistory = mergedHistory.length > cloudHistory.length;
+  const cloudActiveOrders = Array.isArray(cloud.activeOrders)
+    ? cloud.activeOrders.map(o => ({...o, deliveryNoteImage: localImgMap[o.id] || o.deliveryNoteImage || null}))
+    : [];
+  const mergedActiveOrders = mergeByIdPreferCloud(odb.activeOrders || [], cloudActiveOrders);
+  const preservedLocalOrders = mergedActiveOrders.length > cloudActiveOrders.length;
   odb = {
     suppliers: mergedSuppliers,
     categories: mergeOrderCategories(odb.categories || [], Array.isArray(cloud.categories) ? cloud.categories : []),
-    history: Array.isArray(cloud.history) ? cloud.history : [],
-    activeOrders: Array.isArray(cloud.activeOrders) ? cloud.activeOrders.map(o => ({...o, deliveryNoteImage: localImgMap[o.id] || o.deliveryNoteImage || null})) : [],
+    history: mergedHistory,
+    activeOrders: mergedActiveOrders,
     _localModified: +cloud._localModified || 0,
-    _lastSynced: preservedLocalSuppliers ? 0 : Date.now()
+    _lastSynced: (preservedLocalSuppliers || preservedLocalOrders || preservedLocalHistory) ? 0 : Date.now()
   };
   ordersNormalizeCategories();
   saveOrdersDraftsFromSync(cloud.drafts);
-  saveOdb(preservedLocalSuppliers);
+  saveOdb(preservedLocalSuppliers || preservedLocalOrders || preservedLocalHistory);
 }
 
 async function syncCloudStateBlob(key, buildFn, applyFn, getLocalModified) {
@@ -1279,8 +1615,8 @@ async function syncAll(opts) {
       mergeAccFlags(DB.expenses);
       if (expRows.length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
-    if (fix !== null && ((fix||[]).length > 0 || DB.fixed.length === 0)) { DB.fixed = dedup([...(DB.fixed || []), ...(fix || [])]); if ((fix||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
-    if (ins !== null && ((ins||[]).length > 0 || DB.installments.length === 0)) { DB.installments = dedup([...(DB.installments || []), ...(ins || [])]); if ((ins||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (fix !== null && ((fix||[]).length > 0 || DB.fixed.length === 0)) { DB.fixed = mergeByIdPreferCloud(DB.fixed, fix || []); if ((fix||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (ins !== null && ((ins||[]).length > 0 || DB.installments.length === 0)) { DB.installments = mergeByIdPreferCloud(DB.installments, ins || []); if ((ins||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     // Credits: merge cloud (authoritative) with local images (stored locally only)
     if (cred !== null && ((cred||[]).length > 0 || DB.credits.length === 0)) {
       const credRows = withStableIds(cred || [], 'credit');
@@ -1289,17 +1625,17 @@ async function syncAll(opts) {
       DB.credits = dedup([...(DB.credits || []), ...credRows]).map(c => localImgMap[c.id] ? {...c, image: localImgMap[c.id]} : c);
       if (credRows.length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
-    if (wrk !== null && ((wrk||[]).length > 0 || DB.workers.length === 0)) { DB.workers = dedup([...(DB.workers || []), ...(wrk || [])]); if ((wrk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
-    if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) { DB.checks = dedup([...(DB.checks || []), ...(chk || [])]); if ((chk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (wrk !== null && ((wrk||[]).length > 0 || DB.workers.length === 0)) { DB.workers = mergeByIdPreferCloud(DB.workers, wrk || []); if ((wrk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (chk !== null && ((chk||[]).length > 0 || DB.checks.length === 0)) { DB.checks = mergeByIdPreferCloud(DB.checks, chk || []); if ((chk||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     if (inc !== null && ((inc||[]).length > 0 || DB.income.length === 0)) {
       const incRows = withStableIds(inc || [], 'income');
       DB.income = dedup([...(DB.income || []), ...incRows]);
       if (incRows.length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
     }
-    if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) { DB.advances = dedup([...(DB.advances || []), ...(adv || [])]); if ((adv||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
+    if (adv !== null && ((adv||[]).length > 0 || DB.advances.length === 0)) { DB.advances = mergeByIdPreferCloud(DB.advances, adv || []); if ((adv||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     if (!extendedSyncOk) {
       if (prod !== null && ((prod||[]).length > 0 || pdb.products.length === 0)) {
-        pdb.products = dedup(prod || []);
+        pdb.products = mergeByIdPreferCloud(pdb.products, prod || []);
         pdb._lastSynced = Date.now();
         savePdb(false);
       } else if (pdb.products.length > 0 && prod !== null && (prod||[]).length === 0) {
@@ -1308,7 +1644,7 @@ async function syncAll(opts) {
         savePdb(false);
       }
       if (pend !== null && ((pend||[]).length > 0 || pdb.pending.length === 0)) {
-        pdb.pending = dedup(pend || []);
+        pdb.pending = mergeByIdPreferCloud(pdb.pending, pend || []);
         pdb._lastSynced = Date.now();
         savePdb(false);
       }
@@ -1334,9 +1670,12 @@ async function syncAll(opts) {
       if (activeOrders !== null && Array.isArray(activeOrders)) {
         const localImgMap = {};
         (odb.activeOrders || []).forEach(o => { if (o.deliveryNoteImage) localImgMap[o.id] = o.deliveryNoteImage; });
-        odb.activeOrders = activeOrders.map(o => ({...o, deliveryNoteImage: localImgMap[o.id] || o.deliveryNoteImage || null}));
-        odb._lastSynced = Date.now();
-        saveOdb(false);
+        const cloudActiveOrders = activeOrders.map(o => ({...o, deliveryNoteImage: localImgMap[o.id] || o.deliveryNoteImage || null}));
+        const mergedActiveOrders = mergeByIdPreferCloud(odb.activeOrders || [], cloudActiveOrders);
+        const preservedLocalOrders = mergedActiveOrders.length > cloudActiveOrders.length;
+        odb.activeOrders = mergedActiveOrders;
+        odb._lastSynced = preservedLocalOrders ? 0 : Date.now();
+        saveOdb(preservedLocalOrders);
       }
     }
     if ((APP_META.dataLocalModified || 0) > (APP_META.dataLastSynced || 0) && dataStateCount(DB) > 0) {
@@ -1547,6 +1886,10 @@ function dedup(arr) {
     seen.add(key);
     return true;
   });
+}
+
+function mergeByIdPreferCloud(localArr, cloudArr) {
+  return dedup([...(cloudArr || []), ...(localArr || [])]);
 }
 
 function withStableIds(arr, prefix) {
@@ -1846,6 +2189,10 @@ function addSupplier() {
 }
 
 function deleteSupplier(id) {
+  const supplier = DB.suppliers.find(s => s.id === id);
+  if (!supplier) return;
+  if (!confirm(`למחוק את הספק "${supplier.name || id}" מרשימת הספקים הקבועים?\n\nהוצאות קיימות לא יימחקו.`)) return;
+  saveLocalSafetySnapshot('delete_supplier', {id, name:supplier.name || ''});
   DB.suppliers = DB.suppliers.filter(s => s.id !== id);
   markCoreStateDirty();
   persistLocal();
@@ -1998,16 +2345,25 @@ async function scanInvoice(base64, mime) {
   let prompt = `אתה מערכת OCR לירקניה בכפר מעש.
 קרא את המסמך והחזר JSON חוקי בלבד. אסור להחזיר הסברים, markdown, backticks, או את המילה JSON לפני האובייקט.
 ${knownSuppliers}
-{"date":"DD/MM/YYYY","supplier":"שם הספק","total_amount":0.00,"vat_amount":0.00,"amount_before_vat":0.00,"category":"פירות וירקות","document_type":"חשבונית מס","document_number":"","notes":""}
+{"date":"DD/MM/YYYY","supplier":"שם הספק","total_amount":0.00,"vat_amount":0.00,"amount_before_vat":0.00,"category":"פירות וירקות","document_type":"חשבונית מס","document_number":"","payment_terms":"","payment_due_date":"","is_paid":false,"notes":"","confidence":0.0,"needs_review_fields":[],"line_items":[{"name":"","quantity":0,"unit":"kg","unit_cost":0,"total_cost":0}]}
 
 קטגוריות: פירות וירקות, מוצרי חלב, פיצוחים, סחורה יבשה, הוצאות שוטפות, הוצאות משרד, אחר
-סוגי מסמך: חשבונית מס, חשבונית מס קבלה, תעודת משלוח, קבלה.`;
+סוגי מסמך: חשבונית מס, חשבונית מס קבלה, תעודת משלוח, קבלה.
+
+הנחיות חובה:
+- supplier/date/total_amount/vat_amount/document_type/document_number הם שדות קריטיים. אם שדה לא קריא, החזר ערך ריק או 0 והוסף אותו ל-needs_review_fields.
+- document_number הוא מספר המסמך המודפס בלבד, לא מספר לקוח/הזמנה.
+- payment_due_date בפורמט YYYY-MM-DD רק אם מופיע במסמך. אם לא מופיע, השאר ריק.
+- payment_terms רק אם מופיעים במסמך כמו שוטף+30, מזומן, 30 יום.
+- is_paid=true רק אם המסמך הוא קבלה/חשבונית מס קבלה או מופיע ששולם.
+- confidence הוא מספר בין 0 ל-1 לפי איכות הקריאה.
+- notes קצר מאוד ורק אם יש אזהרה שימושית.`;
 
   prompt += `
 
 Product line extraction is mandatory. Add a line_items array to the JSON response.
-Each line item must be: {"name":"","quantity":0,"unit":"kg/unit/box/carton","unit_cost":0,"total_cost":0}.
-Return all product lines from the invoice or delivery note. If unit_cost is not printed, calculate unit_cost = total_cost / quantity when possible.`;
+Each line item must be: {"name":"","quantity":0,"unit":"kg/unit/box/carton/other","unit_cost":0,"total_cost":0}.
+Return all product/service lines from the invoice or delivery note. Ignore subtotal, VAT and grand-total rows. If unit_cost is not printed, calculate unit_cost = total_cost / quantity when possible.`;
 
   let r;
   try {
@@ -2019,7 +2375,7 @@ Return all product lines from the invoice or delivery note. If unit_cost is not 
         response_format:{type:"json_object"},
         messages:[{role:"user",content:[
           {type:"text",text:prompt},
-          {type:"image_url",image_url:{url:`data:${mime};base64,${base64}`}}
+          {type:"image_url",image_url:{url:`data:${mime};base64,${base64}`,detail:"high"}}
         ]}]
       })
     });
@@ -2322,8 +2678,8 @@ function desktopSearchResults(query) {
 }
 
 function desktopOpenSupplier(nameEnc) {
-  const name = decodeURIComponent(nameEnc || '');
-  setState({tab:'payables', payablesView:'supplier', payablesSupplier:name, desktopGlobalSearch:''});
+  state.desktopGlobalSearch = '';
+  openSupplierManager();
 }
 
 function renderDesktopSearchPopover() {
@@ -2449,7 +2805,7 @@ const TABS = [
   {id:'list',label:'הוצאות'},{id:'income',label:'הכנסות'},
   {id:'reports',label:'דוחות'},{id:'fixed',label:'קבועות'},
   {id:'installments',label:'תשלומים'},{id:'credits',label:'זיכויים'},
-  {id:'payables',label:'ספקים'},
+  {id:'payables',label:'תשלומי ספקים'},
   {id:'products',label:'מוצרים'},
 ];
 
@@ -2671,7 +3027,7 @@ function renderDesktopDashboard() {
     <div class="desktop-work-grid">
       <div style="display:grid;gap:16px">
         <section class="desktop-section">
-          <div class="desktop-section-head"><div class="desktop-section-title">תשלומים קרובים וחובות</div><button class="desktop-mini-btn" onclick="setState({tab:'payables'})">פתח ספקים</button></div>
+          <div class="desktop-section-head"><div class="desktop-section-title">תשלומים קרובים וחובות</div><button class="desktop-mini-btn" onclick="setState({tab:'payables',payablesView:'dashboard'})">פתח תשלומים</button></div>
           <div class="desktop-table-wrap">${paymentRows ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>תאריך</th><th>סטטוס</th><th style="text-align:left">סכום</th></tr></thead><tbody>${paymentRows}</tbody></table>` : desktopEmpty('✅','אין תשלומים דחופים','אין חובות או צ׳קים פתוחים להצגה')}</div>
         </section>
         <section class="desktop-section">
@@ -2727,14 +3083,14 @@ function renderDashboard() {
 
   // ── Helpers ──────────────────────────────────────────────────────
   const card = (icon,iconBg,title,val,sub,badge) => `
-    <div style="background:#fff;border-radius:16px;padding:20px 22px;box-shadow:var(--shadow);border:1px solid var(--border);cursor:default">
+    <div style="background:var(--surface);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow-sm);border:1px solid var(--border);cursor:default">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
-        <div style="width:44px;height:44px;border-radius:12px;background:${iconBg};display:flex;align-items:center;justify-content:center;font-size:22px">${icon}</div>
+        <div style="width:42px;height:42px;border-radius:11px;background:${iconBg};display:flex;align-items:center;justify-content:center;font-size:21px">${icon}</div>
         ${badge||''}
       </div>
-      <div class="display" style="font-size:26px;color:#0F172A;line-height:1;margin-bottom:5px;letter-spacing:-0.02em">${val}</div>
-      <div style="font-size:13px;color:#475569;font-weight:600">${title}</div>
-      ${sub?`<div style="font-size:11px;color:#94A3B8;margin-top:3px">${sub}</div>`:''}
+      <div class="display" style="font-size:25px;color:var(--text);line-height:1;margin-bottom:5px;letter-spacing:0">${val}</div>
+      <div style="font-size:13px;color:var(--textDim);font-weight:700">${title}</div>
+      ${sub?`<div style="font-size:11px;color:var(--textMuted);margin-top:3px">${sub}</div>`:''}
     </div>`;
 
   const badge = (txt,col,bg) => `<span style="font-size:11px;font-weight:700;color:${col};background:${bg};padding:3px 9px;border-radius:100px">${txt}</span>`;
@@ -2743,16 +3099,16 @@ function renderDashboard() {
     <div onclick="${action}" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;background:${col}10;border:1px solid ${col}22;cursor:pointer;margin-bottom:8px;transition:background 0.12s ease">
       <div style="width:36px;height:36px;border-radius:9px;background:${col}18;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">${icon}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:700;color:#0F172A">${title}</div>
-        <div style="font-size:11px;color:#64748B;margin-top:1px">${sub}</div>
+        <div style="font-size:13px;font-weight:800;color:var(--text)">${title}</div>
+        <div style="font-size:11px;color:var(--textDim);margin-top:1px">${sub}</div>
       </div>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><polyline points="9 18 3 12 9 6"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="color:var(--textMuted)" stroke-width="2"><polyline points="9 18 3 12 9 6"/></svg>
     </div>`;
 
   const qaBtn = (icon,label,onclick) => `
-    <button onclick="${onclick}" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border-radius:12px;border:1.5px solid #E2E8F0;background:#fff;cursor:pointer;font-family:inherit;transition:all 0.12s ease;width:100%">
-      <div style="width:38px;height:38px;border-radius:10px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;font-size:18px">${icon}</div>
-      <span style="font-size:11px;font-weight:600;color:#374151;white-space:nowrap">${label}</span>
+    <button onclick="${onclick}" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:13px 6px;border-radius:11px;border:1px solid var(--border);background:var(--surfaceHi);cursor:pointer;font-family:inherit;transition:all 0.12s ease;width:100%">
+      <div style="width:36px;height:36px;border-radius:10px;background:var(--accentSoft);display:flex;align-items:center;justify-content:center;font-size:18px">${icon}</div>
+      <span style="font-size:11px;font-weight:800;color:var(--text);white-space:nowrap">${label}</span>
     </button>`;
 
   const tableRow = e => {
@@ -2762,19 +3118,19 @@ function renderDashboard() {
     const accOK = needsAcc && e.sentToAccountant;
     const docShort = {'תעודת משלוח':'ת"מ','חשבונית מס':'חשב"מ','חשבונית מס קבלה':'חשב"מ קבלה','קבלה':'קבלה'}[e.document_type] || (e.document_type||'—');
     const statusEl = accPending
-      ? badge('ממתינה','#D97706','#FEF3C7')
-      : accOK ? badge('הועברה','#15803D','#DCFCE7')
-      : badge(esc(docShort),'#64748B','#F1F5F9');
-    return `<tr style="border-bottom:1px solid #F1F5F9;transition:background 0.1s">
+      ? badge('ממתינה','var(--amber)','var(--amberSoft)')
+      : accOK ? badge('הועברה','var(--accent)','var(--accentSoft)')
+      : badge(esc(docShort),'var(--textDim)','var(--surfaceHi)');
+    return `<tr style="border-bottom:1px solid var(--border);transition:background 0.1s">
       <td style="padding:11px 16px">
-        <div style="font-size:13px;font-weight:600;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${esc(e.supplier||'—')}</div>
-        <div style="font-size:10px;color:#94A3B8;margin-top:1px">${fmtDate(e.date)}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${esc(e.supplier||'—')}</div>
+        <div style="font-size:10px;color:var(--textMuted);margin-top:1px">${fmtDate(e.date)}</div>
       </td>
       <td style="padding:11px 8px"><span style="font-size:10.5px;font-weight:600;background:${c}18;color:${c};padding:2px 8px;border-radius:100px;white-space:nowrap">${esc(e.category)}</span></td>
       <td style="padding:11px 8px;white-space:nowrap">${statusEl}</td>
-      <td style="padding:11px 16px;text-align:left"><span class="display" style="font-size:13px;color:#0F172A;font-weight:700">${fmtCurr(e.total_amount)}</span></td>
+      <td style="padding:11px 16px;text-align:left"><span class="display" style="font-size:13px;color:var(--text);font-weight:700">${fmtCurr(e.total_amount)}</span></td>
       <td style="padding:11px 10px;text-align:center">
-        <button onclick="setState({tab:'list',listOpen:'${e.id}'})" style="width:26px;height:26px;border:1px solid #E2E8F0;border-radius:7px;background:#fff;cursor:pointer;color:#64748B;font-size:13px;display:inline-flex;align-items:center;justify-content:center;transition:all 0.12s">→</button>
+        <button onclick="setState({tab:'list',listOpen:'${e.id}'})" style="width:26px;height:26px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;color:var(--textDim);font-size:13px;display:inline-flex;align-items:center;justify-content:center;transition:all 0.12s">→</button>
       </td></tr>`;
   };
 
@@ -2783,10 +3139,10 @@ function renderDashboard() {
     const eh = maxChart>0?Math.max((d.exp/maxChart)*100,0):0;
     return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
       <div style="width:100%;display:flex;align-items:flex-end;height:54px;gap:2px">
-        <div style="flex:1;background:#15803D;border-radius:3px 3px 0 0;height:${ih}%;min-height:${d.inc?'3px':'0'};opacity:0.85"></div>
-        <div style="flex:1;background:#DC2626;border-radius:3px 3px 0 0;height:${eh}%;min-height:${d.exp?'3px':'0'};opacity:0.7"></div>
+        <div style="flex:1;background:var(--accent);border-radius:3px 3px 0 0;height:${ih}%;min-height:${d.inc?'3px':'0'};opacity:0.88"></div>
+        <div style="flex:1;background:var(--danger);border-radius:3px 3px 0 0;height:${eh}%;min-height:${d.exp?'3px':'0'};opacity:0.72"></div>
       </div>
-      <div style="font-size:9px;color:${d.today?'#15803D':'#94A3B8'};font-weight:${d.today?'700':'400'};white-space:nowrap">${d.label}</div>
+      <div style="font-size:9px;color:${d.today?'var(--accent)':'var(--textMuted)'};font-weight:${d.today?'700':'400'};white-space:nowrap">${d.label}</div>
     </div>`;
   }).join('');
 
@@ -2797,16 +3153,16 @@ function renderDashboard() {
 
     <!-- Greeting row -->
     <div style="margin-bottom:16px">
-      <h1 class="display" style="font-size:24px;color:#0F172A;margin:0 0 4px">${greeting} 👋</h1>
-      <p style="font-size:12px;color:#64748B;margin:0">${dateStr}</p>
+      <h1 class="display" style="font-size:24px;color:var(--text);margin:0 0 4px">${greeting} 👋</h1>
+      <p style="font-size:12px;color:var(--textDim);margin:0">${dateStr}</p>
     </div>
 
     <!-- KPI row -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-      ${card('💰','#DCFCE7','הכנסות השבוע',fmtCurr(weekIncTotal),`היום: ${fmtCurr(todayIncTotal)}`)}
-      ${card('📉','#FEE2E2','הוצאות השבוע',fmtCurr(weekExpTotal),`${weekExpCount} רשומות`)}
-      ${card(weekProfit>=0?'📈':'📊',weekProfit>=0?'#DCFCE7':'#FEE2E2','רווח השבוע',(weekProfit>=0?'+':'')+fmtCurr(weekProfit),weekIncTotal>0?`${Math.abs(Math.round(weekProfit/weekIncTotal*100))}% מרווח`:'אין הכנסות')}
-      ${card('📋','#FEF3C7','ממתינות להנה"ח',pendingAcc.toString(),`${fmtCurr(monthTotal)} החודש`,pendingAcc>0?badge('!','#D97706','#FEF3C7'):'')}
+      ${card('💰','var(--accentSoft)','הכנסות השבוע',fmtCurr(weekIncTotal),`היום: ${fmtCurr(todayIncTotal)}`)}
+      ${card('📉','var(--dangerSoft)','הוצאות השבוע',fmtCurr(weekExpTotal),`${weekExpCount} רשומות`)}
+      ${card(weekProfit>=0?'📈':'📊',weekProfit>=0?'var(--accentSoft)':'var(--dangerSoft)','רווח השבוע',(weekProfit>=0?'+':'')+fmtCurr(weekProfit),weekIncTotal>0?`${Math.abs(Math.round(weekProfit/weekIncTotal*100))}% מרווח`:'אין הכנסות')}
+      ${card('📋','var(--amberSoft)','ממתינות להנה"ח',pendingAcc.toString(),`${fmtCurr(monthTotal)} החודש`,pendingAcc>0?badge('!','var(--amber)','var(--amberSoft)'):'')}
     </div>
 
     <!-- Single column layout for mobile -->
@@ -2815,23 +3171,23 @@ function renderDashboard() {
       <!-- Alerts + Quick actions + Checks -->
 
         <!-- Alerts -->
-        <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)">
-          <div style="font-size:13px;font-weight:700;color:#0F172A;margin-bottom:14px;display:flex;align-items:center;gap:6px">🔔 צריך לטפל</div>
+        <div style="background:var(--surface);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:6px">🔔 צריך לטפל</div>
           ${hasAlerts
-            ? (overdueChecks.length>0?alertRow('⚠️',`${overdueChecks.length} צ'קים פגו תוקף`,fmtCurr(overdueChecks.reduce((s,c)=>s+(+c.amount||0),0)),'#DC2626',"setState({tab:'checks'})"):'')
-            + (soonChecks.length>0?alertRow('⏳',`${soonChecks.length} צ'קים יפרעו בקרוב`,fmtCurr(soonChecks.reduce((s,c)=>s+(+c.amount||0),0)),'#D97706',"setState({tab:'checks'})"):'')
+            ? (overdueChecks.length>0?alertRow('⚠️',`${overdueChecks.length} צ'קים פגו תוקף`,fmtCurr(overdueChecks.reduce((s,c)=>s+(+c.amount||0),0)),'var(--danger)',"setState({tab:'checks'})"):'')
+            + (soonChecks.length>0?alertRow('⏳',`${soonChecks.length} צ'קים יפרעו בקרוב`,fmtCurr(soonChecks.reduce((s,c)=>s+(+c.amount||0),0)),'var(--amber)',"setState({tab:'checks'})"):'')
 
-            + (openCredits.length>0?alertRow('🔄',`${openCredits.length} זיכויים ממתינים`,fmtCurr(openCreditsTotal),'#7C3AED',"setState({tab:'credits'})"):'')
+            + (openCredits.length>0?alertRow('🔄',`${openCredits.length} זיכויים ממתינים`,fmtCurr(openCreditsTotal),'var(--info)',"setState({tab:'credits'})"):'')
             : `<div style="text-align:center;padding:16px 0">
                  <div style="font-size:28px;margin-bottom:6px">✅</div>
-                 <div style="font-size:13px;font-weight:700;color:#15803D">הכל מסודר!</div>
+                 <div style="font-size:13px;font-weight:800;color:var(--accent)">הכל מסודר!</div>
                </div>`
           }
         </div>
 
         <!-- Quick actions -->
-        <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)">
-          <div style="font-size:13px;font-weight:700;color:#0F172A;margin-bottom:12px">⚡ פעולות מהירות</div>
+        <div style="background:var(--surface);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:12px">⚡ פעולות מהירות</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             ${qaBtn('📷','סרוק חשבונית',"setState({tab:'scan'})")}
             ${qaBtn('💰','הוסף הכנסה',"setState({tab:'income'})")}
@@ -2842,52 +3198,52 @@ function renderDashboard() {
 
         <!-- Open checks -->
         ${openChecks.length>0?`
-        <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)">
+        <div style="background:var(--surface);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);border:1px solid var(--border)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <div style="font-size:13px;font-weight:700;color:#0F172A">📝 צ'קים פתוחים</div>
-            <button onclick="setState({tab:'checks'})" style="font-size:11px;color:#15803D;background:transparent;border:none;cursor:pointer;font-weight:600;font-family:inherit">הצג →</button>
+            <div style="font-size:13px;font-weight:800;color:var(--text)">📝 צ'קים פתוחים</div>
+            <button onclick="setState({tab:'checks'})" style="font-size:11px;color:var(--accent);background:transparent;border:none;cursor:pointer;font-weight:800;font-family:inherit">הצג →</button>
           </div>
-          <div class="display" style="font-size:24px;color:#0F172A;margin-bottom:4px">${fmtCurr(openChecksTotal)}</div>
-          <div style="font-size:11px;color:#64748B">${openChecks.length} צ'קים · הבא: ${fmtDate(openChecks[0]?.clearDate||'')}</div>
+          <div class="display" style="font-size:24px;color:var(--text);margin-bottom:4px">${fmtCurr(openChecksTotal)}</div>
+          <div style="font-size:11px;color:var(--textDim)">${openChecks.length} צ'קים · הבא: ${fmtDate(openChecks[0]?.clearDate||'')}</div>
         </div>`:''}
 
       <!-- Chart + Recent expenses -->
 
         <!-- Bar chart -->
-        <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)">
+        <div style="background:var(--surface);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);border:1px solid var(--border)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <div style="font-size:13px;font-weight:700;color:#0F172A">📈 7 ימים אחרונים</div>
-            <div style="display:flex;gap:12px;font-size:10.5px;color:#64748B">
-              <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#15803D;display:inline-block;opacity:0.85"></span>הכנסות</span>
-              <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#DC2626;display:inline-block;opacity:0.7"></span>הוצאות</span>
+            <div style="font-size:13px;font-weight:800;color:var(--text)">📈 7 ימים אחרונים</div>
+            <div style="display:flex;gap:12px;font-size:10.5px;color:var(--textDim)">
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:var(--accent);display:inline-block;opacity:0.88"></span>הכנסות</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:var(--danger);display:inline-block;opacity:0.72"></span>הוצאות</span>
             </div>
           </div>
           <div style="display:flex;align-items:flex-end;gap:5px;height:68px">${bars}</div>
         </div>
 
         <!-- Recent expenses table -->
-        <div style="background:#fff;border-radius:16px;box-shadow:var(--shadow);border:1px solid var(--border);overflow:hidden">
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #F1F5F9">
-            <div style="font-size:13px;font-weight:700;color:#0F172A">🧾 הוצאות אחרונות</div>
-            <button onclick="setState({tab:'list'})" style="font-size:11px;color:#15803D;background:transparent;border:none;cursor:pointer;font-weight:600;font-family:inherit">הצג הכל →</button>
+        <div style="background:var(--surface);border-radius:14px;box-shadow:var(--shadow-sm);border:1px solid var(--border);overflow:hidden">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 18px;border-bottom:1px solid var(--border)">
+            <div style="font-size:13px;font-weight:800;color:var(--text)">🧾 הוצאות אחרונות</div>
+            <button onclick="setState({tab:'list'})" style="font-size:11px;color:var(--accent);background:transparent;border:none;cursor:pointer;font-weight:800;font-family:inherit">הצג הכל →</button>
           </div>
           ${recentExp.length===0
-            ? `<div style="text-align:center;padding:36px 20px;color:#94A3B8;font-size:13px">אין הוצאות עדיין</div>`
+            ? `<div style="text-align:center;padding:36px 20px;color:var(--textMuted);font-size:13px">אין הוצאות עדיין</div>`
             : recentExp.map(e => {
                 const c = getCatColor(e.category);
                 const docShort = {'תעודת משלוח':'ת"מ','חשבונית מס':'חשב"מ','חשבונית מס קבלה':'חשב"מ קבלה','קבלה':'קבלה'}[e.document_type] || (e.document_type||'');
                 return `
-                <div onclick="setState({tab:'list',listOpen:'${e.id}'})" style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #F1F5F9;cursor:pointer">
+                <div onclick="setState({tab:'list',listOpen:'${e.id}'})" style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--border);cursor:pointer">
                   <div style="flex:1;min-width:0">
-                    <div style="font-size:13px;font-weight:600;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.supplier||'—')}</div>
+                    <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.supplier||'—')}</div>
                     <div style="display:flex;align-items:center;gap:5px;margin-top:2px;flex-wrap:nowrap">
                       <span style="font-size:10px;font-weight:600;background:${c}18;color:${c};padding:1px 6px;border-radius:100px;white-space:nowrap;flex-shrink:0">${esc(e.category)}</span>
-                      <span style="font-size:10px;color:#94A3B8;flex-shrink:0">${docShort}</span>
-                      <span style="font-size:10px;color:#94A3B8;flex-shrink:0">${fmtDate(e.date)}</span>
+                      <span style="font-size:10px;color:var(--textMuted);flex-shrink:0">${docShort}</span>
+                      <span style="font-size:10px;color:var(--textMuted);flex-shrink:0">${fmtDate(e.date)}</span>
                     </div>
                   </div>
-                  <div class="display" style="font-size:14px;font-weight:700;color:#0F172A;flex-shrink:0">${fmtCurr(e.total_amount)}</div>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="2" style="flex-shrink:0"><polyline points="9 18 3 12 9 6"/></svg>
+                  <div class="display" style="font-size:14px;font-weight:700;color:var(--text);flex-shrink:0">${fmtCurr(e.total_amount)}</div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--textMuted);flex-shrink:0"><polyline points="9 18 3 12 9 6"/></svg>
                 </div>`;
               }).join('')
           }
@@ -2906,12 +3262,12 @@ function renderScan() {
           <div class="pulse" style="position:absolute;top:50%;left:12%;right:12%;height:1.5px;background:linear-gradient(90deg,transparent,var(--accent),transparent)"></div>
         </div>
         <h1 class="display" style="font-size:24px;margin:0 0 6px;color:var(--text)">סרוק מסמך</h1>
-        <p style="color:var(--textDim);font-size:13px;margin:0 0 28px;line-height:1.5">ה-AI מחלץ ספק, סכום ותאריך בעברית</p>
-        <input type="file" accept="image/*" capture="environment" id="camInput" onchange="handleFile(this.files[0])" style="display:none">
+        <p style="color:var(--textDim);font-size:13px;margin:0 0 28px;line-height:1.5">צילום אחד, קריאה אוטומטית, אישור קצר ושמירה</p>
+        <input type="file" accept="image/*" capture="environment" id="camInput" onchange="handleFile(this.files[0],true);this.value=''" style="display:none">
         <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf" multiple id="galInput" onchange="handleMultipleFiles(this.files);this.value=''" style="display:none">
         <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf" multiple id="multiScanInput" onchange="handleMultipleFiles(this.files,true);this.value=''" style="display:none">
         <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:260px;margin:0 auto">
-          <button class="btn-primary" onclick="document.getElementById('camInput').click()" style="margin-bottom:0;padding:16px 20px;font-size:15px">📷 &nbsp;צלם חשבונית</button>
+          <button class="btn-primary" onclick="document.getElementById('camInput').click()" style="margin-bottom:0;padding:16px 20px;font-size:15px">📷 &nbsp;צלם וקרא אוטומטית</button>
           <button class="btn-primary" onclick="document.getElementById('multiScanInput').click()" style="margin-bottom:0;padding:14px 20px;font-size:15px;background:linear-gradient(135deg,#4fc46a 0%,#1f8f42 100%)">📚 &nbsp;סריקה מרובה</button>
           <button class="btn-secondary" onclick="document.getElementById('galInput').click()" style="margin-bottom:0;padding:13px 20px">🖼️ &nbsp;גלריה / קבצים</button>
           <button class="btn-ghost" onclick="manualForm()" style="padding:10px">✏️ &nbsp;הוספה ידנית</button>
@@ -2930,7 +3286,7 @@ function renderScan() {
         </div>
         <div style="position:relative;margin-bottom:16px;border-radius:16px;overflow:hidden;border:1px solid var(--border)"><img src="${state.scanImg}" alt="" style="width:100%;max-height:360px;object-fit:contain;background:#000;display:block"></div>
         ${state.scanErr ? `<div class="err">⚠️ ${esc(state.scanErr)}</div>` : ''}
-        <button class="btn-primary" onclick="runScan()">✨ &nbsp;${state.batchTotal>1?'קרא מסמך זה עם AI':'קרא עם AI'}</button>
+        <button class="btn-primary" onclick="runScan()">✨ &nbsp;${state.batchTotal>1?'קרא מסמך זה עם AI':'קרא שוב עם AI'}</button>
         <button class="btn-secondary" onclick="manualForm()">✏️ &nbsp;הזן ידנית</button>
         ${state.batchTotal>1&&state.batchQueue.length>0?`<button class="btn-ghost" onclick="skipBatchFile()">⏭ דלג לקובץ הבא (${state.batchQueue.length} נותרו)</button>`:''}
       </div>`;
@@ -2959,6 +3315,7 @@ function renderScan() {
         ${state.scanNotice ? `<div style="padding:11px 13px;border-radius:12px;background:rgba(245,180,42,0.09);border:1px solid rgba(245,180,42,0.22);color:var(--amber);font-size:13px;font-weight:700;margin-bottom:12px">⚠️ ${esc(state.scanNotice)}</div>` : ''}
         ${state.scanErr ? `<div class="err">⚠️ ${esc(state.scanErr)}</div>` : ''}
         ${f.image ? `<div style="border-radius:14px;overflow:hidden;border:1px solid var(--border);margin-bottom:18px"><img src="${f.image}" style="width:100%;max-height:180px;object-fit:contain;background:#000;display:block"></div>` : ''}
+        ${renderScanAiReview(f)}
         <div class="field"><label class="label">ספק</label>${supplierInput('state.scanForm','supplier',f.supplier,'category')}</div>
         <div class="field"><label class="label">תאריך</label><input class="input" type="date" value="${heToISO(f.date)}" oninput="state.scanForm.date=isoToHe(this.value)"></div>
         <div class="row">
@@ -2973,7 +3330,7 @@ function renderScan() {
         ${['חשבונית מס','חשבונית מס קבלה'].includes(f.document_type)?`
         <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
           <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">סטטוס חשבונית ספק</div>
-          <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">אם החשבונית לא שולמה או לא עברה להנה"ח, היא תופיע בטאב ספקים לפי תאריך התשלום. אם היא שולמה וגם עברה להנה"ח, היא תישמר בארכיון.</div>
+          <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">אם החשבונית לא שולמה או לא עברה להנה"ח, היא תופיע בטאב תשלומי ספקים לפי תאריך התשלום. אם היא שולמה וגם עברה להנה"ח, היא תישמר בארכיון.</div>
           <div class="row">
             <div class="field"><label class="label">תאריך לתשלום</label><input class="input" type="date" value="${f.paymentDueDate||''}" oninput="state.scanForm.paymentDueDate=this.value"></div>
             <div class="field"><label class="label">תנאי תשלום</label><input class="input" placeholder="שוטף+30..." value="${esc(f.paymentTerms||'')}" oninput="state.scanForm.paymentTerms=this.value"></div>
@@ -3033,6 +3390,212 @@ function downscaleScanImage(dataUrl, mime) {
   });
 }
 
+function scanAmount(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return 0;
+  let s = raw.replace(/[^\d,.\-]/g, '');
+  if (s.includes(',') && s.includes('.')) s = s.replace(/,/g, '');
+  else s = s.replace(/,/g, '.');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function scanDateToISO(value) {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  const iso = businessISOFromValue(s);
+  if (iso) return iso;
+  const p = s.split(/[\/\.\-]/).filter(Boolean);
+  if (p.length !== 3) return '';
+  let y, m, day;
+  if (p[0].length === 4) [y, m, day] = p;
+  else [day, m, y] = p;
+  if (!/^\d{2,4}$/.test(String(y)) || !/^\d{1,2}$/.test(String(m)) || !/^\d{1,2}$/.test(String(day))) return '';
+  if (String(y).length === 2) y = '20' + y;
+  const d = new Date(+y, +m - 1, +day);
+  if (Number.isNaN(d.getTime()) || d.getFullYear() !== +y || d.getMonth() !== +m - 1 || d.getDate() !== +day) return '';
+  return toISO(d);
+}
+
+function scanDateToHe(value) {
+  const iso = scanDateToISO(value);
+  return iso ? isoToHe(iso) : '';
+}
+
+function scanAddDaysISO(iso, days) {
+  const d = parseD(iso);
+  if (!d) return '';
+  d.setDate(d.getDate() + (+days || 0));
+  return toISO(d);
+}
+
+function deriveScanPaymentDueDate(dateValue, terms) {
+  const baseIso = scanDateToISO(dateValue);
+  const t = String(terms || '').trim().toLowerCase();
+  if (!baseIso || !t) return '';
+  const base = parseD(baseIso);
+  if (!base) return '';
+  if (/מזומן|מיד|cash|immediate/.test(t)) return baseIso;
+  const shotef = t.match(/שוטף\s*\+?\s*(\d{0,3})/);
+  if (shotef) {
+    const eom = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+    eom.setDate(eom.getDate() + (+(shotef[1] || 0) || 0));
+    return toISO(eom);
+  }
+  const days = t.match(/(\d{1,3})\s*(?:יום|ימים|day|days)/);
+  if (days) return scanAddDaysISO(baseIso, +days[1] || 0);
+  return '';
+}
+
+function normalizeScanLineItems(lines) {
+  return (Array.isArray(lines) ? lines : []).map(line => {
+    const name = String(line?.name || line?.product || line?.description || '').trim();
+    const quantity = scanAmount(line?.quantity ?? line?.qty ?? '');
+    const total = scanAmount(line?.total_cost ?? line?.total ?? line?.amount ?? '');
+    let unitCost = scanAmount(line?.unit_cost ?? line?.unitCost ?? line?.price ?? '');
+    if (!unitCost && quantity > 0 && total > 0) unitCost = total / quantity;
+    return {
+      name,
+      quantity,
+      unit: String(line?.unit || 'other').trim() || 'other',
+      unit_cost: unitCost,
+      total_cost: total
+    };
+  }).filter(line => line.name || line.total_cost > 0).slice(0, 80);
+}
+
+function scanTruthy(value) {
+  if (value === true) return true;
+  const s = String(value || '').trim().toLowerCase();
+  return ['true','yes','1','paid','שולם','כן'].includes(s);
+}
+
+function normalizeAiConfidence(value) {
+  const n = scanAmount(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.max(0, Math.min(1, n > 1 ? n / 100 : n));
+}
+
+function scanReviewFieldKey(field) {
+  const s = String(field || '').trim().toLowerCase();
+  if (!s) return '';
+  if (/supplier|vendor|ספק/.test(s)) return 'supplier';
+  if (/date|תאריך/.test(s)) return 'date';
+  if (/total|amount|סכום|כולל/.test(s)) return 'total_amount';
+  if (/vat|מע/.test(s)) return 'vat_amount';
+  if (/document_number|invoice_number|number|מספר/.test(s)) return 'document_number';
+  if (/document_type|type|סוג/.test(s)) return 'document_type';
+  if (/due|payment_due|פירעון|לתשלום/.test(s)) return 'payment_due_date';
+  if (/line|item|product|שורה|מוצר/.test(s)) return 'line_items';
+  if (/confidence|ודאות|בטוח/.test(s)) return 'confidence';
+  return s;
+}
+
+function scanReviewFieldLabel(field) {
+  const labels = {
+    supplier: 'ספק',
+    date: 'תאריך',
+    total_amount: 'סכום כולל',
+    vat_amount: 'מע"מ',
+    document_number: 'מספר מסמך',
+    document_type: 'סוג מסמך',
+    payment_due_date: 'תאריך לתשלום',
+    line_items: 'שורות מוצרים',
+    confidence: 'ודאות קריאה'
+  };
+  const key = scanReviewFieldKey(field);
+  return labels[key] || String(field || '').trim();
+}
+
+function getScanSupplierPaymentTerms(name) {
+  const raw = String(name || '').trim();
+  if (!raw || !Array.isArray(supplierProfiles)) return '';
+  const approved = findApprovedSupplier(raw);
+  const names = [raw, approved?.name].filter(Boolean);
+  const profile = supplierProfiles.find(p => names.some(n => pvSupplierNorm(p.name) === pvSupplierNorm(n)));
+  return String(profile?.paymentTerms || '').trim();
+}
+
+function normalizeAiReviewFields(data, form) {
+  const raw = Array.isArray(data?.needs_review_fields) ? data.needs_review_fields : [];
+  const keys = raw.map(scanReviewFieldKey).filter(Boolean);
+  if (!form.supplier) keys.push('supplier');
+  if (!scanDateToISO(data?.date) || !scanDateToISO(form.date)) keys.push('date');
+  if (!(+form.total_amount > 0)) keys.push('total_amount');
+  if (!form.document_number) keys.push('document_number');
+  if (['חשבונית מס','חשבונית מס קבלה'].includes(form.document_type) && !(+form.vat_amount >= 0)) keys.push('vat_amount');
+  if ((form.aiConfidence || 0) > 0 && form.aiConfidence < 0.62) keys.push('confidence');
+  return Array.from(new Set(keys)).map(scanReviewFieldLabel).filter(Boolean);
+}
+
+function buildScanFormFromAI(data) {
+  const supplierRaw = String(data?.supplier || data?.vendor || '').trim();
+  const approvedSupplier = findApprovedSupplier(supplierRaw);
+  const supplier = approvedSupplier?.name || supplierRaw;
+  const documentType = DTYPES.includes(data?.document_type) ? data.document_type : DEFAULT_EXPENSE_DOCUMENT_TYPE;
+  const date = scanDateToHe(data?.date) || todayStr();
+  const lineItems = normalizeScanLineItems(data?.line_items);
+  const supplierTerms = getScanSupplierPaymentTerms(supplier);
+  const paymentTerms = String(data?.payment_terms || data?.paymentTerms || supplierTerms || '').trim();
+  const paymentDueDate = scanDateToISO(data?.payment_due_date || data?.paymentDueDate || data?.due_date || '') || deriveScanPaymentDueDate(date, paymentTerms);
+  const paid = scanTruthy(data?.is_paid ?? data?.paid ?? data?.isPaid) || ['חשבונית מס קבלה','קבלה'].includes(documentType);
+  const totalAmount = scanAmount(data?.total_amount ?? data?.total ?? data?.amount);
+  const vatAmount = scanAmount(data?.vat_amount ?? data?.vat);
+  let beforeVat = scanAmount(data?.amount_before_vat ?? data?.subtotal ?? data?.before_vat);
+  if (!beforeVat && totalAmount && vatAmount) beforeVat = Math.max(0, totalAmount - vatAmount);
+  const category = approvedSupplier?.defaultCategory || (CATS.includes(data?.category) ? data.category : CATS[0] || 'אחר');
+  const hasAiDate = !!scanDateToISO(data?.date);
+  const confidence = normalizeAiConfidence(data?.confidence) || Math.min(0.95, 0.45 + (supplier ? 0.13 : 0) + (totalAmount > 0 ? 0.13 : 0) + (hasAiDate ? 0.12 : 0) + (String(data?.document_number || '').trim() ? 0.1 : 0) + (lineItems.length ? 0.05 : 0));
+  const form = {
+    id: uid(), image: state.scanImg,
+    date, supplier,
+    total_amount: totalAmount,
+    vat_amount: vatAmount,
+    amount_before_vat: beforeVat,
+    category,
+    document_type: documentType,
+    document_number: String(data?.document_number || data?.invoice_number || data?.number || '').trim(),
+    paymentTerms,
+    paymentDueDate,
+    linkedOrderId: '',
+    sentToAccountant: false,
+    accountingSentAt: '',
+    expensePaid: paid,
+    expensePaidAt: paid ? scanDateToISO(data?.payment_date || data?.paid_at || '') || scanDateToISO(date) || todayISO() : '',
+    notes: String(data?.notes || '').trim(),
+    line_items: lineItems,
+    aiConfidence: confidence,
+    aiCapturedAt: new Date().toISOString()
+  };
+  form.aiReviewFields = normalizeAiReviewFields(data, form);
+  return form;
+}
+
+function renderScanAiReview(f) {
+  const conf = normalizeAiConfidence(f.aiConfidence);
+  if (!conf && !(Array.isArray(f.line_items) && f.line_items.length) && !(Array.isArray(f.aiReviewFields) && f.aiReviewFields.length)) return '';
+  const pct = Math.round((conf || 0) * 100);
+  const tone = conf >= 0.82 ? 'var(--accent)' : conf >= 0.62 ? 'var(--amber)' : 'var(--danger)';
+  const review = Array.isArray(f.aiReviewFields) ? f.aiReviewFields : [];
+  const lines = normalizeScanLineItems(f.line_items);
+  const linesTotal = lines.reduce((sum, line) => sum + (+line.total_cost || 0), 0);
+  return `
+    <div style="padding:12px 14px;border-radius:14px;background:var(--surfaceHi);border:1px solid var(--border);margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px">
+        <div style="min-width:0"><div class="label" style="margin-bottom:3px">ודאות</div><div class="display" style="font-size:17px;color:${tone}">${pct || '—'}${pct?'%':''}</div></div>
+        <div style="min-width:0"><div class="label" style="margin-bottom:3px">שורות</div><div class="display" style="font-size:17px;color:var(--text)">${lines.length}</div></div>
+        <div style="min-width:0"><div class="label" style="margin-bottom:3px">סך שורות</div><div class="display" style="font-size:17px;color:var(--text)">${linesTotal ? fmtCurr(linesTotal) : '—'}</div></div>
+      </div>
+      ${review.length ? `
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <span style="font-size:12px;font-weight:800;color:var(--textDim)">לבדיקה:</span>
+          ${review.slice(0, 8).map(x => `<span style="padding:5px 8px;border-radius:999px;background:rgba(245,180,42,0.10);border:1px solid rgba(245,180,42,0.24);color:var(--amber);font-size:11.5px;font-weight:800">${esc(x)}</span>`).join('')}
+        </div>` : `
+        <div style="font-size:12px;font-weight:800;color:var(--accent)">הקריאה נראית מלאה, נשאר רק מבט קצר לפני שמירה.</div>`}
+    </div>`;
+}
+
 // Load multiple files — process first, queue the rest
 function handleMultipleFiles(files, autoScanBatch) {
   if (!files || files.length === 0) return;
@@ -3074,21 +3637,12 @@ async function runScan() {
   setState({scanStage:'scanning',scanErr:'',scanNotice:''});
   try {
     const data = await scanInvoice(state.scanB64, state.scanMime);
+    const form = buildScanFormFromAI(data);
     setState({
       scanStage:'confirm',
-      scanForm: {
-        id: uid(), image: state.scanImg,
-        date: data.date||todayStr(), supplier: data.supplier||'',
-        total_amount: +data.total_amount||0, vat_amount: +data.vat_amount||0,
-        amount_before_vat: +data.amount_before_vat||0,
-        category: data.category||'אחר', document_type: data.document_type||DEFAULT_EXPENSE_DOCUMENT_TYPE,
-        document_number: data.document_number||'', notes: data.notes||'',
-        linkedOrderId: '',
-        sentToAccountant: false, accountingSentAt: '',
-        expensePaid: false, expensePaidAt: '',
-        line_items: Array.isArray(data.line_items) ? data.line_items : [],
-      }
+      scanForm: form
     });
+    toast(form.aiReviewFields.length ? 'הפרטים נקלטו, נשאר לבדוק כמה שדות' : 'הפרטים נקלטו אוטומטית ✓', 'success');
   } catch(e) {
     if (isQuotaError(e)) {
       const msg = 'מכסת ה-AI נגמרה זמנית. פתחתי טופס ידני עם התמונה כדי שתוכל לשמור בלי להיתקע.';
@@ -3107,6 +3661,8 @@ async function runScan() {
           sentToAccountant: false, accountingSentAt: '',
           expensePaid: false, expensePaidAt: '',
           line_items: [],
+          aiConfidence: 0,
+          aiReviewFields: ['ספק','תאריך','סכום כולל','מספר מסמך'],
         }
       });
     } else {
@@ -3124,7 +3680,9 @@ function manualForm() {
     linkedOrderId: addForm.linkedOrderId || '',
     sentToAccountant: false, accountingSentAt: '',
     expensePaid: false, expensePaidAt: '',
-    notes: addForm.notes || ''          // use pre-filled notes if came from orders
+    notes: addForm.notes || '',          // use pre-filled notes if came from orders
+    aiConfidence: 0,
+    aiReviewFields: []
   }});
 }
 
@@ -3233,6 +3791,10 @@ function normalizeScanExpenseItem(raw) {
   item.document_type = item.document_type || DEFAULT_EXPENSE_DOCUMENT_TYPE;
   item.document_number = String(item.document_number || '').trim();
   item.notes = String(item.notes || '').trim();
+  item.paymentTerms = String(item.paymentTerms || '').trim();
+  item.line_items = normalizeScanLineItems(item.line_items);
+  item.aiConfidence = normalizeAiConfidence(item.aiConfidence);
+  item.aiReviewFields = Array.isArray(item.aiReviewFields) ? item.aiReviewFields.map(scanReviewFieldLabel).filter(Boolean) : [];
   const parsedDate = parseD(item.date || todayStr());
   if (!parsedDate || Number.isNaN(parsedDate.getTime())) throw new Error('תאריך לא תקין');
   item.date = isoToHe(toISO(parsedDate));
@@ -3742,6 +4304,10 @@ async function saveEditExpense() {
 }
 
 async function deleteExpense(id) {
+  const item = DB.expenses.find(e => e.id === id);
+  if (!item) return;
+  if (!confirm(`למחוק את ההוצאה "${item.supplier || item.document_number || id}"?\n\nיישמר snapshot מקומי לפני המחיקה, והמחיקה תסונכרן רק אחרי שמירה מקומית.`)) return;
+  saveLocalSafetySnapshot('delete_expense', {id, supplier:item.supplier || '', total:item.total_amount || 0});
   await queueAndSync('delete_expense', {id}, () => {
     DB.expenses = DB.expenses.filter(e=>e.id!==id);
   });
@@ -3816,7 +4382,7 @@ function renderAdd() {
       ${['חשבונית מס','חשבונית מס קבלה'].includes(addForm.document_type)?`
       <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
         <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">סטטוס חשבונית ספק</div>
-        <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">אם החשבונית לא שולמה או לא עברה להנה"ח, היא תופיע בטאב ספקים לפי תאריך התשלום. אם היא שולמה וגם עברה להנה"ח, היא תישמר בארכיון.</div>
+        <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">אם החשבונית לא שולמה או לא עברה להנה"ח, היא תופיע בטאב תשלומי ספקים לפי תאריך התשלום. אם היא שולמה וגם עברה להנה"ח, היא תישמר בארכיון.</div>
         <div class="row">
           <div class="field"><label class="label">תאריך לתשלום</label><input class="input" type="date" value="${addForm.paymentDueDate||''}" oninput="addForm.paymentDueDate=this.value"></div>
           <div class="field"><label class="label">תנאי תשלום</label><input class="input" placeholder="שוטף+30..." value="${esc(addForm.paymentTerms||'')}" oninput="addForm.paymentTerms=this.value"></div>
@@ -4060,6 +4626,7 @@ async function toggleFixed(id) {
 
 async function delFixed(id, name) {
   if (!confirm("למחוק את "+name+"?")) return;
+  saveLocalSafetySnapshot('delete_fixed', {id, name:name || ''});
   await queueAndSync('delete_fixed', {id}, () => DB.fixed = DB.fixed.filter(x=>x.id!==id));
   toast('נמחק', 'success');
 }
@@ -4197,6 +4764,7 @@ async function markPaid(id, delta) {
 
 async function delInstall(id, name) {
   if (!confirm("למחוק את "+name+"?")) return;
+  saveLocalSafetySnapshot('delete_installment', {id, name:name || ''});
   await queueAndSync('delete_installment', {id}, () => DB.installments = DB.installments.filter(x=>x.id!==id));
   toast('נמחק', 'success');
 }
@@ -4418,6 +4986,7 @@ async function toggleWorkerActive(id) {
 
 async function deleteWorker(id, name) {
   if (!confirm(`למחוק את ${name}?`)) return;
+  saveLocalSafetySnapshot('delete_worker', {id, name:name || ''});
   await queueAndSync('delete_worker', {id}, () => {
     DB.workers = DB.workers.filter(x => x.id !== id);
   });
@@ -4455,6 +5024,7 @@ function saveAdvance(workerId, workerName) {
 }
 async function deleteAdvance(id) {
   if (!confirm('למחוק את המפרעה?')) return;
+  saveLocalSafetySnapshot('delete_advance', {id});
   await queueAndSync('delete_advance', {id}, () => {
     DB.advances = (DB.advances||[]).filter(a => a.id !== id);
   });
@@ -4633,6 +5203,10 @@ function toggleCheckCleared(id) {
 }
 
 async function deleteCheck(id) {
+  const check = DB.checks.find(x => x.id === id);
+  if (!check) return;
+  if (!confirm(`למחוק את הצ'ק ${check.checkNum || ''} של ${check.supplier || 'ספק'} בסך ${fmtCurr(check.amount || 0)}?\n\nיישמר snapshot מקומי לפני המחיקה.`)) return;
+  saveLocalSafetySnapshot('delete_check', {id, supplier:check.supplier || '', amount:check.amount || 0, checkNum:check.checkNum || ''});
   await queueAndSync('delete_check', {id}, () => {
     DB.checks = DB.checks.filter(x => x.id !== id);
   });
@@ -5043,12 +5617,14 @@ async function receiveCredit(id) {
   const c = DB.credits.find(x => x.id === id);
   if (!c) return;
   if (!confirm(`לסמן שקיבלת זיכוי מ-${c.supplier} בסך ${fmtCurr(c.amount)}?\n\nהבקשה תימחק מהרשימה.`)) return;
+  saveLocalSafetySnapshot('receive_credit', {id, supplier:c.supplier || '', amount:c.amount || 0});
   await queueAndSync('delete_credit', {id}, () => { DB.credits = DB.credits.filter(x => x.id !== id); });
   toast('זיכוי התקבל ✓ 🎉', 'success');
 }
 
 async function deleteCreditRequest(id) {
   if (!confirm('למחוק בקשת זיכוי זו?')) return;
+  saveLocalSafetySnapshot('delete_credit_request', {id});
   await queueAndSync('delete_credit', {id}, () => { DB.credits = DB.credits.filter(x => x.id !== id); });
   toast('נמחק', 'success');
 }
@@ -5257,6 +5833,7 @@ async function syncAllIncomeToCloud() {
 
 async function deleteIncome(id) {
   if (!confirm('למחוק הכנסה זו?')) return;
+  saveLocalSafetySnapshot('delete_income', {id});
   await queueAndSync('delete_income', {id}, () => {
     DB.income = DB.income.filter(e => e.id !== id);
   });
@@ -5597,10 +6174,11 @@ function renderSettings() {
         <div style="font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px">נתונים</div>
         <div class="display" style="font-size:26px;color:var(--text)">${DB.expenses.length} רשומות</div>
         <div style="font-size:12px;color:var(--textDim);margin-top:4px;margin-bottom:${PENDING.length>0?'8px':'14px'}">${DB.fixed.length} קבועות · ${DB.installments.length} תשלומים · <span style="color:${PENDING.length>0?'var(--amber)':'var(--textDim)'};font-weight:${PENDING.length>0?'700':'400'}">${PENDING.length} ממתינות לסנכרון</span></div>
-        ${PENDING.length > 0 ? `<button onclick="clearPendingQueue()" style="width:100%;margin-bottom:14px;padding:9px;border:1px solid rgba(245,180,42,0.4);border-radius:10px;background:rgba(245,180,42,0.07);color:var(--amber);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">⚡ נקה תור (${PENDING.length} פעולות) — מהיר יותר</button>` : ''}
+        ${PENDING.length > 0 ? `<button onclick="clearPendingQueue()" style="width:100%;margin-bottom:14px;padding:9px;border:1px solid rgba(245,180,42,0.4);border-radius:10px;background:rgba(245,180,42,0.07);color:var(--amber);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">תחזוקה: נקה תור אחרי snapshot (${PENDING.length})</button>` : ''}
         <button onclick="createFullBackup()" style="width:100%;margin-bottom:8px;padding:11px;border:1.5px solid var(--accent);border-radius:10px;font-size:13px;font-weight:800;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit">גיבוי מלא לכל הטאבים</button>
+        ${renderSafetySnapshotPanel()}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <button onclick="exportJSON()" style="padding:10px;border:1px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;background:transparent;color:var(--text);cursor:pointer;font-family:inherit">📥 ייצוא JSON</button>
+          <button onclick="exportJSON()" style="padding:10px;border:1px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;background:transparent;color:var(--text);cursor:pointer;font-family:inherit">📥 ייצוא הוצאות JSON</button>
           <button onclick="exportCSV()" style="padding:10px;border:1px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;background:transparent;color:var(--text);cursor:pointer;font-family:inherit">📊 ייצוא CSV</button>
         </div>
         <label style="display:block;margin-top:8px;padding:10px;border:1px dashed var(--borderHi);border-radius:10px;text-align:center;font-size:12px;font-weight:600;color:var(--textDim);cursor:pointer">
@@ -5710,11 +6288,14 @@ function renderSettings() {
 function clearPendingQueue() {
   const n = PENDING.length;
   if (!n) return;
-  if (!confirm(`לנקות ${n} פעולות ממתינות?\n\nהנתונים יישמרו מקומית. הסנכרון יתחיל מחדש בצורה נקייה.`)) return;
+  if (!confirm(`לנקות ${n} פעולות ממתינות לסנכרון?\n\nלפני הניקוי יישמר snapshot מקומי מלא. הנתונים המקומיים לא יימחקו, אבל פעולות שלא עלו לענן יידחפו מחדש דרך גיבוי המערכת.`)) return;
+  const snapOk = saveLocalSafetySnapshot('clear_pending_queue', {pendingCount:n});
   PENDING.length = 0;
   localStorage.setItem('tari_pending_v1', '[]');
+  markDataStateDirty();
+  persistLocal();
   render();
-  toast('תור הסנכרון נוקה ✓', 'success');
+  toast(snapOk ? 'תור הסנכרון נוקה ונשמר snapshot מקומי' : 'תור הסנכרון נוקה, אך snapshot מקומי נכשל', snapOk ? 'success' : 'error');
   if (CFG.webAppUrl) syncAll();
 }
 
@@ -5845,13 +6426,15 @@ function importJSON(input) {
     try {
       const data = JSON.parse(e.target.result);
       if (!data.expenses || !Array.isArray(data.expenses)) throw new Error('קובץ לא תקין');
-      if (!confirm(`ייבוא יחליף את הנתונים הקיימים. יש ${data.expenses.length} הוצאות בקובץ. להמשיך?`)) return;
+      if (!confirm(`ייבוא יחליף את נתוני ההוצאות/קבועות/תשלומים הנוכחיים.\n\nלפני הייבוא יישמר snapshot מקומי מלא. בקובץ יש ${data.expenses.length} הוצאות. להמשיך?`)) return;
+      const snapOk = saveLocalSafetySnapshot('import_json', {fileName:file.name || '', incomingExpenses:data.expenses.length});
       DB.expenses = data.expenses || [];
       DB.fixed = data.fixed || [];
       DB.installments = data.installments || [];
+      markDataStateDirty();
       persistLocal();
       render();
-      toast(`יובאו ${DB.expenses.length} הוצאות`, 'success');
+      toast(snapOk ? `יובאו ${DB.expenses.length} הוצאות ונשמר snapshot קודם` : `יובאו ${DB.expenses.length} הוצאות, אך snapshot קודם נכשל`, snapOk ? 'success' : 'error');
     } catch(err) {
       toast('שגיאת ייבוא: ' + err.message, 'error');
     }
@@ -6094,6 +6677,7 @@ function handleCredentialResponse(response) {
 function initGoogleSignIn() {
   var loginScreen = document.getElementById('login-screen');
   if (!loginScreen || loginScreen.hidden) return;
+  if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) return;
   if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes('YOUR_CLIENT_ID')) {
     document.getElementById('login-err').textContent = '⚙️ יש להגדיר Client ID של Google';
     return;
@@ -6103,7 +6687,9 @@ function initGoogleSignIn() {
   google.accounts.id.prompt();
 }
 function onGoogleScriptLoad() {
-  if (!document.getElementById('login-screen').hidden) initGoogleSignIn();
+  window.__googleScriptLoaded = true;
+  const loginScreen = document.getElementById('login-screen');
+  if (loginScreen && !loginScreen.hidden) initGoogleSignIn();
 }
 
 function initApp() {
@@ -6443,8 +7029,11 @@ async function syncActiveOrders() {
       if (o.deliveryNoteImage) localImgMap[o.id] = o.deliveryNoteImage;
       if (o.deliveryNoteIds) localDnMap[o.id] = o.deliveryNoteIds;
     });
-    odb.activeOrders = cloud.map(o => ({ ...o, deliveryNoteImage: localImgMap[o.id] || null, deliveryNoteIds: localDnMap[o.id] || o.deliveryNoteIds || [] }));
-    saveOdb();
+    const cloudActiveOrders = cloud.map(o => ({ ...o, deliveryNoteImage: localImgMap[o.id] || null, deliveryNoteIds: localDnMap[o.id] || o.deliveryNoteIds || [] }));
+    const mergedActiveOrders = mergeByIdPreferCloud(odb.activeOrders || [], cloudActiveOrders);
+    const preservedLocalOrders = mergedActiveOrders.length > cloudActiveOrders.length;
+    odb.activeOrders = mergedActiveOrders;
+    saveOdb(preservedLocalOrders);
     if (state.tab === 'orders') render();
   } catch(e) { console.log('syncActiveOrders failed:', e.message); }
 }
@@ -9008,6 +9597,7 @@ function bulkProductsSetActive(active) {
 }
 function bulkProductsDelete() {
   if (!confirm('למחוק ' + (state.productsBulkSelected||[]).length + ' מוצרים?')) return;
+  saveLocalSafetySnapshot('bulk_delete_products', {ids:(state.productsBulkSelected || []).slice()});
   pdb.products = pdb.products.filter(p=>!(state.productsBulkSelected||[]).includes(p.id));
   savePdb(true); setState({productsBulkMode:false, productsBulkSelected:[]});
 }
@@ -9704,6 +10294,7 @@ function updateSupplierPrice(productId, idx, val) {
 
 function deleteProduct(productId) {
   if (!confirm('למחוק מוצר זה?')) return;
+  saveLocalSafetySnapshot('delete_product', {id:productId});
   pdb.products = pdb.products.filter(x => x.id !== productId);
   savePdb(true);
   setState({productsView:'list', productsDetailId:''});
@@ -10367,6 +10958,36 @@ function renderPayablesDashboard() {
     });
   });
 
+  const allDatedPayments = payments.filter(p => p.date).sort((a,b)=>a.date.localeCompare(b.date));
+  const allFuturePayments = allDatedPayments.filter(p => p.date >= today);
+  const allOverduePayments = allDatedPayments.filter(p => p.date < today);
+  const nextPayment = allFuturePayments[0] || allOverduePayments[allOverduePayments.length - 1] || payments.find(p => !p.date) || null;
+  function pvPaymentDateLabel(date) {
+    if (!date) return 'ללא תאריך פירעון';
+    const diff = Math.round((new Date(date + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+    if (diff < 0) return `באיחור ${Math.abs(diff)} ימים`;
+    if (diff === 0) return 'היום';
+    if (diff === 1) return 'מחר';
+    return `בעוד ${diff} ימים`;
+  }
+  const nextPaymentAction = nextPayment
+    ? (nextPayment.debtId ? `setState({payablesView:'debt',payablesDebtId:'${nextPayment.debtId}'})` : nextPayment.checkId ? `pvOpenEditCheck('${nextPayment.checkId}')` : '')
+    : '';
+  const nextPaymentTone = nextPayment && nextPayment.date && nextPayment.date < today ? 'var(--danger)' : 'var(--accent)';
+  const nextPaymentHtml = nextPayment ? `
+    <div onclick="${nextPaymentAction}" style="display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;background:var(--surface);border:1px solid rgba(143,198,80,0.28);margin-bottom:12px;cursor:${nextPaymentAction?'pointer':'default'}">
+      <div style="width:42px;height:42px;border-radius:12px;background:var(--accentSoft);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${pvGetMethodIcon(nextPayment.method)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;color:var(--textDim);font-weight:900;margin-bottom:2px">התשלום הבא</div>
+        <div style="font-size:15px;color:var(--text);font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nextPayment.supplier || 'ספק')}</div>
+        <div style="font-size:12px;color:${nextPaymentTone};font-weight:800;margin-top:2px">${pvPaymentDateLabel(nextPayment.date)}${nextPayment.date ? ` · ${fmtDate(nextPayment.date)}` : ''}${nextPayment.checkNumber ? ` · צ'ק ${esc(nextPayment.checkNumber)}` : ''}</div>
+      </div>
+      <div style="text-align:left;flex-shrink:0">
+        <div class="display" style="font-size:20px;color:${nextPaymentTone};font-weight:900">${fmtCurr(nextPayment.amount)}</div>
+        <div style="font-size:10.5px;color:var(--textMuted);font-weight:800;margin-top:2px">${pvOpenLabel(nextPayment.method).replace(/[^\u0590-\u05FF\s']/g,'').trim() || 'לתשלום'}</div>
+      </div>
+    </div>` : '';
+
   // Apply filter
   let filteredPayments = payments;
   if (pf === "צ'קים") filteredPayments = payments.filter(p => pvIsCheckMethod(p.method) || p.checkId || p.checkNumber || String(p.paymentStatus||'').includes('פירעון'));
@@ -10509,14 +11130,11 @@ function renderPayablesDashboard() {
   const noItems = sortedPayments.length === 0;
   const timelineHtml = `
     <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-      <span>📅 התחייבויות פתוחות</span>
-      <div style="display:flex;gap:5px">
-        <button onclick="setState({payablesView:'supplierBook'})" style="font-size:11px;padding:4px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--textDim);font-family:inherit;cursor:pointer">📒</button>
-      </div>
+      <span>📅 תשלומים צפויים לפי תאריך פירעון</span>
     </div>
     ${filterBar}
     ${noItems
-      ? `<div style="text-align:center;padding:28px 16px;color:var(--textMuted)"><div style="font-size:28px;margin-bottom:6px">✅</div><div style="font-size:13px;font-weight:600">אין התחייבויות פתוחות${pf!=='הכל'?' בפילטר הנוכחי':''}</div></div>`
+      ? `<div style="text-align:center;padding:28px 16px;color:var(--textMuted)"><div style="font-size:28px;margin-bottom:6px">✅</div><div style="font-size:13px;font-weight:600">אין תשלומים פתוחים${pf!=='הכל'?' בפילטר הנוכחי':''}</div></div>`
       : timelineRows + undatedHtml}`;
 
   // ── 5. FAB ───────────────────────────────────────────────────────────────
@@ -10525,8 +11143,7 @@ function renderPayablesDashboard() {
     {icon:'🧾', label:'חשבונית'},
     {icon:'💳', label:'תשלום'},
     {icon:'📝', label:"צ'ק"},
-    {icon:'📒', label:'ספר ספקים', action:`setState({pvFabOpen:false,payablesView:'supplierBook'})`},
-    {icon:'🏢', label:'ספק חדש', action:`pvOpenDirectDebt('')`},
+    {icon:'📋', label:'חשבוניות ספק', action:`setState({pvFabOpen:false,payablesView:'invoices'})`},
   ];
   const fabHtml = `
     ${state.pvFabOpen ? `
@@ -10544,6 +11161,7 @@ function renderPayablesDashboard() {
   return `<div style="padding:14px 14px 140px" class="fade-up" onclick="${state.pvFabOpen?'pvCloseFab()':''}">
     ${accountingAlert}
     ${overdueAlert}
+    ${nextPaymentHtml}
     ${summaryHtml}
     ${timelineHtml}
     ${renderPaidPaymentsSection()}
@@ -10938,7 +11556,7 @@ function renderPayablesDebt() {
 
   return `<div style="padding:16px 16px 90px" class="fade-up">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-      <button onclick="setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(debt.supplierName)}')})" style="width:38px;height:38px;border:none;border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center">‹</button>
+      <button onclick="setState({payablesView:'dashboard',payablesDebtId:''})" style="width:38px;height:38px;border:none;border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center">‹</button>
       <div style="flex:1;min-width:0">
         <h2 class="display" style="font-size:17px;margin:0">${esc(debt.supplierName)}</h2>
         <div style="font-size:12px;color:var(--textDim)">חשבונית: ${esc(debt.invoiceNumber||'ללא מספר')}</div>
@@ -11113,7 +11731,7 @@ function renderPayablesReconcile() {
         <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(e.supplier||'—')} · ${fmtDate(e.date)}</div>
         <div style="font-size:11px;color:var(--textDim)">${fmtCurr(e.total_amount)}</div>
       </div>
-      <button onclick="setState({payablesView:'supplier',payablesSupplier:'${esc(e.supplier||'')}',payablesSupplierTab:'dns'})" style="font-size:11px;padding:4px 10px;border:none;border-radius:7px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit;font-weight:700">טפל</button>
+      <button onclick="setState({payablesModal:'link-dn',payablesModalData:{supplier:'${esc(e.supplier||'')}',step:1,selectedDNIds:['${e.id}']}})" style="font-size:11px;padding:4px 10px;border:none;border-radius:7px;background:var(--accentSoft);color:var(--accent);cursor:pointer;font-family:inherit;font-weight:700">שייך</button>
     </div>`);
 
   const debtItems = sectionHtml('🔴', 'חשבוניות באיחור', 'var(--danger)', overdueDebts, d => `
@@ -11176,9 +11794,10 @@ function renderPayablesReconcile() {
 
 // ── Main renderPayables entry ────────────────────────────────────────────────
 function renderDesktopPayablesDrawer(item) {
-  if (!item) return `<aside class="desktop-drawer">${desktopEmpty('🏭','בחר תשלום או ספק','הפרטים והפעולות ייפתחו כאן בלי לעזוב את הרשימה')}</aside>`;
+  if (!item) return `<aside class="desktop-drawer">${desktopEmpty('💳','בחר תשלום','הפרטים והפעולות ייפתחו כאן בלי לעזוב את הרשימה')}</aside>`;
   const pair = desktopPaymentStatusText(item);
   const debt = item.type === 'debt' ? (pv.debts||[]).find(d=>d.id===item.id) : null;
+  const check = item.type === 'check';
   return `<aside class="desktop-drawer">
     <div class="desktop-section-head">
       <div><div class="desktop-section-title">${esc(item.supplier||'ספק')}</div><div class="desktop-muted">${fmtDate(item.date)} · ${fmtCurr(item.amount)}</div></div>
@@ -11196,7 +11815,8 @@ function renderDesktopPayablesDrawer(item) {
         ${debt?`<button class="desktop-mini-btn primary" onclick="setState({payablesView:'debt',payablesDebtId:'${item.id}'})">פתח תנועה מלאה</button>`:''}
         ${debt?`<button class="desktop-mini-btn" onclick="pvOpenEditDebt('${item.id}')">ערוך תנועה</button>`:''}
         ${debt?`<button class="desktop-mini-btn" onclick="pvOpenConfirm('${item.id}','debt')">סמן שולם</button>`:''}
-        <button class="desktop-mini-btn" onclick="setState({payablesView:'supplier',payablesSupplier:'${esc(item.supplier||'')}'})">פתח כרטיס ספק</button>
+        ${check?`<button class="desktop-mini-btn primary" onclick="pvOpenEditCheck('${item.id}')">ערוך צ׳ק</button>`:''}
+        ${check?`<button class="desktop-mini-btn" onclick="pvOpenConfirm('${item.id}','check')">סמן נפרע</button>`:''}
       </div>
     </div>
   </aside>`;
@@ -11218,7 +11838,7 @@ function renderDesktopPayables() {
   else if (pf === 'השבוע') rows = rows.filter(p => p.date && pvDateInDays(p.date,7));
   if (q) rows = rows.filter(p => searchIncludes([p.supplier,p.invoiceNumber,p.checkNumber,p.method].join(' '), q));
   const filters = ['הכל',"צ'קים",'העברות','מזומן','באיחור','השבוע'];
-  const openSupplierNames = [...new Set(payments.map(p=>p.supplier).filter(Boolean))];
+  const nextPayment = payments.find(p => p.date && !p.isOverdue) || payments.find(p => p.isOverdue) || payments[0] || null;
   const rowsHtml = rows.map(p => {
     const pair = desktopPaymentStatusText(p);
     return `<tr class="${selected && selected.id===p.id?'desktop-row-selected':''}" onclick="setState({payablesDesktopPaymentId:'${p.id}',payablesDebtId:'${p.type==='debt'?p.id:''}'})" style="cursor:pointer">
@@ -11231,12 +11851,12 @@ function renderDesktopPayables() {
     </tr>`;
   }).join('');
   return `<div class="desktop-page fade-up">
-    ${desktopPageHead('ספקים והתחייבויות', 'תזרים ספקים כרונולוגי, צ׳קים עתידיים ותשלומים לביצוע', `<button class="desktop-mini-btn primary" onclick="setState({payablesModal:'add-direct',payablesModalData:{}})">+ התחייבות</button><button class="desktop-mini-btn" onclick="setState({payablesView:'supplierBook'})">ספר ספקים</button>`)}
+    ${desktopPageHead('תשלומי ספקים', 'מה צפוי לרדת או לעבור, מסודר כרונולוגית לפי תאריכי פירעון', `<button class="desktop-mini-btn primary" onclick="setState({payablesModal:'add-direct',payablesModalData:{}})">+ התחייבות</button>`)}
     <div class="desktop-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
       ${desktopKpi('חוב פתוח', fmtCurr(payments.reduce((s,p)=>s+p.amount,0)), payments.length+' תשלומים')}
       ${desktopKpi('השבוע', fmtCurr(payments.filter(p=>p.date&&pvDateInDays(p.date,7)).reduce((s,p)=>s+p.amount,0)), 'לתשלום בקרוב', 'warn')}
       ${desktopKpi('באיחור', payments.filter(p=>p.isOverdue).length, 'דורש טיפול', payments.some(p=>p.isOverdue)?'danger':'ok')}
-      ${desktopKpi('ספקים פתוחים', openSupplierNames.length, 'כרטיסים עם פעילות', 'info')}
+      ${desktopKpi('התשלום הבא', nextPayment ? (nextPayment.date ? fmtDate(nextPayment.date) : 'ללא תאריך') : '—', nextPayment ? `${esc(nextPayment.supplier || 'ספק')} · ${fmtCurr(nextPayment.amount)}` : 'אין תשלום פתוח', 'info')}
     </div>
     <div class="desktop-work-grid">
       <section class="desktop-section">
@@ -11346,7 +11966,7 @@ function pvInvoiceSearchInput(val) {
   state.pvInvoiceLimit = 30;
   clearTimeout(pvInvoiceSearchTimer);
   pvInvoiceSearchTimer = setTimeout(() => {
-    if (state.tab === 'payables' && (!state.payablesView || state.payablesView === 'dashboard')) {
+    if (state.tab === 'payables' && (!state.payablesView || state.payablesView === 'dashboard' || state.payablesView === 'invoices')) {
       render();
       const inp = document.getElementById('pv-invoice-search-inp');
       if (inp) {
@@ -11362,7 +11982,7 @@ function pvInvoiceFilterChange(patch) {
   Object.assign(state, patch || {}, {pvInvoiceLimit:30});
   clearTimeout(pvInvoiceFilterTimer);
   pvInvoiceFilterTimer = setTimeout(() => {
-    if (state.tab === 'payables' && (!state.payablesView || state.payablesView === 'dashboard')) render();
+    if (state.tab === 'payables' && (!state.payablesView || state.payablesView === 'dashboard' || state.payablesView === 'invoices')) render();
   }, 180);
 }
 
@@ -11433,7 +12053,7 @@ function renderSupplierTrackingPanel() {
     </button>`;
   };
   const supplierRows = topSuppliers.length ? topSuppliers.map(s => `
-    <button onclick="setState({payablesView:'supplier',payablesSupplier:decodeURIComponent('${encodeURIComponent(s.name)}')})" style="width:100%;display:flex;align-items:center;gap:10px;border:none;border-bottom:1px solid var(--border);background:transparent;color:var(--text);padding:9px 0;font-family:inherit;text-align:right;cursor:pointer">
+    <button onclick="pvInvoiceFilterChange({payablesSearch:decodeURIComponent('${encodeURIComponent(s.name)}'),pvInvoiceQuick:'פתוחות'})" style="width:100%;display:flex;align-items:center;gap:10px;border:none;border-bottom:1px solid var(--border);background:transparent;color:var(--text);padding:9px 0;font-family:inherit;text-align:right;cursor:pointer">
       <span style="width:8px;height:8px;border-radius:50%;background:${s.overdue ? 'var(--danger)' : 'var(--amber)'};flex-shrink:0"></span>
       <span style="flex:1;min-width:0">
         <span style="display:block;font-size:13px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</span>
@@ -11458,7 +12078,7 @@ function renderSupplierTrackingPanel() {
       ${action('טיוטות', drafts.length, null, 'טיוטות לבדיקה', drafts.length?'warn':'ok')}
       ${action("צ'קים פתוחים", checkPending.length, checkPending.reduce((s,inv)=>s+pvInvoiceOpenAmount(inv),0), "צ'קים פתוחים", 'info')}
     </div>
-    <div style="font-size:11px;font-weight:900;color:var(--textDim);letter-spacing:.04em;text-transform:uppercase;margin:2px 0 6px">ספקים עם יתרה גבוהה</div>
+    <div style="font-size:11px;font-weight:900;color:var(--textDim);letter-spacing:.04em;text-transform:uppercase;margin:2px 0 6px">יתרות גבוהות לפי ספק</div>
     ${supplierRows}
   </section>`;
 }
@@ -11520,6 +12140,7 @@ function renderSupplierInvoicesTab() {
 
   return `<div style="padding:14px 14px 110px" class="fade-up">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <button onclick="setState({payablesView:'dashboard'})" style="width:38px;height:38px;border:none;border-radius:10px;background:var(--surfaceHi);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">‹</button>
       <div style="flex:1">
         <h2 class="display" style="font-size:20px;margin:0">חשבוניות ספק</h2>
         <div style="font-size:11px;color:var(--textDim);margin-top:2px">ניהול חשבוניות וחובות פתוחים בלבד. תעודות משלוח משויכות בלי מחיקה.</div>
@@ -11979,13 +12600,13 @@ function pvUnlinkDNFromSupplierInvoice(invId, dnId) {
 }
 
 function renderPayables() {
-  if (isDesktopMode()) return renderDesktopPayables();
   if (state.payablesView === 'invoice') return renderSupplierInvoiceDetail();
-  if (state.payablesView === 'supplier') return renderPayablesSupplier();
+  if (state.payablesView === 'invoices') return renderSupplierInvoicesTab();
+  if (isDesktopMode()) return renderDesktopPayables();
+  if (state.payablesView === 'supplier' || state.payablesView === 'supplierBook') return renderPayablesDashboard();
   if (state.payablesView === 'debt') return renderPayablesDebt();
   if (state.payablesView === 'reconcile') return renderPayablesReconcile();
-  if (state.payablesView === 'supplierBook') return renderPayablesSupplierBook();
-  return renderSupplierInvoicesTab();
+  return renderPayablesDashboard();
 }
 
 // ── Modals ───────────────────────────────────────────────────────────────────
@@ -12289,7 +12910,7 @@ function renderPvModalAddDirect() {
     ${selectedPaymentMethod === "צ'ק" ? `<div class="field"><label class="label">מספר צ'ק</label><input class="input" value="${esc(d.checkNumber||'')}" oninput="state.payablesModalData.checkNumber=this.value"></div>` : ''}
     ${pvInvoiceImagePickerHtml(d.invoiceImage||'')}
     <div class="field"><label class="label">הערות</label><input class="input" value="${esc(d.notes||'')}" oninput="state.payablesModalData.notes=this.value"></div>`;
-  return pvModalWrap('הוספת חוב ישיר', body, 'שמור', 'pvAddDirectConfirm', `setState({payablesModal:'',payablesModalData:null})`);
+  return pvModalWrap('הוספת התחייבות לתשלום', body, 'שמור', 'pvAddDirectConfirm', `setState({payablesModal:'',payablesModalData:null})`);
 }
 
 function pvAddDirectConfirm() {
@@ -12321,9 +12942,8 @@ function pvAddDirectConfirm() {
   pv.debts.push(debt);
   pvCreateSupplierInvoiceFromDebt(debt, {source:'direct-debt'});
   savePv(true);
-  const supName = debt.supplierName;
-  setState({payablesModal:'', payablesModalData:null, payablesView:'supplier', payablesSupplier:supName});
-  toast('חוב נוסף ✓', 'success');
+  setState({payablesModal:'', payablesModalData:null, payablesView:'debt', payablesDebtId:debt.id});
+  toast('התחייבות נוספה ✓', 'success');
 }
 
 function renderPvModalEditDebt() {
@@ -12602,7 +13222,7 @@ function pvCancelDebt(debtId) {
   debt.closedAt = Date.now();
   pvSyncSupplierInvoiceFromDebt(debt, 'cancel-debt');
   savePv(true);
-  setState({payablesView:'supplier', payablesSupplier:debt.supplierName});
+  setState({payablesView:'dashboard', payablesDebtId:''});
   toast('חוב בוטל', 'success');
 }
 
@@ -12612,7 +13232,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=117').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=121').then(reg => {
     reg.update();
   }).catch(() => {});
 }
