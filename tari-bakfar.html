@@ -1850,7 +1850,8 @@ function saveCategories(skipDirty) {
   localStorage.setItem('tari_cats_v1', JSON.stringify(CATS));
   if (!skipDirty) markCoreStateDirty();
 }
-const DTYPES = ["חשבונית מס","חשבונית מס קבלה","תעודת משלוח","קבלה"];
+const INVOICE_DOCUMENT_TYPES = ["חשבונית מס","חשבונית מס קבלה"];
+const DTYPES = [...INVOICE_DOCUMENT_TYPES,"תעודת משלוח"];
 const DEFAULT_EXPENSE_DOCUMENT_TYPE = "תעודת משלוח";
 const FIXED_CATS = ["שכירות","חשמל","מים","ארנונה","אינטרנט","טלפון","ביטוח","הנהלת חשבונות","רישיונות","משכורות","שיווק","אבטחה","תחזוקה","אחר"];
 const FIXED_FREQ = ["חודשי","דו-חודשי","רבעוני","חצי שנתי","שנתי"];
@@ -2009,6 +2010,60 @@ function toast(msg, type='info') {
 // categoryField – e.g. 'category' – auto-filled when a known supplier is chosen
 function supplierInput(formStateRef, fieldName, currentVal, categoryField) {
   return approvedSupplierInput(`${formStateRef}.${fieldName}`, currentVal, 'בחר ספק מאושר...', formStateRef, categoryField, true);
+}
+
+function isExpenseInvoiceType(type) {
+  return INVOICE_DOCUMENT_TYPES.includes(type);
+}
+
+function normalizeExpenseDocumentType(type) {
+  return isExpenseInvoiceType(type) ? type : DEFAULT_EXPENSE_DOCUMENT_TYPE;
+}
+
+function setExpenseDocumentMode(form, isInvoice) {
+  if (!form) return;
+  form.document_type = isInvoice
+    ? (isExpenseInvoiceType(form.document_type) ? form.document_type : 'חשבונית מס')
+    : DEFAULT_EXPENSE_DOCUMENT_TYPE;
+  if (isInvoice && !form.paymentMethod) form.paymentMethod = 'העברה';
+  if (!isInvoice) {
+    form.paymentDueDate = '';
+    form.paymentTerms = '';
+    form.paymentMethod = '';
+    form.sentToAccountant = false;
+    form.accountingSentAt = '';
+    form.expensePaid = false;
+    form.expensePaidAt = '';
+  }
+}
+
+function setExpenseInvoiceType(form, type) {
+  if (!form) return;
+  form.document_type = isExpenseInvoiceType(type) ? type : 'חשבונית מס';
+  if (!form.paymentMethod) form.paymentMethod = 'העברה';
+  if (form.document_type === 'חשבונית מס קבלה') {
+    form.expensePaid = true;
+    if (!form.expensePaidAt) form.expensePaidAt = todayISO();
+  }
+}
+
+function renderExpenseDocumentModeControls(formStateRef, formObj) {
+  const isInvoice = isExpenseInvoiceType(formObj?.document_type);
+  const btn = (label, active, action, sub) => `
+    <button type="button" onclick="${action};render()"
+      style="padding:11px;border:1.5px solid ${active?'var(--accent)':'var(--border)'};border-radius:12px;background:${active?'var(--accentSoft)':'var(--surfaceHi)'};color:${active?'var(--accent)':'var(--textDim)'};font-size:13px;font-weight:900;font-family:inherit;cursor:pointer;text-align:right">
+      <span style="display:block">${label}</span>
+      <span style="display:block;font-size:10.5px;font-weight:700;margin-top:2px;color:${active?'var(--accent)':'var(--textMuted)'}">${sub}</span>
+    </button>`;
+  return `
+    <div class="field">
+      <label class="label">סוג מסמך</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        ${btn('תעודת משלוח', !isInvoice, `setExpenseDocumentMode(${formStateRef}, false)`, 'נשמרת לשיוך')}
+        ${btn('חשבונית ספק', isInvoice, `setExpenseDocumentMode(${formStateRef}, true)`, 'פותחת חוב')}
+      </div>
+    </div>
+    ${isInvoice ? `<div class="field"><label class="label">סוג חשבונית</label><select class="input" onchange="setExpenseInvoiceType(${formStateRef}, this.value);render()">${INVOICE_DOCUMENT_TYPES.map(d=>`<option value="${esc(d)}" ${d===formObj.document_type?'selected':''}>${esc(d)}</option>`).join('')}</select></div>` : ''}`;
 }
 
 // Called onchange — fills category if supplier matches a known entry
@@ -2500,14 +2555,14 @@ ${knownSuppliers}
 {"date":"DD/MM/YYYY","supplier":"שם הספק","total_amount":0.00,"vat_amount":0.00,"amount_before_vat":0.00,"category":"פירות וירקות","document_type":"חשבונית מס","document_number":"","payment_terms":"","payment_due_date":"","is_paid":false,"notes":"","confidence":0.0,"needs_review_fields":[],"line_items":[{"name":"","quantity":0,"unit":"kg","unit_cost":0,"total_cost":0}]}
 
 קטגוריות: פירות וירקות, מוצרי חלב, פיצוחים, סחורה יבשה, הוצאות שוטפות, הוצאות משרד, אחר
-סוגי מסמך: חשבונית מס, חשבונית מס קבלה, תעודת משלוח, קבלה.
+סוגי מסמך מותרים: חשבונית מס, חשבונית מס קבלה, תעודת משלוח.
 
 הנחיות חובה:
 - supplier/date/total_amount/vat_amount/document_type/document_number הם שדות קריטיים. אם שדה לא קריא, החזר ערך ריק או 0 והוסף אותו ל-needs_review_fields.
 - document_number הוא מספר המסמך המודפס בלבד, לא מספר לקוח/הזמנה.
 - payment_due_date בפורמט YYYY-MM-DD רק אם מופיע במסמך. אם לא מופיע, השאר ריק.
 - payment_terms רק אם מופיעים במסמך כמו שוטף+30, מזומן, 30 יום.
-- is_paid=true רק אם המסמך הוא קבלה/חשבונית מס קבלה או מופיע ששולם.
+- is_paid=true רק אם המסמך הוא חשבונית מס קבלה או מופיע ששולם.
 - confidence הוא מספר בין 0 ל-1 לפי איכות הקריאה.
 - notes קצר מאוד ורק אם יש אזהרה שימושית.`;
 
@@ -2870,7 +2925,7 @@ function desktopAlertItems() {
   const dueDebts = debts.filter(d => { const dt = parseD(d.dueDate || d.date); return dt && dt <= soon; });
   const futureChecks = (DB.checks || []).filter(c => !c.cleared);
   const openOrders = ((odb && odb.activeOrders) || []);
-  const accPending = (DB.expenses || []).filter(e => ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type) && !e.sentToAccountant);
+  const accPending = (DB.expenses || []).filter(e => isExpenseInvoiceType(e.document_type) && !e.sentToAccountant);
   return {dueDebts, futureChecks, openOrders, accPending};
 }
 
@@ -3047,7 +3102,7 @@ function updateHeader() {
 
   const td = DB.expenses.filter(e=>isToday(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
   const tdCount = DB.expenses.filter(e=>isToday(e.date)).length;
-  const accPending = DB.expenses.filter(e=>['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)&&!e.sentToAccountant).length;
+  const accPending = DB.expenses.filter(e=>isExpenseInvoiceType(e.document_type)&&!e.sentToAccountant).length;
 
   const el = document.getElementById('month-total');
   if (el) el.innerHTML = `
@@ -3207,7 +3262,7 @@ function renderDesktopDashboard() {
   const payments = desktopPaymentsData();
   const dueSoon = payments.filter(p => p.date && !p.isOverdue && pvDateInDays(p.date, 7));
   const overdue = payments.filter(p => p.isOverdue);
-  const openExpenses = (DB.expenses || []).filter(e => ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type) && !e.sentToAccountant);
+  const openExpenses = (DB.expenses || []).filter(e => isExpenseInvoiceType(e.document_type) && !e.sentToAccountant);
   const productsNeedingCare = (pdb.products || []).filter(p => p.active !== false && (p.sellPrice == null || !(p.supplierPrices||[]).some(sp=>sp.buyPrice>0) || (calcMargin(p) != null && calcMargin(p) < 15)));
   const action = (txt, onclick, primary) => `<button class="desktop-mini-btn ${primary?'primary':''}" onclick="${onclick}">${txt}</button>`;
   const orderRows = activeOrders.slice(0,8).map(o => {
@@ -3274,7 +3329,7 @@ function renderDashboard() {
   const weekExpCount  = DB.expenses.filter(e=>isWeek(e.date)).length;
   const weekProfit    = weekIncTotal - weekExpTotal;
   const monthTotal    = DB.expenses.filter(e=>isMonth(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
-  const pendingAcc    = DB.expenses.filter(e=>['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)&&!e.sentToAccountant).length;
+  const pendingAcc    = DB.expenses.filter(e=>isExpenseInvoiceType(e.document_type)&&!e.sentToAccountant).length;
   const openChecks    = (DB.checks||[]).filter(c=>!c.cleared).sort((a,b)=>parseD(a.clearDate)-parseD(b.clearDate));
   const openChecksTotal = openChecks.reduce((s,c)=>s+(+c.amount||0),0);
   const overdueChecks = openChecks.filter(c=>checkUrgency(c.clearDate)==='overdue');
@@ -3325,7 +3380,7 @@ function renderDashboard() {
 
   const tableRow = e => {
     const c = getCatColor(e.category);
-    const needsAcc = ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type);
+    const needsAcc = isExpenseInvoiceType(e.document_type);
     const accPending = needsAcc && !e.sentToAccountant;
     const accOK = needsAcc && e.sentToAccountant;
     const docShort = {'תעודת משלוח':'ת"מ','חשבונית מס':'חשב"מ','חשבונית מס קבלה':'חשב"מ קבלה','קבלה':'קבלה'}[e.document_type] || (e.document_type||'—');
@@ -3535,11 +3590,11 @@ function renderScan() {
           <div class="field"><label class="label">מע"מ ₪</label><input class="input" type="number" value="${f.vat_amount}" oninput="state.scanForm.vat_amount=+this.value"></div>
         </div>
         <div class="field"><label class="label">קטגוריה</label><select class="input" onchange="state.scanForm.category=this.value">${CATS.map(c=>`<option ${c===f.category?'selected':''}>${c}</option>`).join('')}</select></div>
-        <div class="field"><label class="label">סוג מסמך</label><select class="input" onchange="state.scanForm.document_type=this.value">${DTYPES.map(d=>`<option ${d===f.document_type?'selected':''}>${d}</option>`).join('')}</select></div>
+        ${renderExpenseDocumentModeControls('state.scanForm', f)}
         <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(f.document_number)}" oninput="state.scanForm.document_number=this.value"></div>
         <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.scanForm.notes=this.value"></div>
         ${renderExpenseOrderLinkSelect('state.scanForm', f)}
-        ${['חשבונית מס','חשבונית מס קבלה'].includes(f.document_type)?`
+        ${isExpenseInvoiceType(f.document_type)?`
         <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
           <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">סטטוס חשבונית ספק</div>
           <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">אם החשבונית לא שולמה או לא עברה להנה"ח, היא תופיע בטאב תשלומי ספקים לפי תאריך התשלום. אם היא שולמה וגם עברה להנה"ח, היא תישמר בארכיון.</div>
@@ -3547,6 +3602,7 @@ function renderScan() {
             <div class="field"><label class="label">תאריך לתשלום</label><input class="input" type="date" value="${f.paymentDueDate||''}" oninput="state.scanForm.paymentDueDate=this.value"></div>
             <div class="field"><label class="label">תנאי תשלום</label><input class="input" placeholder="שוטף+30..." value="${esc(f.paymentTerms||'')}" oninput="state.scanForm.paymentTerms=this.value"></div>
           </div>
+          <div class="field"><label class="label">אמצעי תשלום</label><select class="input" onchange="state.scanForm.paymentMethod=this.value;render()">${PV_PAYMENT_METHODS.map(m=>`<option value="${esc(m)}" ${(f.paymentMethod||'העברה')===m?'selected':''}>${esc(m)}</option>`).join('')}</select></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <label style="display:flex;align-items:center;gap:8px;padding:11px;border:1px solid ${f.sentToAccountant?'rgba(34,197,94,0.35)':'var(--border)'};border-radius:12px;background:${f.sentToAccountant?'rgba(34,197,94,0.10)':'var(--surface)'};font-size:13px;font-weight:800;color:${f.sentToAccountant?'var(--accent)':'var(--textDim)'}">
               <input type="checkbox" ${f.sentToAccountant?'checked':''} onchange="state.scanForm.sentToAccountant=this.checked;if(this.checked&&!state.scanForm.accountingSentAt)state.scanForm.accountingSentAt=todayISO();render()" style="width:18px;height:18px;accent-color:var(--accent)"> עבר להנה"ח
@@ -3736,7 +3792,7 @@ function normalizeAiReviewFields(data, form) {
   if (!scanDateToISO(data?.date) || !scanDateToISO(form.date)) keys.push('date');
   if (!(+form.total_amount > 0)) keys.push('total_amount');
   if (!form.document_number) keys.push('document_number');
-  if (['חשבונית מס','חשבונית מס קבלה'].includes(form.document_type) && !(+form.vat_amount >= 0)) keys.push('vat_amount');
+  if (isExpenseInvoiceType(form.document_type) && !(+form.vat_amount >= 0)) keys.push('vat_amount');
   if ((form.aiConfidence || 0) > 0 && form.aiConfidence < 0.62) keys.push('confidence');
   return Array.from(new Set(keys)).map(scanReviewFieldLabel).filter(Boolean);
 }
@@ -3745,13 +3801,13 @@ function buildScanFormFromAI(data) {
   const supplierRaw = String(data?.supplier || data?.vendor || '').trim();
   const approvedSupplier = findApprovedSupplier(supplierRaw);
   const supplier = approvedSupplier?.name || supplierRaw;
-  const documentType = DTYPES.includes(data?.document_type) ? data.document_type : DEFAULT_EXPENSE_DOCUMENT_TYPE;
+  const documentType = normalizeExpenseDocumentType(data?.document_type);
   const date = scanDateToHe(data?.date) || todayStr();
   const lineItems = normalizeScanLineItems(data?.line_items);
   const supplierTerms = getScanSupplierPaymentTerms(supplier);
   const paymentTerms = String(data?.payment_terms || data?.paymentTerms || supplierTerms || '').trim();
   const paymentDueDate = scanDateToISO(data?.payment_due_date || data?.paymentDueDate || data?.due_date || '') || deriveScanPaymentDueDate(date, paymentTerms);
-  const paid = scanTruthy(data?.is_paid ?? data?.paid ?? data?.isPaid) || ['חשבונית מס קבלה','קבלה'].includes(documentType);
+  const paid = isExpenseInvoiceType(documentType) && (scanTruthy(data?.is_paid ?? data?.paid ?? data?.isPaid) || documentType === 'חשבונית מס קבלה');
   const totalAmount = scanAmount(data?.total_amount ?? data?.total ?? data?.amount);
   const vatAmount = scanAmount(data?.vat_amount ?? data?.vat);
   let beforeVat = scanAmount(data?.amount_before_vat ?? data?.subtotal ?? data?.before_vat);
@@ -3770,6 +3826,7 @@ function buildScanFormFromAI(data) {
     document_number: String(data?.document_number || data?.invoice_number || data?.number || '').trim(),
     paymentTerms,
     paymentDueDate,
+    paymentMethod: isExpenseInvoiceType(documentType) ? 'העברה' : '',
     linkedOrderId: '',
     sentToAccountant: false,
     accountingSentAt: '',
@@ -3870,6 +3927,7 @@ async function runScan() {
           category: CATS[0]||'אחר', document_type:DEFAULT_EXPENSE_DOCUMENT_TYPE,
           document_number:'', notes: addForm.notes || '',
           linkedOrderId: addForm.linkedOrderId || '',
+          paymentMethod: '',
           sentToAccountant: false, accountingSentAt: '',
           expensePaid: false, expensePaidAt: '',
           line_items: [],
@@ -3888,7 +3946,7 @@ function manualForm() {
     date:todayStr(),
     supplier: addForm.supplier || '',   // use pre-filled supplier if came from orders
     total_amount:0, vat_amount:0, amount_before_vat:0, category: CATS[0]||'אחר',
-    document_type:DEFAULT_EXPENSE_DOCUMENT_TYPE, document_number:'', line_items: [],
+    document_type:DEFAULT_EXPENSE_DOCUMENT_TYPE, document_number:'', paymentMethod:'', line_items: [],
     linkedOrderId: addForm.linkedOrderId || '',
     sentToAccountant: false, accountingSentAt: '',
     expensePaid: false, expensePaidAt: '',
@@ -4000,10 +4058,11 @@ function normalizeScanExpenseItem(raw) {
   item.id = item.id || uid();
   item.supplier = String(item.supplier || '').trim();
   item.category = item.category || CATS[0] || 'אחר';
-  item.document_type = item.document_type || DEFAULT_EXPENSE_DOCUMENT_TYPE;
+  item.document_type = normalizeExpenseDocumentType(item.document_type);
   item.document_number = String(item.document_number || '').trim();
   item.notes = String(item.notes || '').trim();
   item.paymentTerms = String(item.paymentTerms || '').trim();
+  item.paymentMethod = isExpenseInvoiceType(item.document_type) ? (item.paymentMethod || 'העברה') : '';
   item.line_items = normalizeScanLineItems(item.line_items);
   item.aiConfidence = normalizeAiConfidence(item.aiConfidence);
   item.aiReviewFields = Array.isArray(item.aiReviewFields) ? item.aiReviewFields.map(scanReviewFieldLabel).filter(Boolean) : [];
@@ -4073,7 +4132,7 @@ async function saveScanResult() {
     // ── Synchronous: apply locally + navigate in the SAME JS tick ──
     DB.expenses.unshift(localItem);
     applyExpenseOrderLink(localItem);
-    if (['חשבונית מס','חשבונית מס קבלה'].includes(localItem.document_type)) {
+    if (isExpenseInvoiceType(localItem.document_type)) {
       pvCreateDraftSupplierInvoiceFromExpense(localItem);
     } else if (localItem.document_type === 'תעודת משלוח') {
       pvRegisterDeliveryNoteFromExpense(localItem);
@@ -4165,7 +4224,7 @@ function renderExpenseListBody(rows) {
     const cardsHtml = g.items.map(e => {
       const c = getCatColor(e.category)||'var(--accent)';
       const isOpen = state.listOpen===e.id;
-      const needsAcc = ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type);
+      const needsAcc = isExpenseInvoiceType(e.document_type);
       const accPending = needsAcc && !e.sentToAccountant;
       const borderC = isOpen ? (accPending?'rgba(217,79,79,0.5)':c+'55') : (accPending?'rgba(217,79,79,0.3)':'var(--border)');
       const barC = accPending ? 'var(--danger)' : c;
@@ -4232,7 +4291,7 @@ function renderExpenseListBody(rows) {
 
 function renderDesktopExpenseDrawer(item) {
   if (!item) return `<aside class="desktop-drawer">${desktopEmpty('🧾','בחר הוצאה','לחיצה על שורה תפתח כאן את פרטי המסמך והפעולות')}</aside>`;
-  const needsAcc = ['חשבונית מס','חשבונית מס קבלה'].includes(item.document_type);
+  const needsAcc = isExpenseInvoiceType(item.document_type);
   return `<aside class="desktop-drawer">
     <div class="desktop-section-head">
       <div><div class="desktop-section-title">${esc(item.supplier || 'הוצאה')}</div><div class="desktop-muted">${fmtDate(item.date)} · ${esc(item.document_type||'מסמך')}</div></div>
@@ -4286,11 +4345,11 @@ function renderDesktopList() {
   const selected = rows.find(e => e.id === state.listOpen) || DB.expenses.find(e => e.id === state.listOpen);
   const total = rows.reduce((s,e)=>s+(+e.total_amount||0),0);
   const monthTotal = DB.expenses.filter(e=>isMonth(e.date)).reduce((s,e)=>s+(+e.total_amount||0),0);
-  const pendingAcc = DB.expenses.filter(e=>['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)&&!e.sentToAccountant).length;
+  const pendingAcc = DB.expenses.filter(e=>isExpenseInvoiceType(e.document_type)&&!e.sentToAccountant).length;
   const periods = ['הכל','היום','שבוע','חודש'];
   const cats = ['הכל', ...CATS];
   const statusFor = e => {
-    if (['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)) return e.sentToAccountant ? desktopStatus('הועברה','ok') : desktopStatus('ממתינה','warn');
+    if (isExpenseInvoiceType(e.document_type)) return e.sentToAccountant ? desktopStatus('הועברה','ok') : desktopStatus('ממתינה','warn');
     if (e.document_type === 'תעודת משלוח') return desktopStatus(e.linkedOrderId?'קושרה':'תעודה', e.linkedOrderId?'ok':'info');
     return desktopStatus(e.document_type || 'מסמך','neutral');
   };
@@ -4355,7 +4414,7 @@ function renderList() {
           ['החודש',fmtCurr(monthTotal),monthCount+' רשומות','var(--accent)'],
           ['השבוע',fmtCurr(weekTotal),weekCount+' רשומות','var(--text)'],
           ['בסינון הנוכחי',fmtCurr(total),rows.length+' רשומות','#2563EB'],
-          ['ממתינות להנה"ח',DB.expenses.filter(e=>['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type)&&!e.sentToAccountant).length+'','חשבוניות','var(--amber)'],
+          ['ממתינות להנה"ח',DB.expenses.filter(e=>isExpenseInvoiceType(e.document_type)&&!e.sentToAccountant).length+'','חשבוניות','var(--amber)'],
         ].map(([t,v,s,c])=>`
           <div class="scard" style="cursor:default">
             <div style="font-size:10px;color:#64748B;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">${t}</div>
@@ -4430,9 +4489,12 @@ function openEditExpense(id) {
   if (!e) return;
   setState({ editId: id, editForm: {
     supplier: e.supplier||'', date: e.date||'', category: e.category||CATS[0],
-    document_type: e.document_type||DTYPES[0], document_number: e.document_number||'',
+    document_type: normalizeExpenseDocumentType(e.document_type), document_number: e.document_number||'',
     notes: e.notes||'', total_amount: e.total_amount||0, vat_amount: e.vat_amount||0,
-    paymentDueDate: e.paymentDueDate||'', paymentTerms: e.paymentTerms||'', linkedOrderId: e.linkedOrderId||''
+    paymentDueDate: e.paymentDueDate||'', paymentTerms: e.paymentTerms||'', paymentMethod: e.paymentMethod||'',
+    sentToAccountant: !!e.sentToAccountant, accountingSentAt: e.accountingSentAt || '',
+    expensePaid: !!e.expensePaid, expensePaidAt: e.expensePaidAt || '',
+    linkedOrderId: e.linkedOrderId||''
   }});
 }
 
@@ -4459,17 +4521,27 @@ function renderEditModal() {
           <div class="field"><label class="label">מע"מ ₪</label><input class="input" type="number" value="${f.vat_amount}" oninput="state.editForm.vat_amount=+this.value"></div>
         </div>
         <div class="field"><label class="label">קטגוריה</label><select class="input" onchange="state.editForm.category=this.value">${CATS.map(c=>`<option ${c===f.category?'selected':''}>${c}</option>`).join('')}</select></div>
-        <div class="field"><label class="label">סוג מסמך</label><select class="input" onchange="state.editForm.document_type=this.value">${DTYPES.map(d=>`<option ${d===f.document_type?'selected':''}>${d}</option>`).join('')}</select></div>
+        ${renderExpenseDocumentModeControls('state.editForm', f)}
         <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(f.document_number)}" oninput="state.editForm.document_number=this.value"></div>
         <div class="field"><label class="label">הערות</label><input class="input" value="${esc(f.notes)}" oninput="state.editForm.notes=this.value"></div>
         ${renderExpenseOrderLinkSelect('state.editForm', f)}
-        ${['חשבונית מס','חשבונית מס קבלה'].includes(f.document_type)?`
+        ${isExpenseInvoiceType(f.document_type)?`
         <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
           <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">פרטי תשלום</div>
           <div class="row">
             <div class="field"><label class="label">תאריך לתשלום</label><input class="input" type="date" value="${f.paymentDueDate||''}" oninput="state.editForm.paymentDueDate=this.value"></div>
             <div class="field"><label class="label">תנאי תשלום</label><input class="input" placeholder="שוטף+30..." value="${esc(f.paymentTerms||'')}" oninput="state.editForm.paymentTerms=this.value"></div>
           </div>
+          <div class="field"><label class="label">אמצעי תשלום</label><select class="input" onchange="state.editForm.paymentMethod=this.value;render()">${PV_PAYMENT_METHODS.map(m=>`<option value="${esc(m)}" ${(f.paymentMethod||'העברה')===m?'selected':''}>${esc(m)}</option>`).join('')}</select></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <label style="display:flex;align-items:center;gap:8px;padding:11px;border:1px solid ${f.sentToAccountant?'rgba(34,197,94,0.35)':'var(--border)'};border-radius:12px;background:${f.sentToAccountant?'rgba(34,197,94,0.10)':'var(--surface)'};font-size:13px;font-weight:800;color:${f.sentToAccountant?'var(--accent)':'var(--textDim)'}">
+              <input type="checkbox" ${f.sentToAccountant?'checked':''} onchange="state.editForm.sentToAccountant=this.checked;if(this.checked&&!state.editForm.accountingSentAt)state.editForm.accountingSentAt=todayISO();render()" style="width:18px;height:18px;accent-color:var(--accent)"> עבר להנה"ח
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;padding:11px;border:1px solid ${f.expensePaid?'rgba(34,197,94,0.35)':'var(--border)'};border-radius:12px;background:${f.expensePaid?'rgba(34,197,94,0.10)':'var(--surface)'};font-size:13px;font-weight:800;color:${f.expensePaid?'var(--accent)':'var(--textDim)'}">
+              <input type="checkbox" ${f.expensePaid?'checked':''} onchange="state.editForm.expensePaid=this.checked;if(this.checked&&!state.editForm.expensePaidAt)state.editForm.expensePaidAt=todayISO();render()" style="width:18px;height:18px;accent-color:var(--accent)"> שולם
+            </label>
+          </div>
+          ${f.expensePaid ? `<div class="field" style="margin-top:10px"><label class="label">תאריך תשלום בפועל</label><input class="input" type="date" value="${f.expensePaidAt||todayISO()}" oninput="state.editForm.expensePaidAt=this.value"></div>` : ''}
         </div>`:''}
         <button class="btn-primary" style="width:100%;border:none;padding:14px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;border-radius:14px;margin-bottom:0" onclick="saveEditExpense()">שמור שינויים</button>
       </div>
@@ -4487,15 +4559,22 @@ async function saveEditExpense() {
   const updated = {
     ...(DB.expenses.find(e => e.id === editId) || {}),
     supplier: f.supplier, date: f.date, category: f.category,
-    document_type: f.document_type, document_number: f.document_number,
+    document_type: normalizeExpenseDocumentType(f.document_type), document_number: f.document_number,
     total_amount: +f.total_amount||0, vat_amount: +f.vat_amount||0,
     amount_before_vat: (+f.total_amount||0)-(+f.vat_amount||0), notes: f.notes,
     paymentDueDate: f.paymentDueDate||'', paymentTerms: f.paymentTerms||'',
+    paymentMethod: isExpenseInvoiceType(f.document_type) ? (f.paymentMethod || 'העברה') : '',
+    sentToAccountant: !!f.sentToAccountant,
+    accountingSentAt: f.sentToAccountant ? (f.accountingSentAt || todayISO()) : '',
+    expensePaid: !!f.expensePaid,
+    expensePaidAt: f.expensePaid ? (f.expensePaidAt || todayISO()) : '',
     linkedOrderId: f.linkedOrderId || '',
   };
   // ── Synchronous: apply locally + close modal in the SAME JS tick ──
   DB.expenses = DB.expenses.map(e => e.id === editId ? updated : e);
   applyExpenseOrderLink(updated);
+  if (isExpenseInvoiceType(updated.document_type)) pvCreateDraftSupplierInvoiceFromExpense(updated);
+  else if (updated.document_type === 'תעודת משלוח') pvRegisterDeliveryNoteFromExpense(updated);
   markDataStateDirty();
   persistLocal();
   setState({editId: null, editForm: null, listOpen: null}); // modal gone before first await
@@ -4574,7 +4653,7 @@ async function pushExpenseToCloud(id) {
 // ═══════════════════════════════════════════════════════════════════════════
 // VIEWS — ADD
 // ═══════════════════════════════════════════════════════════════════════════
-let addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:DEFAULT_EXPENSE_DOCUMENT_TYPE,document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",sentToAccountant:false,accountingSentAt:"",expensePaid:false,expensePaidAt:"",linkedOrderId:""};
+let addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:DEFAULT_EXPENSE_DOCUMENT_TYPE,document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",paymentMethod:"",sentToAccountant:false,accountingSentAt:"",expensePaid:false,expensePaidAt:"",linkedOrderId:""};
 
 function renderAdd() {
   return `
@@ -4587,11 +4666,11 @@ function renderAdd() {
         <div class="field"><label class="label">מע"מ</label><input id="add-vat-inp" class="input" type="number" placeholder="אוטו" value="${addForm.vat_amount}" oninput="addForm.vat_amount=this.value"></div>
       </div>
       <div class="field"><label class="label">קטגוריה</label><select class="input" onchange="addForm.category=this.value">${CATS.map(c=>`<option ${c===addForm.category?'selected':''}>${c}</option>`).join('')}</select></div>
-      <div class="field"><label class="label">סוג מסמך</label><select class="input" onchange="addForm.document_type=this.value">${DTYPES.map(d=>`<option ${d===addForm.document_type?'selected':''}>${d}</option>`).join('')}</select></div>
+      ${renderExpenseDocumentModeControls('addForm', addForm)}
       <div class="field"><label class="label">מספר מסמך</label><input class="input" value="${esc(addForm.document_number)}" oninput="addForm.document_number=this.value" onkeydown="if(event.key==='Enter')submitAdd()"></div>
       <div class="field"><label class="label">הערות</label><input class="input" value="${esc(addForm.notes)}" oninput="addForm.notes=this.value" onkeydown="if(event.key==='Enter')submitAdd()"></div>
       ${renderExpenseOrderLinkSelect('addForm', addForm)}
-      ${['חשבונית מס','חשבונית מס קבלה'].includes(addForm.document_type)?`
+      ${isExpenseInvoiceType(addForm.document_type)?`
       <div style="padding:12px 14px;border-radius:12px;background:var(--accentSoft);border:1px solid rgba(110,198,58,0.2);margin-bottom:12px">
         <div style="font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">סטטוס חשבונית ספק</div>
         <div style="font-size:12px;color:var(--textDim);line-height:1.45;margin-bottom:10px">אם החשבונית לא שולמה או לא עברה להנה"ח, היא תופיע בטאב תשלומי ספקים לפי תאריך התשלום. אם היא שולמה וגם עברה להנה"ח, היא תישמר בארכיון.</div>
@@ -4599,6 +4678,7 @@ function renderAdd() {
           <div class="field"><label class="label">תאריך לתשלום</label><input class="input" type="date" value="${addForm.paymentDueDate||''}" oninput="addForm.paymentDueDate=this.value"></div>
           <div class="field"><label class="label">תנאי תשלום</label><input class="input" placeholder="שוטף+30..." value="${esc(addForm.paymentTerms||'')}" oninput="addForm.paymentTerms=this.value"></div>
         </div>
+        <div class="field"><label class="label">אמצעי תשלום</label><select class="input" onchange="addForm.paymentMethod=this.value;render()">${PV_PAYMENT_METHODS.map(m=>`<option value="${esc(m)}" ${(addForm.paymentMethod||'העברה')===m?'selected':''}>${esc(m)}</option>`).join('')}</select></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <label style="display:flex;align-items:center;gap:8px;padding:11px;border:1px solid ${addForm.sentToAccountant?'rgba(34,197,94,0.35)':'var(--border)'};border-radius:12px;background:${addForm.sentToAccountant?'rgba(34,197,94,0.10)':'var(--surface)'};font-size:13px;font-weight:800;color:${addForm.sentToAccountant?'var(--accent)':'var(--textDim)'}">
             <input type="checkbox" ${addForm.sentToAccountant?'checked':''} onchange="addForm.sentToAccountant=this.checked;if(this.checked&&!addForm.accountingSentAt)addForm.accountingSentAt=todayISO();render()" style="width:18px;height:18px;accent-color:var(--accent)"> עבר להנה"ח
@@ -4632,6 +4712,8 @@ async function submitAdd() {
   addForm.supplier = supplier.name;
   if (supplier.defaultCategory) addForm.category = supplier.defaultCategory;
   const item = {...addForm, id:uid(), total_amount:+addForm.total_amount, vat_amount:+addForm.vat_amount||0, amount_before_vat:+addForm.amount_before_vat||0};
+  item.document_type = normalizeExpenseDocumentType(item.document_type);
+  item.paymentMethod = isExpenseInvoiceType(item.document_type) ? (item.paymentMethod || 'העברה') : '';
   item.sentToAccountant = !!item.sentToAccountant;
   item.accountingSentAt = item.sentToAccountant ? (item.accountingSentAt || todayISO()) : '';
   item.expensePaid = !!item.expensePaid;
@@ -4641,11 +4723,11 @@ async function submitAdd() {
   await queueAndSync('add_expense', {payload: item}, () => {
     DB.expenses.unshift(item);
     applyExpenseOrderLink(item);
-    if (['חשבונית מס','חשבונית מס קבלה'].includes(item.document_type)) pvCreateDraftSupplierInvoiceFromExpense(item);
+    if (isExpenseInvoiceType(item.document_type)) pvCreateDraftSupplierInvoiceFromExpense(item);
     else if (item.document_type === 'תעודת משלוח') pvRegisterDeliveryNoteFromExpense(item);
     processInvoiceLineItems(item);
   });
-  addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:DEFAULT_EXPENSE_DOCUMENT_TYPE,document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",sentToAccountant:false,accountingSentAt:"",expensePaid:false,expensePaidAt:"",isOpenDebt:true,linkedOrderId:""};
+  addForm = {date:todayStr(),supplier:"",total_amount:"",vat_amount:"",amount_before_vat:"",category:"אחר",document_type:DEFAULT_EXPENSE_DOCUMENT_TYPE,document_number:"",notes:"",paymentDueDate:"",paymentTerms:"",paymentMethod:"",sentToAccountant:false,accountingSentAt:"",expensePaid:false,expensePaidAt:"",isOpenDebt:true,linkedOrderId:""};
   toast('נשמר!', 'success');
   setState({tab:'list'});
 }
@@ -9167,11 +9249,63 @@ function pvCreateSupplierInvoiceFromDebt(debt, extra) {
   return inv;
 }
 
+function pvExpenseInvoiceNotes(item) {
+  return [item.notes || '', item.paymentTerms ? 'תנאים: ' + item.paymentTerms : ''].filter(Boolean).join(' · ');
+}
+
+function pvUpsertDebtFromExpenseInvoice(item, inv, dueDate) {
+  if (!item || !isExpenseInvoiceType(item.document_type)) return null;
+  if (!pv.debts) pv.debts = [];
+  const existing = pv.debts.find(d => d.expenseId === item.id);
+  const amount = +item.total_amount || +inv?.total_amount || 0;
+  const paymentMethod = item.paymentMethod || inv?.payment_method || 'העברה';
+  const base = {
+    supplierName: item.supplier || inv?.supplier_name || '',
+    taxInvoiceId: null,
+    expenseId: item.id,
+    invoiceNumber: item.document_number || inv?.invoice_number || '',
+    date: item.date || inv?.invoice_date || todayISO(),
+    amount,
+    dueDate: dueDate || item.paymentDueDate || inv?.due_date || '',
+    paymentMethod,
+    checkNumber: item.checkNumber || inv?.check_number || '',
+    invoiceImage: item.image || inv?.invoice_file || null,
+    paymentStatus: pvIsCheckMethod(paymentMethod) ? 'ממתין לפירעון' : 'ממתין',
+    notes: pvExpenseInvoiceNotes(item),
+    status: 'open'
+  };
+  let debt = existing;
+  if (debt) {
+    Object.assign(debt, base);
+    if (!Array.isArray(debt.payments)) debt.payments = [];
+    if (!(+debt.paidAmount > 0)) debt.paidAmount = 0;
+    if (!item.expensePaid && debt.payments.length === 0) {
+      debt.paidAmount = 0;
+      debt.paidDate = '';
+      debt.closedAt = '';
+    }
+  } else {
+    debt = {...base, id:uid(), paidAmount:0, payments:[], createdAt:Date.now()};
+    pv.debts.push(debt);
+  }
+  if (item.expensePaid) {
+    debt.paidAmount = amount;
+    debt.status = 'paid';
+    debt.paymentStatus = pvActionStatus(paymentMethod);
+    debt.paidDate = item.expensePaidAt || todayISO();
+    debt.closedAt = debt.closedAt || Date.now();
+  }
+  if (inv) {
+    inv.legacy_debt_id = debt.id;
+    inv.legacy_data = {...(inv.legacy_data || {}), debt:{...debt}};
+  }
+  return debt;
+}
+
 function pvCreateDraftSupplierInvoiceFromExpense(item) {
-  if (!item || !['חשבונית מס','חשבונית מס קבלה'].includes(item.document_type)) return null;
+  if (!item || !isExpenseInvoiceType(item.document_type)) return null;
   if (!pv.supplierInvoices) pv.supplierInvoices = [];
   const existing = pv.supplierInvoices.find(inv => inv.source_expense_id === item.id || (inv.legacy_data?.expense?.id && inv.legacy_data.expense.id === item.id));
-  if (existing) return existing;
   const supplier = findApprovedSupplier(item.supplier || '');
   const legacyExpense = {...item};
   delete legacyExpense.image;
@@ -9179,8 +9313,12 @@ function pvCreateDraftSupplierInvoiceFromExpense(item) {
   const isAccountingSent = !!item.sentToAccountant;
   const shouldArchive = isPaid && isAccountingSent;
   const paidAt = item.expensePaidAt || (isPaid ? todayISO() : '');
-  const dueDate = item.paymentDueDate || paidAt || heToISO(item.date || '') || todayISO();
-  const inv = pvNormalizeInvoice({
+  const invoiceDateIso = heToISO(item.date || '') || todayISO();
+  const dueDate = item.paymentDueDate || (isPaid ? (paidAt || invoiceDateIso) : '');
+  const invoiceFields = {
+    id: existing?.id,
+    created_at: existing?.created_at,
+    created_by: existing?.created_by || pvCurrentUserName(),
     supplier_id: supplier?.id || pvSupplierIdByName(item.supplier || ''),
     supplier_name: item.supplier || '',
     supplier_tax_id: item.supplier_tax_id || item.tax_id || '',
@@ -9190,30 +9328,45 @@ function pvCreateDraftSupplierInvoiceFromExpense(item) {
     vat_amount: +item.vat_amount || 0,
     total_amount: +item.total_amount || 0,
     payment_status: isPaid ? 'שולם' : 'לא שולם',
-    payment_method: item.paymentMethod || '',
+    payment_method: item.paymentMethod || 'העברה',
     due_date: dueDate,
     paid_at: paidAt,
+    check_number: item.checkNumber || existing?.check_number || '',
+    check_due_date: existing?.check_due_date || '',
+    check_bank: existing?.check_bank || '',
     accounting_sent: isAccountingSent,
     accounting_sent_at: isAccountingSent ? (item.accountingSentAt || todayISO()) : '',
     archived: shouldArchive,
     archived_at: shouldArchive ? new Date().toISOString() : '',
+    deleted: !!existing?.deleted,
+    deleted_at: existing?.deleted_at || '',
+    delete_reason: existing?.delete_reason || '',
     invoice_file: '',
-    notes: [item.notes || '', item.paymentTerms ? 'תנאים: ' + item.paymentTerms : ''].filter(Boolean).join(' · '),
+    delivery_note_ids: existing?.delivery_note_ids || [],
+    legacy_debt_id: existing?.legacy_debt_id || '',
+    legacy_tax_invoice_id: existing?.legacy_tax_invoice_id || '',
+    notes: pvExpenseInvoiceNotes(item),
     legacy_data: {expense:legacyExpense},
-    created_by: pvCurrentUserName(),
     updated_by: pvCurrentUserName()
-  });
+  };
+  const inv = existing || pvNormalizeInvoice(invoiceFields);
+  if (existing) Object.assign(inv, pvNormalizeInvoice(invoiceFields));
   inv.source_expense_id = item.id;
   inv.invoice_file_ref = item.image ? `expense:${item.id}` : '';
   inv.source_type = 'scan';
   inv.draft_origin = shouldArchive ? 'סריקה לארכיון' : 'סריקה לטיפול';
   inv.supplier_match_status = supplier ? 'matched' : 'requires_manual_link';
-  pv.supplierInvoices.push(inv);
+  if (!existing) pv.supplierInvoices.push(inv);
   if (isPaid) {
     if (!pv.supplierInvoicePayments) pv.supplierInvoicePayments = [];
-    pv.supplierInvoicePayments.push({id:uid(), invoice_id:inv.id, amount:+inv.total_amount||0, date:paidAt || todayISO(), method:inv.payment_method||'', reference:item.document_number||'', notes:'סומן שולם בקליטת הוצאה', created_at:new Date().toISOString(), created_by:pvCurrentUserName()});
+    if (!pv.supplierInvoicePayments.some(p => p.invoice_id === inv.id && p.notes === 'סומן שולם בקליטת הוצאה')) {
+      pv.supplierInvoicePayments.push({id:uid(), invoice_id:inv.id, amount:+inv.total_amount||0, date:paidAt || todayISO(), method:inv.payment_method||'', reference:item.document_number||'', notes:'סומן שולם בקליטת הוצאה', created_at:new Date().toISOString(), created_by:pvCurrentUserName()});
+    }
+  } else if (pv.supplierInvoicePayments) {
+    pv.supplierInvoicePayments = pv.supplierInvoicePayments.filter(p => !(p.invoice_id === inv.id && p.notes === 'סומן שולם בקליטת הוצאה'));
   }
-  pvInvoiceLog(inv.id, 'יצירת חשבונית', 'scan_status', '', shouldArchive ? 'שולם ועבר להנה"ח - ארכיון' : (isPaid ? 'שולם - ממתין להנה"ח' : 'לטיפול בספקים'), {source_expense_id:item.id, supplier_match_status:inv.supplier_match_status, paid:isPaid, accounting_sent:isAccountingSent});
+  pvUpsertDebtFromExpenseInvoice(item, inv, dueDate);
+  pvInvoiceLog(inv.id, existing ? 'עדכון חשבונית מהוצאה' : 'יצירת חשבונית', 'scan_status', '', shouldArchive ? 'שולם ועבר להנה"ח - ארכיון' : (isPaid ? 'שולם - ממתין להנה"ח' : 'לטיפול בספקים'), {source_expense_id:item.id, supplier_match_status:inv.supplier_match_status, paid:isPaid, accounting_sent:isAccountingSent, legacy_debt_id:inv.legacy_debt_id || ''});
   savePv(true);
   return inv;
 }
@@ -11657,7 +11810,7 @@ function _renderPayablesSupplierInner() {
     try {
       const tiLinkedExpIds = new Set(pv.debts.filter(d=>d.expenseId).map(d=>d.expenseId));
       expTis = (DB.expenses||[]).filter(e =>
-        ['חשבונית מס','חשבונית מס קבלה'].includes(e.document_type) &&
+        isExpenseInvoiceType(e.document_type) &&
         pvSupplierNorm(e.supplier) === norm &&
         !tiLinkedExpIds.has(e.id)
       );
@@ -13558,7 +13711,7 @@ function pvRecordPaymentConfirm() {
 // Auto-create debt from expense if isOpenDebt=true and it's an invoice type
 function pvAutoCreateDebtFromExpense(item) {
   if (!item) return;
-  if (!['חשבונית מס','חשבונית מס קבלה'].includes(item.document_type)) return;
+  if (!isExpenseInvoiceType(item.document_type)) return;
   if (item.isOpenDebt === false) return;
   // Don't create if debt already exists for this expense
   if (pv.debts.find(d => d.expenseId === item.id)) return;
@@ -13643,7 +13796,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=130').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=131').then(reg => {
     reg.update();
   }).catch(() => {});
 }
