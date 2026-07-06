@@ -2950,6 +2950,7 @@ let state = {
   supplierEditId: null, supplierEditName: '',
   payablesView: 'dashboard',
   payablesSearch: '',
+  payablesSearchOpen: false,
   pvInvoiceHistoryLoaded: false,
   pvInvoiceLimit: 30,
   payablesFilter: 'הכל',
@@ -11605,6 +11606,20 @@ function renderPayablesDashboard() {
 
   // ── 4. Payment timeline ─────────────────────────────────────────────────
   const pf = state.pvPaymentFilter || 'הכל';
+  const q = (state.payablesSearch || '').trim().toLowerCase();
+  function paymentMatchesDashboardSearch(p) {
+    if (!q) return true;
+    return searchIncludes([
+      p.supplier,
+      p.invoiceNumber,
+      p.checkNumber,
+      p.method,
+      p.paymentStatus,
+      p.accountingPassed ? 'הנהח כן עבר להנהח' : 'הנהח לא לא עבר להנהח',
+      p.debtId,
+      p.checkId
+    ].join(' '), q);
+  }
 
   const payments = [];
   activeDebts.forEach(d => {
@@ -11638,10 +11653,11 @@ function renderPayablesDashboard() {
     }));
   });
 
-  const allDatedPayments = payments.filter(p => p.date).sort((a,b)=>a.date.localeCompare(b.date));
+  const headlinePayments = q ? payments.filter(paymentMatchesDashboardSearch) : payments;
+  const allDatedPayments = headlinePayments.filter(p => p.date).sort((a,b)=>a.date.localeCompare(b.date));
   const allFuturePayments = allDatedPayments.filter(p => p.date >= today);
   const allOverduePayments = allDatedPayments.filter(p => p.date < today);
-  const nextPayment = allFuturePayments[0] || allOverduePayments[allOverduePayments.length - 1] || payments.find(p => !p.date) || null;
+  const nextPayment = allFuturePayments[0] || allOverduePayments[allOverduePayments.length - 1] || headlinePayments.find(p => !p.date) || null;
   function pvPaymentDateLabel(date) {
     if (!date) return 'ללא תאריך פירעון';
     const diff = Math.round((new Date(date + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
@@ -11679,6 +11695,7 @@ function renderPayablesDashboard() {
   else if (pf === 'השבוע') filteredPayments = payments.filter(p => p.date && p.date >= today && pvDateInDays(p.date,7));
   else if (pf === 'החודש') filteredPayments = payments.filter(p => p.date && p.date >= today && pvDateInDays(p.date,30));
   else if (pf === 'לא עבר הנה"ח') filteredPayments = payments.filter(p => !p.accountingPassed);
+  if (q) filteredPayments = filteredPayments.filter(paymentMatchesDashboardSearch);
 
   // Sort: no-date items last, overdue first, then future asc
   const noDate = filteredPayments.filter(p => !p.date);
@@ -11689,6 +11706,22 @@ function renderPayablesDashboard() {
 
   // ── Filter bar ──────────────────────────────────────────────────────────
   const filterOptions = ['הכל',"צ'קים",'העברות','מזומן','אשראי','אחר','באיחור','השבוע','החודש','לא עבר הנה"ח'];
+  const searchOpen = !!state.payablesSearchOpen || !!q;
+  const searchBar = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:${searchOpen?'8px':'12px'}">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase">📅 תשלומים צפויים לפי תאריך פירעון</div>
+        ${q ? `<div style="font-size:11px;color:var(--accent);font-weight:800;margin-top:3px">${sortedPayments.length} תוצאות עבור "${esc(state.payablesSearch)}"</div>` : ''}
+      </div>
+      <button type="button" onclick="pvTogglePaymentSearch(true)"
+        style="flex-shrink:0;display:inline-flex;align-items:center;gap:6px;border:1px solid ${searchOpen?'rgba(143,198,80,0.45)':'var(--border)'};border-radius:999px;background:${searchOpen?'var(--accentSoft)':'var(--surface)'};color:${searchOpen?'var(--accent)':'var(--textDim)'};padding:8px 12px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer;white-space:nowrap">
+        <span>🔍</span><span>חיפוש</span>
+      </button>
+    </div>
+    ${searchOpen ? `<div style="position:relative;margin-bottom:12px">
+      <input id="pv-payment-search-inp" type="search" class="input" placeholder="חיפוש ספק / חשבונית / צ׳ק / אמצעי תשלום" value="${esc(state.payablesSearch||'')}" oninput="pvPaymentSearchInput(this.value)" style="padding-inline-start:42px">
+      ${q ? `<button type="button" onclick="pvClearPaymentSearch()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;border-radius:50%;background:var(--borderHi);color:var(--textDim);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>` : ''}
+    </div>` : ''}`;
   const filterBar = `
     <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none">
       ${filterOptions.map(f=>`
@@ -11809,13 +11842,14 @@ function renderPayablesDashboard() {
     </div>` : '';
 
   const noItems = sortedPayments.length === 0;
+  const emptyText = q
+    ? `לא נמצאו תשלומים עבור "${esc(state.payablesSearch)}"`
+    : `אין תשלומים פתוחים${pf!=='הכל'?' בפילטר הנוכחי':''}`;
   const timelineHtml = `
-    <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-      <span>📅 תשלומים צפויים לפי תאריך פירעון</span>
-    </div>
+    ${searchBar}
     ${filterBar}
     ${noItems
-      ? `<div style="text-align:center;padding:28px 16px;color:var(--textMuted)"><div style="font-size:28px;margin-bottom:6px">✅</div><div style="font-size:13px;font-weight:600">אין תשלומים פתוחים${pf!=='הכל'?' בפילטר הנוכחי':''}</div></div>`
+      ? `<div style="text-align:center;padding:28px 16px;color:var(--textMuted)"><div style="font-size:28px;margin-bottom:6px">✅</div><div style="font-size:13px;font-weight:600">${emptyText}</div></div>`
       : timelineRows + undatedHtml}`;
 
   // ── 5. Add invoice action ───────────────────────────────────────────────
@@ -11895,6 +11929,40 @@ function pvSearchInput(val) {
   state.payablesSearch = val;
   const el = document.getElementById('pv-supplier-list');
   if (el) el.innerHTML = pvBuildSupplierListHtml(val);
+}
+
+let pvPaymentSearchTimer = null;
+function pvFocusPaymentSearch() {
+  const inp = document.getElementById('pv-payment-search-inp');
+  if (!inp) return;
+  inp.focus({preventScroll:true});
+  const pos = inp.value.length;
+  try { inp.setSelectionRange(pos, pos); } catch(e) {}
+}
+
+function pvTogglePaymentSearch(open) {
+  state.payablesSearchOpen = open === undefined ? !state.payablesSearchOpen : !!open;
+  render();
+  if (state.payablesSearchOpen) setTimeout(pvFocusPaymentSearch, 60);
+}
+
+function pvPaymentSearchInput(val) {
+  state.payablesSearch = val || '';
+  state.payablesSearchOpen = true;
+  clearTimeout(pvPaymentSearchTimer);
+  pvPaymentSearchTimer = setTimeout(() => {
+    if (state.tab === 'payables' && (!state.payablesView || state.payablesView === 'dashboard')) {
+      render();
+      pvFocusPaymentSearch();
+    }
+  }, 120);
+}
+
+function pvClearPaymentSearch() {
+  state.payablesSearch = '';
+  state.payablesSearchOpen = false;
+  clearTimeout(pvPaymentSearchTimer);
+  render();
 }
 
 // ── Supplier sub-view ────────────────────────────────────────────────────────
@@ -14036,7 +14104,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=132').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=133').then(reg => {
     reg.update();
   }).catch(() => {});
 }
