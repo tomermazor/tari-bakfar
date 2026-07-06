@@ -484,6 +484,31 @@ body { color-scheme:dark; }
 [data-theme="light"] .btn-primary { color:#fff; }
 .btn-secondary,.btn-ghost { background:var(--surfaceHi); border-color:var(--border); }
 .btn-secondary:hover,.btn-ghost:hover,.desktop-mini-btn:hover,.desktop-action-btn:hover { transform:translateY(-1px); }
+.action-pressed { transform:scale(0.98); filter:brightness(0.96); }
+.action-busy { position:relative; cursor:progress !important; opacity:0.78; }
+.action-busy:disabled { opacity:0.78 !important; cursor:progress !important; }
+.action-busy::after {
+  content:"";
+  position:absolute;
+  inset-inline-start:10px;
+  top:50%;
+  width:13px;
+  height:13px;
+  margin-top:-6.5px;
+  border:2px solid currentColor;
+  border-top-color:transparent;
+  border-radius:50%;
+  opacity:0.72;
+  animation:spin 0.72s linear infinite;
+  pointer-events:none;
+}
+.action-busy.action-small::after {
+  inset-inline-start:6px;
+  width:10px;
+  height:10px;
+  margin-top:-5px;
+  border-width:1.5px;
+}
 .card,.sync-tile,.desktop-kpi,.desktop-section,.desktop-drawer,.scard,
 .o-supplier-card,.o-product-row,.o-manage-row,.product-card,.detail-section,.pending-card,
 .debt-card,.summary-card,.debt-supplier-row,.invoice-row,.payment-row,.info-block,.progress-wrap,.ao-card {
@@ -1999,6 +2024,208 @@ function toast(msg, type='info') {
   setTimeout(()=>el.remove(), 3000);
 }
 
+const ACTION_GUARD_DEFAULT_MS = 9000;
+const ACTION_GUARD_MIN_BUSY_MS = 750;
+const ACTION_GUARD_NAMES = new Set([
+  'restoreLocalSafetySnapshot','saveFullBackup','createFullBackup','syncAll','triggerTopSync',
+  'saveWebApp','testConnection','runSyncDiagnose','saveApiKey','clearPendingQueue','clearCacheAndReload',
+  'addSupplier','deleteSupplier','saveEditSupplier','addUser','removeUser','toggleUserRole',
+  'runScan','saveScanResult','saveEditExpense','deleteExpense','toggleSentToAccountant','pushExpenseToCloud','submitAdd',
+  'saveFixed','toggleFixed','delFixed','saveInstall','markPaid','delInstall',
+  'saveWorker','toggleWorkerActive','deleteWorker','saveAdvance','deleteAdvance','clearPrevMonthAdvances',
+  'addCheck','toggleCheckCleared','deleteCheck','addCredit','receiveCredit','deleteCreditRequest',
+  'addIncome','syncAllIncomeToCloud','deleteIncome','addCat','deleteCat','renameCat','resetCats',
+  'ordersAddManualProduct','ordersRemoveManualItem','ordersClearOrder','ordersSaveDraftAndGo','ordersConfirmOrderSent',
+  'ordersExecuteTransfer','ordersConfirmAddSupplier','ordersAddProduct','ordersAddCategory','ordersDeleteCategory',
+  'ordersToggleProductActive','ordersToggleDefaultUnit','ordersDeleteProduct','ordersSaveSupplierName','ordersDeleteSupplier',
+  'ordersDuplicateSupplier','ordersMoveSupplierUp','ordersMoveSupplierDown','ordersDeleteActiveOrder','ordersCloseLinkedActiveOrder',
+  'ordersLinkDeliveryNote','ordersUnlinkDeliveryNote','ordersUploadDeliveryNote','ordersAddOrderToExpenses','ordersClearHistory',
+  'ordersEditProductName','ordersRenameCategory',
+  'bulkProductsSetCategory','bulkProductsSetActive','bulkProductsDelete','bulkProductsApplyEdit','approveOcrProductMatch',
+  'ignoreOcrProductLine','toggleProductActive','editProductName','editSellPrice','deleteProduct','confirmAddProduct',
+  'confirmAddSupplierPrice','confirmAddCostEvent','confirmBulkCat',
+  'pvOpenConfirm','pvConfirmPaidFromModal','pvSetPaymentStatus','pvQuickMarkPaid','pvQuickDelay','pvToggleAccounting',
+  'pvTogglePaymentAccounting','pvSaveSupplierInvoiceEdit','pvApproveSupplierInvoice','pvOpenSupplierInvoicePaidConfirmFromButton',
+  'pvConfirmSupplierInvoicePaid','pvMarkSupplierInvoicePaid','pvAddSupplierInvoicePartialPayment','pvToggleSupplierInvoiceAccounting',
+  'pvToggleSupplierInvoiceArchive','pvDeleteSupplierInvoice','pvRestoreDeletedSupplierInvoice','pvUnlinkDNFromSupplierInvoice',
+  'pvConfirmSupplierInvoiceLinkDN','pvLinkDNConfirm','pvAddDirectConfirm','pvEditDebtConfirm','pvEditCheckConfirm',
+  'pvRecordPaymentConfirm','pvAutoCreateDebtFromExpense','pvCancelDN','pvCreateDebtFromTI','pvCancelDebt','pvLinkCheckToDebt'
+]);
+const actionLocks = new Map();
+let actionRecentButton = null;
+let actionDuplicateToastAt = 0;
+
+function actionShowBusyToast(args) {
+  const first = args && args[0];
+  if (first && typeof first === 'object' && first.silent) return;
+  const now = Date.now();
+  if (now - actionDuplicateToastAt < 900) return;
+  actionDuplicateToastAt = now;
+  toast('הפעולה כבר מתבצעת, רגע...', 'info');
+}
+
+function actionKeyPart(value) {
+  if (value == null) return '';
+  const type = typeof value;
+  if (type === 'string' || type === 'number' || type === 'boolean') return String(value).slice(0, 90);
+  if (value && value.id) return 'id:' + String(value.id).slice(0, 90);
+  if (value && value.target && value.type) return 'event:' + value.type;
+  return Object.prototype.toString.call(value);
+}
+
+function actionLockKey(name, args) {
+  return name + '(' + Array.prototype.map.call(args || [], actionKeyPart).join('|') + ')';
+}
+
+function actionMarkButtonBusy(btn, opts = {}) {
+  if (!btn || !btn.classList) return;
+  btn.classList.add('action-busy');
+  if (btn.offsetWidth && btn.offsetWidth < 68) btn.classList.add('action-small');
+  btn.dataset.actionBusy = '1';
+  btn.dataset.actionBusyTentative = opts.tentative ? '1' : '0';
+  btn.setAttribute('aria-busy', 'true');
+}
+
+function actionReleaseButtonBusy(btn) {
+  if (!btn || !btn.classList) return;
+  btn.classList.remove('action-busy', 'action-small');
+  delete btn.dataset.actionBusy;
+  delete btn.dataset.actionBusyTentative;
+  btn.removeAttribute('aria-busy');
+}
+
+function actionPressFeedback(el) {
+  if (!el || !el.classList) return;
+  el.classList.add('action-pressed');
+  setTimeout(() => { if (el.classList) el.classList.remove('action-pressed'); }, 170);
+}
+
+function actionClosestClickable(target) {
+  let el = target;
+  if (el && el.nodeType !== 1) el = el.parentElement;
+  return el && typeof el.closest === 'function'
+    ? el.closest('button,[role="button"],.pill,.desktop-mini-btn,.desktop-action-btn')
+    : null;
+}
+
+function actionIsDisabled(el) {
+  return !el || el.disabled || el.getAttribute('aria-disabled') === 'true' || el.classList.contains('disabled');
+}
+
+function actionFunctionNames(code) {
+  const names = [];
+  String(code || '').replace(/\b([A-Za-z_$][\w$]*)\s*\(/g, function(_, name) {
+    names.push(name);
+    return _;
+  });
+  return names;
+}
+
+function actionGuardNameForElement(el) {
+  if (!el || !el.getAttribute) return '';
+  if (el.matches && el.matches('[data-pv-confirm-paid-final]')) return 'pvConfirmPaidFromModal';
+  if (el.matches && el.matches('[data-pv-confirm-invoice-paid-final]')) return 'pvConfirmSupplierInvoicePaid';
+  if (el.matches && el.matches('[data-pv-confirm-paid]')) return 'pvOpenConfirm';
+  if (el.matches && el.matches('[data-pv-paid-invoice]')) return 'pvOpenSupplierInvoicePaidConfirmFromButton';
+  if (el.matches && el.matches('[data-pv-accounting-toggle]')) return 'pvTogglePaymentAccounting';
+  const names = actionFunctionNames(el.getAttribute('onclick') || '');
+  return names.find(name => ACTION_GUARD_NAMES.has(name)) || '';
+}
+
+function actionHandleButtonClick(e) {
+  const el = actionClosestClickable(e.target);
+  if (!el || actionIsDisabled(el)) return;
+  actionPressFeedback(el);
+  const name = actionGuardNameForElement(el);
+  if (!name) return;
+  if (el.dataset.actionBusy === '1' && el.dataset.actionBusyTentative !== '1') {
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    actionShowBusyToast();
+    return;
+  }
+  actionRecentButton = {el, name, at:Date.now()};
+  actionMarkButtonBusy(el, {tentative:true});
+  setTimeout(function() {
+    if (el.dataset && el.dataset.actionBusyTentative === '1') actionReleaseButtonBusy(el);
+  }, 1400);
+}
+
+function actionAdoptRecentButton(name) {
+  if (!actionRecentButton) return null;
+  const recent = actionRecentButton;
+  if (recent.name !== name || Date.now() - recent.at > 1200) return null;
+  actionRecentButton = null;
+  actionMarkButtonBusy(recent.el);
+  return recent.el;
+}
+
+function actionFinishLock(key, token) {
+  const lock = actionLocks.get(key);
+  if (!lock || lock.token !== token) return;
+  const release = function() {
+    const current = actionLocks.get(key);
+    if (!current || current.token !== token) return;
+    clearTimeout(current.timer);
+    current.buttons.forEach(actionReleaseButtonBusy);
+    actionLocks.delete(key);
+  };
+  const delay = Math.max(ACTION_GUARD_MIN_BUSY_MS - (Date.now() - lock.started), 0);
+  setTimeout(release, delay);
+}
+
+function actionRunExclusive(name, args, fn, thisArg) {
+  const key = actionLockKey(name, args);
+  const active = actionLocks.get(key);
+  if (active && active.until > Date.now()) {
+    actionShowBusyToast(args);
+    return active.promise;
+  }
+  const token = name + ':' + Date.now() + ':' + Math.random();
+  const btn = actionAdoptRecentButton(name);
+  const lock = {
+    token,
+    started: Date.now(),
+    until: Date.now() + ACTION_GUARD_DEFAULT_MS,
+    buttons: btn ? [btn] : [],
+    timer: null,
+    promise: undefined
+  };
+  lock.timer = setTimeout(function() { actionFinishLock(key, token); }, ACTION_GUARD_DEFAULT_MS + 250);
+  actionLocks.set(key, lock);
+  try {
+    const result = fn.apply(thisArg, args);
+    if (result && typeof result.then === 'function') {
+      lock.promise = Promise.resolve(result).finally(function() { actionFinishLock(key, token); });
+      return lock.promise;
+    }
+    lock.promise = Promise.resolve(result);
+    actionFinishLock(key, token);
+    return result;
+  } catch (err) {
+    actionFinishLock(key, token);
+    throw err;
+  }
+}
+
+function guardActionFunction(name) {
+  const fn = window[name];
+  if (typeof fn !== 'function' || fn.__actionGuardWrapped) return;
+  const wrapped = function() {
+    return actionRunExclusive(name, arguments, fn, this);
+  };
+  wrapped.__actionGuardWrapped = true;
+  wrapped.__actionGuardOriginal = fn;
+  window[name] = wrapped;
+}
+
+function installActionGuards() {
+  ACTION_GUARD_NAMES.forEach(guardActionFunction);
+}
+
+document.addEventListener('click', actionHandleButtonClick, true);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SUPPLIER HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2295,17 +2522,29 @@ function pvRunPaidActionEvent(e, btn, lockKey, fn) {
   e.stopPropagation();
   if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
   const now = Date.now();
-  if (pvPaidActionLock.key === lockKey && now < pvPaidActionLock.until) return;
+  if (pvPaidActionLock.key === lockKey && now < pvPaidActionLock.until) {
+    actionShowBusyToast();
+    return;
+  }
   pvPaidActionLock = { key: lockKey, until: now + 700 };
-  if (btn.disabled) return;
+  if (btn.disabled || (btn.dataset.actionBusy === '1' && btn.dataset.actionBusyTentative !== '1')) {
+    actionShowBusyToast();
+    return;
+  }
   btn.disabled = true;
+  actionMarkButtonBusy(btn);
   try {
     fn();
   } catch(err) {
     console.error('[paid-action] failed', err);
     toast('הפעולה נכשלה: ' + (err.message || 'שגיאה לא ידועה'), 'error');
   } finally {
-    setTimeout(function() { if (btn.isConnected) btn.disabled = false; }, 700);
+    setTimeout(function() {
+      if (btn.isConnected) {
+        btn.disabled = false;
+        actionReleaseButtonBusy(btn);
+      }
+    }, 700);
   }
 }
 function pvHandlePaidInvoiceActionEvent(e) {
@@ -13791,12 +14030,13 @@ function pvCancelDebt(debtId) {
 }
 
 // ─── Initial render + sync ──────────────────────────────────────────────────
+installActionGuards();
 initTheme();
 ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=131').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=132').then(reg => {
     reg.update();
   }).catch(() => {});
 }
