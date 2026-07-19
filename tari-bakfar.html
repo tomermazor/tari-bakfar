@@ -1074,6 +1074,11 @@ function applyDataCloudState(cloud) {
   APP_META.dataLastSynced = preservedLocalData ? 0 : Date.now();
   saveAppMeta();
   persistLocal();
+  try {
+    pvRestoreMissingSupplierPayablesFromExpenses({silent:true});
+  } catch(e) {
+    console.warn('supplier payables recovery from expenses skipped:', e.message);
+  }
   if (preservedLocalData) scheduleAutoSync();
 }
 
@@ -1138,11 +1143,55 @@ function ensureExistingLocalStoresCanSync() {
   }
 }
 
+const PAYABLES_RECOVERY_STATE_KEY = 'payables_recovery_latest';
+const PAYABLES_MEDIA_FIELDS = new Set([
+  'invoice_file', 'invoiceImage', 'image', 'file_data', 'fileData',
+  'data_url', 'dataUrl', 'base64'
+]);
+
+function stripPayablesCloudMedia(value, field) {
+  if (PAYABLES_MEDIA_FIELDS.has(field)) return '';
+  if (Array.isArray(value)) return value.map(item => stripPayablesCloudMedia(item, ''));
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+    key,
+    stripPayablesCloudMedia(item, key)
+  ]));
+}
+
 function buildPayablesCloudState() {
+  try {
+    pvRestoreMissingSupplierPayablesFromExpenses({silent:true});
+  } catch(e) {
+    console.warn('supplier payables recovery skipped before cloud snapshot:', e.message);
+  }
+  const compact = stripPayablesCloudMedia(pv, '');
   return {
-    ...pv,
+    ...compact,
+    _payloadVersion: 2,
     _localModified: pv._localModified || 0,
+    _itemCounts: {
+      supplierInvoices: (pv.supplierInvoices || []).length,
+      debts: (pv.debts || []).length
+    }
   };
+}
+
+function payablesStateContainsAll(expected, actual) {
+  if (!expected || !actual) return false;
+  const keys = [
+    'debts', 'taxInvoices', 'supplierInvoices', 'supplierInvoicePayments',
+    'supplierInvoiceDeliveryNotes', 'supplierInvoiceFiles', 'supplierInvoiceActivityLog'
+  ];
+  return keys.every(key => {
+    const expectedRows = Array.isArray(expected[key]) ? expected[key] : [];
+    const actualRows = Array.isArray(actual[key]) ? actual[key] : [];
+    if (actualRows.length < expectedRows.length) return false;
+    const expectedIds = expectedRows.map(row => row && row.id).filter(Boolean).map(String);
+    if (!expectedIds.length) return true;
+    const actualIds = new Set(actualRows.map(row => row && row.id).filter(Boolean).map(String));
+    return expectedIds.every(id => actualIds.has(id));
+  });
 }
 
 function payablesItemTimestamp(item) {
@@ -1245,6 +1294,7 @@ function applyPayablesCloudState(cloud) {
   (pv.supplierInvoices||[]).forEach(inv => { if (!inv.invoice_file && localInvoiceFiles[inv.id]) inv.invoice_file = localInvoiceFiles[inv.id]; });
   pv._lastSynced = Date.now();
   savePv(preservedLocalPayables);
+  pvRestoreMissingSupplierPayablesFromExpenses({silent:true});
   pvRestoreMissingSupplierInvoiceExpenses({silent:true});
 }
 
@@ -1588,15 +1638,93 @@ function applyOrdersCloudState(cloud) {
   saveOdb(preservedLocalSuppliers || preservedLocalOrders || preservedLocalHistory);
 }
 
+async function saveCloudAppState(key, payload) {
+  if (key !== 'payables') {
+    return cloudCall('save_app_state', {key, payload});
+  }
+  const compact = stripPayablesCloudMedia(payload, '');
+  if (!cloudStateHasMeaningfulPayload('payables', compact)) {
+    throw new Error('Blocked empty payables cloud save');
+  }
+
+  // Verify a separate recovery slot before the canonical state is touched.
+  await cloudCall('save_app_state', {key:PAYABLES_RECOVERY_STATE_KEY, payload:compact});
+  const verifiedRecovery = await cloudCall(
+    'get_app_state',
+    {key:PAYABLES_RECOVERY_STATE_KEY},
+    {cache:false}
+  );
+  if (!cloudStateHasMeaningfulPayload('payables', verifiedRecovery) ||
+      !payablesStateContainsAll(compact, verifiedRecovery)) {
+    throw new Error('Payables recovery verification failed');
+  }
+  return cloudCall('save_app_state', {key, payload:compact});
+}
+
+async function saveLegacyPayablesIfSmall(payload) {
+  const compact = stripPayablesCloudMedia(payload, '');
+  const bytes = new Blob([JSON.stringify(compact)]).size;
+  if (bytes > 45000) {
+    console.warn(`Skipped unsafe legacy payables save (${bytes} bytes)`);
+    return false;
+  }
+  await cloudCall('save_payables', {payload:compact});
+  return true;
+}
+
 async function syncCloudStateBlob(key, buildFn, applyFn, getLocalModified) {
   let cloud = null;
   try {
-    cloud = await cloudCall('get_app_state', {key});
+    cloud = await cloudCall('get_app_state', {key}, {cache:false});
   } catch(e) {
     const msg = (e.message || '').toLowerCase();
     if (msg.includes('unknown action')) return false;
     throw e;
   }
+
+  if (key === 'payables') {
+    const canonical = cloud;
+    const canonicalMeaningful = cloudStateHasMeaningfulPayload('payables', canonical);
+    let recoveredFromShadow = false;
+    try {
+      const recovery = await cloudCall(
+        'get_app_state',
+        {key:PAYABLES_RECOVERY_STATE_KEY},
+        {cache:false}
+      );
+      if (cloudStateHasMeaningfulPayload('payables', recovery)) {
+        recoveredFromShadow = !canonicalMeaningful || !payablesStateContainsAll(recovery, canonical);
+        cloud = canonicalMeaningful ? mergePayablesState(canonical, recovery) : recovery;
+      }
+    } catch(e) {
+      console.warn('payables recovery slot unavailable:', e.message);
+    }
+
+    try {
+      pvRestoreMissingSupplierPayablesFromExpenses({silent:true});
+    } catch(e) {
+      console.warn('payables recovery from expenses unavailable:', e.message);
+    }
+
+    const hasCloudPayload = cloudStateHasMeaningfulPayload('payables', cloud);
+    if (hasCloudPayload) applyFn(cloud);
+    const localPayload = buildFn();
+    if (!cloudStateHasMeaningfulPayload('payables', localPayload)) return false;
+    if (hasCloudPayload && !payablesStateContainsAll(cloud, localPayload)) {
+      console.warn('Blocked incomplete local payables state from overwriting cloud data');
+      applyFn(cloud);
+      return true;
+    }
+
+    const localMod = +getLocalModified() || 0;
+    const cloudMod = +(cloud && cloud._localModified) || 0;
+    const canonicalMissingRows = canonicalMeaningful && !payablesStateContainsAll(localPayload, canonical);
+    if (!canonicalMeaningful || recoveredFromShadow || canonicalMissingRows || localMod > cloudMod) {
+      await saveCloudAppState('payables', localPayload);
+    }
+    return true;
+  }
+
   const localMod = +getLocalModified() || 0;
   const cloudMod = +(cloud && cloud._localModified) || 0;
   const hasCloudPayload = cloudStateHasMeaningfulPayload(key, cloud);
@@ -1604,7 +1732,7 @@ async function syncCloudStateBlob(key, buildFn, applyFn, getLocalModified) {
   if (localMod > cloudMod) {
     const localPayload = buildFn();
     if (cloudStateHasMeaningfulPayload(key, localPayload)) {
-      await cloudCall('save_app_state', {key, payload: localPayload});
+      await saveCloudAppState(key, localPayload);
     } else if (hasCloudPayload) {
       console.warn(`Blocked empty local ${key} app_state from overwriting cloud data`);
       applyFn(cloud);
@@ -1616,7 +1744,7 @@ async function syncCloudStateBlob(key, buildFn, applyFn, getLocalModified) {
   } else if (localMod > 0) {
     const localPayload = buildFn();
     if (cloudStateHasMeaningfulPayload(key, localPayload)) {
-      await cloudCall('save_app_state', {key, payload: localPayload});
+      await saveCloudAppState(key, localPayload);
     } else {
       return false;
     }
@@ -1626,19 +1754,23 @@ async function syncCloudStateBlob(key, buildFn, applyFn, getLocalModified) {
 
 let LAST_EXTENDED_SYNC = {};
 async function syncExtendedAppState() {
-  const tasks = [
-    ['core', syncCloudStateBlob('core', buildCoreCloudState, applyCoreCloudState, () => APP_META.coreLocalModified || 0)],
-    ['data', syncCloudStateBlob('data', buildDataCloudState, applyDataCloudState, () => APP_META.dataLocalModified || 0)],
-    ['payables', syncCloudStateBlob('payables', buildPayablesCloudState, applyPayablesCloudState, () => pv._localModified || 0)],
-    ['products', syncCloudStateBlob('products', buildProductsCloudState, applyProductsCloudState, () => pdb._localModified || 0)],
-    ['orders', syncCloudStateBlob('orders', buildOrdersCloudState, applyOrdersCloudState, () => odb._localModified || 0)],
-  ];
-  const results = await Promise.all(tasks.map(([key, promise]) => promise.then(ok => [key, !!ok]).catch(e => {
+  const run = ([key, promise]) => promise.then(ok => [key, !!ok]).catch(e => {
     const msg = (e.message || '').toLowerCase();
     if (msg.includes('unknown action')) return [key, false];
     console.warn('extended sync failed:', e.message);
     return [key, false];
-  })));
+  });
+  const tasks = [
+    ['core', syncCloudStateBlob('core', buildCoreCloudState, applyCoreCloudState, () => APP_META.coreLocalModified || 0)],
+    ['data', syncCloudStateBlob('data', buildDataCloudState, applyDataCloudState, () => APP_META.dataLocalModified || 0)],
+    ['products', syncCloudStateBlob('products', buildProductsCloudState, applyProductsCloudState, () => pdb._localModified || 0)],
+    ['orders', syncCloudStateBlob('orders', buildOrdersCloudState, applyOrdersCloudState, () => odb._localModified || 0)],
+  ];
+  const results = await Promise.all(tasks.map(run));
+  results.push(await run([
+    'payables',
+    syncCloudStateBlob('payables', buildPayablesCloudState, applyPayablesCloudState, () => pv._localModified || 0)
+  ]));
   LAST_EXTENDED_SYNC = Object.fromEntries(results);
   return results.every(([, ok]) => ok);
 }
@@ -1700,9 +1832,11 @@ async function syncAll(opts) {
         savePdb(false);
       }
       if (!LAST_EXTENDED_SYNC.payables && (pv._localModified || 0) > (pv._lastSynced || 0)) {
-        await cloudCall('save_payables', {payload: buildPayablesCloudState()});
-        pv._lastSynced = Date.now();
-        savePv(false);
+        const saved = await saveLegacyPayablesIfSmall(buildPayablesCloudState());
+        if (saved) {
+          pv._lastSynced = Date.now();
+          savePv(false);
+        }
       }
       if (!LAST_EXTENDED_SYNC.orders && (odb._localModified || 0) > (odb._lastSynced || 0)) {
         await cloudCall('save_suppliers', {payload: odb.suppliers || []});
@@ -1734,6 +1868,7 @@ async function syncAll(opts) {
       DB.expenses = dedup([...(DB.expenses || []), ...expRows]); // merge legacy rows back into stale app_state
       mergeAccFlags(DB.expenses);
       if (expRows.length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); }
+      pvRestoreMissingSupplierPayablesFromExpenses({silent:true});
     }
     if (fix !== null && ((fix||[]).length > 0 || DB.fixed.length === 0)) { DB.fixed = mergeByIdPreferCloud(DB.fixed, fix || []); if ((fix||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
     if (ins !== null && ((ins||[]).length > 0 || DB.installments.length === 0)) { DB.installments = mergeByIdPreferCloud(DB.installments, ins || []); if ((ins||[]).length > 0) { APP_META.dataLocalModified = Date.now(); APP_META.dataLastSynced = 0; saveAppMeta(); } }
@@ -1769,8 +1904,8 @@ async function syncAll(opts) {
         savePdb(false);
       }
       if (pay !== null) applyPayablesCloudState(pay);
-      else if ((pv.debts||[]).length || (pv.taxInvoices||[]).length) {
-        try { await cloudCall('save_payables', {payload: buildPayablesCloudState()}); } catch(e) {}
+      else if ((pv.debts||[]).length || (pv.taxInvoices||[]).length || (pv.supplierInvoices||[]).length) {
+        try { await saveLegacyPayablesIfSmall(buildPayablesCloudState()); } catch(e) {}
       }
       if (osup !== null && ((osup||[]).length > 0 || odb.suppliers.length === 0)) {
         const mergedSuppliers = mergeOrderSuppliers(odb.suppliers || [], osup || []);
@@ -7432,6 +7567,7 @@ function initApp() {
   migrateApprovedSuppliers();
   seedSupplierProfiles();
   auditApprovedSuppliers();
+  pvRestoreMissingSupplierPayablesFromExpenses({silent:true});
   pvRestoreMissingSupplierInvoiceExpenses({silent:true});
   if (pdb.products.length === 0) importProductsFromOrders();
   loadOdb();
@@ -9662,7 +9798,10 @@ function pvExpenseInvoiceNotes(item) {
 function pvUpsertDebtFromExpenseInvoice(item, inv, dueDate) {
   if (!item || !isExpenseInvoiceType(item.document_type)) return null;
   if (!pv.debts) pv.debts = [];
-  const existing = pv.debts.find(d => d.expenseId === item.id);
+  const existing = pv.debts.find(d =>
+    d.expenseId === item.id ||
+    (inv && (d.sourceSupplierInvoiceId === inv.id || d.supplierInvoiceId === inv.id))
+  );
   const amount = +item.total_amount || +inv?.total_amount || 0;
   const paymentMethod = item.paymentMethod || inv?.payment_method || 'העברה';
   const base = {
@@ -9678,7 +9817,9 @@ function pvUpsertDebtFromExpenseInvoice(item, inv, dueDate) {
     invoiceImage: item.image || inv?.invoice_file || null,
     paymentStatus: pvIsCheckMethod(paymentMethod) ? 'ממתין לפירעון' : 'ממתין',
     notes: pvExpenseInvoiceNotes(item),
-    status: 'open'
+    status: 'open',
+    sourceSupplierInvoiceId: inv?.id || '',
+    supplierInvoiceId: inv?.id || ''
   };
   let debt = existing;
   if (debt) {
@@ -9711,7 +9852,12 @@ function pvUpsertDebtFromExpenseInvoice(item, inv, dueDate) {
 function pvCreateDraftSupplierInvoiceFromExpense(item) {
   if (!item || !isExpenseInvoiceType(item.document_type)) return null;
   if (!pv.supplierInvoices) pv.supplierInvoices = [];
-  const existing = pv.supplierInvoices.find(inv => inv.source_expense_id === item.id || (inv.legacy_data?.expense?.id && inv.legacy_data.expense.id === item.id));
+  const linkedInvoiceId = item.supplier_invoice_id || item.linkedSupplierInvoiceId || item.sourceSupplierInvoiceId || '';
+  const existing = pv.supplierInvoices.find(inv =>
+    (linkedInvoiceId && String(inv.id || '') === String(linkedInvoiceId)) ||
+    inv.source_expense_id === item.id ||
+    (inv.legacy_data?.expense?.id && inv.legacy_data.expense.id === item.id)
+  );
   const supplier = findApprovedSupplier(item.supplier || '');
   const legacyExpense = {...item};
   delete legacyExpense.image;
@@ -9722,7 +9868,7 @@ function pvCreateDraftSupplierInvoiceFromExpense(item) {
   const invoiceDateIso = heToISO(item.date || '') || todayISO();
   const dueDate = item.paymentDueDate || (isPaid ? (paidAt || invoiceDateIso) : '');
   const invoiceFields = {
-    id: existing?.id,
+    id: existing?.id || linkedInvoiceId || undefined,
     created_at: existing?.created_at,
     created_by: existing?.created_by || pvCurrentUserName(),
     supplier_id: supplier?.id || pvSupplierIdByName(item.supplier || ''),
@@ -13394,6 +13540,154 @@ function pvEnsureExpenseForSupplierInvoice(inv) {
   return expense;
 }
 
+function pvRestoreMissingSupplierPayablesFromExpenses(options) {
+  const opts = options || {};
+  if (!Array.isArray(DB.expenses)) return 0;
+  if (!Array.isArray(pv.supplierInvoices)) pv.supplierInvoices = [];
+  if (!Array.isArray(pv.debts)) pv.debts = [];
+  let restoredInvoices = 0;
+  let restoredDebts = 0;
+  let changed = false;
+
+  (DB.expenses || []).forEach(expense => {
+    const invoiceId = expense.supplier_invoice_id ||
+      expense.linkedSupplierInvoiceId ||
+      expense.sourceSupplierInvoiceId || '';
+    const total = +expense.total_amount || 0;
+    if (!invoiceId || !expense.supplier || total <= 0 || expense.deleted || expense.cancelled) return;
+
+    const paymentMethod = expense.paymentMethod || 'העברה';
+    const isCheck = pvIsCheckMethod(paymentMethod);
+    const isPaid = !!expense.expensePaid;
+    const invoiceDate = pvDateISO(expense.date) || todayISO();
+    const dueDate = pvDateISO(expense.paymentDueDate || expense.checkDueDate || '') || invoiceDate;
+    const cleanExpense = {...expense, image:''};
+    let invoice = (pv.supplierInvoices || []).find(inv =>
+      String(inv.id || '') === String(invoiceId) ||
+      String(inv.source_expense_id || '') === String(expense.id || '') ||
+      String(inv.legacy_data?.expense?.id || '') === String(expense.id || '')
+    );
+
+    if (!invoice) {
+      invoice = pvNormalizeInvoice({
+        id: invoiceId,
+        supplier_id: expense.supplier_id || pvSupplierIdByName(expense.supplier),
+        supplier_name: expense.supplier,
+        supplier_tax_id: expense.supplier_tax_id || expense.tax_id || '',
+        invoice_number: expense.document_number || '',
+        invoice_date: invoiceDate,
+        amount_before_vat: +expense.amount_before_vat || Math.max(0, total - (+expense.vat_amount || 0)),
+        vat_amount: +expense.vat_amount || 0,
+        total_amount: total,
+        payment_status: isPaid ? 'שולם' : (isCheck ? 'ממתין לפירעון' : 'לא שולם'),
+        payment_method: paymentMethod,
+        due_date: dueDate,
+        paid_at: isPaid ? (pvDateISO(expense.expensePaidAt) || todayISO()) : '',
+        check_number: expense.checkNumber || '',
+        check_due_date: isCheck ? dueDate : '',
+        check_cleared: isPaid && isCheck,
+        accounting_sent: !!expense.sentToAccountant,
+        accounting_sent_at: pvDateISO(expense.accountingSentAt || ''),
+        invoice_file: '',
+        notes: expense.notes || '',
+        legacy_data: {expense:cleanExpense},
+        created_at: expense.created_at || expense.createdAt || new Date().toISOString(),
+        updated_at: expense.updated_at || expense.updatedAt || new Date().toISOString(),
+        created_by: 'expense-recovery',
+        updated_by: 'expense-recovery'
+      });
+      invoice.source_expense_id = expense.id;
+      invoice.invoice_file_ref = expense.image ? `expense:${expense.id}` : '';
+      invoice.source_type = 'expense-recovery';
+      pv.supplierInvoices.push(invoice);
+      pvInvoiceLog(invoice.id, 'שחזור חשבונית', 'source', '', 'expense-recovery', {source_expense_id:expense.id});
+      restoredInvoices++;
+      changed = true;
+    } else {
+      if (!invoice.source_expense_id) {
+        invoice.source_expense_id = expense.id;
+        changed = true;
+      }
+      if (!pvDateISO(invoice.due_date) && dueDate) {
+        invoice.due_date = dueDate;
+        changed = true;
+      }
+      if (isCheck && !pvDateISO(invoice.check_due_date) && dueDate) {
+        invoice.check_due_date = dueDate;
+        changed = true;
+      }
+      if (!invoice.payment_method && paymentMethod) {
+        invoice.payment_method = paymentMethod;
+        changed = true;
+      }
+      if (!invoice.check_number && expense.checkNumber) {
+        invoice.check_number = expense.checkNumber;
+        changed = true;
+      }
+      if (!invoice.legacy_data?.expense) {
+        invoice.legacy_data = {...(invoice.legacy_data || {}), expense:cleanExpense};
+        changed = true;
+      }
+    }
+
+    let debt = (pv.debts || []).find(item =>
+      String(item.expenseId || '') === String(expense.id || '') ||
+      String(item.sourceSupplierInvoiceId || '') === String(invoice.id) ||
+      String(item.supplierInvoiceId || '') === String(invoice.id) ||
+      String(item.id || '') === String(invoice.legacy_debt_id || '')
+    );
+    if (!debt) {
+      const createdAt = Date.parse(expense.created_at || expense.createdAt || invoiceDate) || Date.now();
+      debt = {
+        id: `recovered-debt-${invoice.id}`,
+        supplierName: expense.supplier,
+        taxInvoiceId: null,
+        expenseId: expense.id,
+        invoiceNumber: expense.document_number || invoice.invoice_number || '',
+        date: invoiceDate,
+        amount: total,
+        paidAmount: isPaid ? total : 0,
+        dueDate,
+        paymentMethod,
+        checkNumber: expense.checkNumber || invoice.check_number || '',
+        invoiceImage: '',
+        paymentStatus: isPaid ? 'שולם' : (isCheck ? 'ממתין לפירעון' : 'ממתין'),
+        notes: expense.notes || '',
+        status: isPaid ? 'paid' : 'open',
+        payments: [],
+        paidDate: isPaid ? (pvDateISO(expense.expensePaidAt) || todayISO()) : '',
+        closedAt: isPaid ? createdAt : '',
+        createdAt,
+        sourceSupplierInvoiceId: invoice.id,
+        supplierInvoiceId: invoice.id
+      };
+      pv.debts.push(debt);
+      restoredDebts++;
+      changed = true;
+    } else {
+      if (!debt.expenseId) { debt.expenseId = expense.id; changed = true; }
+      if (!debt.sourceSupplierInvoiceId) { debt.sourceSupplierInvoiceId = invoice.id; changed = true; }
+      if (!debt.supplierInvoiceId) { debt.supplierInvoiceId = invoice.id; changed = true; }
+      if (!debt.dueDate && dueDate) { debt.dueDate = dueDate; changed = true; }
+    }
+    if (!invoice.legacy_debt_id) {
+      invoice.legacy_debt_id = debt.id;
+      changed = true;
+    }
+    if (!invoice.legacy_data?.debt) {
+      invoice.legacy_data = {...(invoice.legacy_data || {}), debt:{...debt, invoiceImage:''}};
+      changed = true;
+    }
+  });
+
+  if (changed) savePv(true);
+  const restored = restoredInvoices + restoredDebts;
+  if (restored && !opts.silent) {
+    toast(`שוחזרו ${restoredInvoices} חשבוניות ו-${restoredDebts} תשלומי ספקים`, 'success');
+  }
+  return restored;
+}
+
 function pvRestoreMissingSupplierInvoiceExpenses(options) {
   const opts = options || {};
   if (!Array.isArray(pv.supplierInvoices) || !Array.isArray(DB.expenses)) return 0;
@@ -14462,7 +14756,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=133').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=143').then(reg => {
     reg.update();
   }).catch(() => {});
 }
