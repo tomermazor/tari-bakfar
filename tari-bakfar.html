@@ -998,13 +998,6 @@ function buildCoreCloudState() {
 }
 
 function buildDataCloudState() {
-  try {
-    if (typeof pvRestoreMissingSupplierInvoiceExpenses === 'function') {
-      pvRestoreMissingSupplierInvoiceExpenses({silent:true});
-    }
-  } catch(e) {
-    console.warn('supplier invoice expense restore skipped before data snapshot:', e.message);
-  }
   return {
     _localModified: APP_META.dataLocalModified || 0,
     expenses: DB.expenses || [],
@@ -1295,7 +1288,6 @@ function applyPayablesCloudState(cloud) {
   pv._lastSynced = Date.now();
   savePv(preservedLocalPayables);
   pvRestoreMissingSupplierPayablesFromExpenses({silent:true});
-  pvRestoreMissingSupplierInvoiceExpenses({silent:true});
 }
 
 function buildProductsCloudState() {
@@ -7558,7 +7550,6 @@ function initApp() {
   seedSupplierProfiles();
   auditApprovedSuppliers();
   pvRestoreMissingSupplierPayablesFromExpenses({silent:true});
-  pvRestoreMissingSupplierInvoiceExpenses({silent:true});
   if (pdb.products.length === 0) importProductsFromOrders();
   loadOdb();
   applyRoleUI();
@@ -9484,6 +9475,7 @@ function renderOrdersModals() {
 // PAYABLES — חובות ספקים
 // ═══════════════════════════════════════════════════════════════════════════
 const PAYABLES_KEY = 'payables-v1';
+const AUTO_LINK_SUPPLIER_INVOICES_AND_EXPENSES = false;
 let pv = { taxInvoices: [], debts: [], cancelledDNIds: [], _lastSynced: 0, _localModified: 0 };
 
 function loadPv() {
@@ -9840,6 +9832,7 @@ function pvUpsertDebtFromExpenseInvoice(item, inv, dueDate) {
 }
 
 function pvCreateDraftSupplierInvoiceFromExpense(item) {
+  if (!AUTO_LINK_SUPPLIER_INVOICES_AND_EXPENSES) return null;
   if (!item || !isExpenseInvoiceType(item.document_type)) return null;
   if (!pv.supplierInvoices) pv.supplierInvoices = [];
   const linkedInvoiceId = item.supplier_invoice_id || item.linkedSupplierInvoiceId || item.sourceSupplierInvoiceId || '';
@@ -11715,7 +11708,7 @@ function pvSetPaymentStatus(debtId, newStatus, options) {
   }
   savePv(true);
   if (newStatus === 'שולם' || newStatus === 'נפרע') {
-    pvFinishSupplierInvoiceAction(inv, 'התשלום סומן כשולם ונשמר בהוצאות ✓');
+    pvFinishSupplierInvoiceAction(inv, 'התשלום סומן כשולם ונשמר בתשלומי הספקים ✓');
     return;
   }
   setState(options.closeModal ? {payablesModal:'', payablesModalData:null} : {});
@@ -13465,6 +13458,7 @@ function pvSetExpenseField(expense, field, value) {
 function pvEnsureExpenseForSupplierInvoice(inv) {
   if (!inv) return null;
   const existing = pvFindExpenseForSupplierInvoice(inv);
+  if (!AUTO_LINK_SUPPLIER_INVOICES_AND_EXPENSES) return existing || null;
   if (!pvShouldMirrorSupplierInvoiceToExpense(inv)) return existing || null;
   const legacyExpense = inv.legacy_data?.expense || {};
   const supplierName = inv.supplier_name || legacyExpense.supplier || '';
@@ -13679,6 +13673,7 @@ function pvRestoreMissingSupplierPayablesFromExpenses(options) {
 }
 
 function pvRestoreMissingSupplierInvoiceExpenses(options) {
+  if (!AUTO_LINK_SUPPLIER_INVOICES_AND_EXPENSES) return 0;
   const opts = options || {};
   if (!Array.isArray(pv.supplierInvoices) || !Array.isArray(DB.expenses)) return 0;
   let restored = 0;
@@ -13698,13 +13693,8 @@ function pvRestoreMissingSupplierInvoiceExpenses(options) {
 }
 
 function pvFinishSupplierInvoiceAction(inv, message, toastType) {
-  const expense = pvEnsureExpenseForSupplierInvoice(inv);
   setState({
-    tab: 'list',
-    listPer: 'הכל',
-    listCat: 'הכל',
-    listSearch: '',
-    listOpen: expense?.id || null,
+    tab: 'payables',
     pvInvoiceEditId: '',
     pvInvoiceEditDraft: null,
     payablesModal: '',
@@ -13884,7 +13874,7 @@ function pvApproveSupplierInvoice(invId) {
     pvTouchInvoice(inv);
     pvInvoiceLog(inv.id, 'אישור חשבונית', 'payment_status', oldStatus, inv.payment_status);
     savePv(true);
-    pvFinishSupplierInvoiceAction(inv, 'החשבונית אושרה ונשמרה בהוצאות ✓');
+    pvFinishSupplierInvoiceAction(inv, 'החשבונית אושרה ונשמרה בתשלומי הספקים ✓');
   } catch(e) {
     console.error('[supplier-invoice-approve] failed', {invoiceId:invId, error:e});
     toast('אישור החשבונית נכשל: ' + (e.message || 'שגיאה לא ידועה'), 'error');
@@ -13970,7 +13960,7 @@ function pvMarkSupplierInvoicePaid(invId) {
   pvInvoiceLog(inv.id, 'סימון שולם', 'payment_status', old, 'שולם');
   if (!wasArchived) pvInvoiceLog(inv.id, 'העברה לארכיון', 'archived', 'פעיל', 'בארכיון', {source:'mark-paid'});
   savePv(true);
-  pvFinishSupplierInvoiceAction(inv, 'החשבונית סומנה כשולמה ונשמרה בהוצאות ✓');
+  pvFinishSupplierInvoiceAction(inv, 'החשבונית סומנה כשולמה ונשמרה בתשלומי הספקים ✓');
 }
 
 function pvAddSupplierInvoicePartialPayment(invId) {
@@ -14399,7 +14389,7 @@ function pvLinkDNConfirm() {
   pv.debts.push(debt);
   const inv = pvCreateSupplierInvoiceFromDebt(debt, {source:'link-delivery-notes', delivery_note_ids:d.selectedDNIds || [], legacy_tax_invoice_id:tiId, legacy_data:{tax_invoice:{...ti}}});
   savePv(true);
-  pvFinishSupplierInvoiceAction(inv, 'חשבונית וחוב נוצרו ונשמרו בהוצאות ✓');
+  pvFinishSupplierInvoiceAction(inv, 'חשבונית וחוב נוצרו ונשמרו בתשלומי הספקים ✓');
 }
 
 // Modal: add direct debt
@@ -14453,7 +14443,7 @@ function pvAddDirectConfirm() {
   pv.debts.push(debt);
   const inv = pvCreateSupplierInvoiceFromDebt(debt, {source:'direct-debt'});
   savePv(true);
-  pvFinishSupplierInvoiceAction(inv, (d.docType === 'חשבונית' ? 'חשבונית נוספה ונשמרה בהוצאות ✓' : 'התחייבות נוספה ונשמרה בהוצאות ✓'));
+  pvFinishSupplierInvoiceAction(inv, (d.docType === 'חשבונית' ? 'חשבונית נוספה ונשמרה בתשלומי הספקים ✓' : 'התחייבות נוספה ונשמרה בתשלומי הספקים ✓'));
 }
 
 function renderPvModalEditDebt() {
@@ -14547,7 +14537,7 @@ function pvEditDebtConfirm() {
 
   const inv = pvSyncSupplierInvoiceFromDebt(debt, 'edit-debt');
   savePv(true);
-  pvFinishSupplierInvoiceAction(inv, d.paidState === 'paid' ? 'התנועה סומנה כשולמה ונשמרה בהוצאות ✓' : 'התנועה עודכנה ונשמרה בהוצאות ✓');
+  pvFinishSupplierInvoiceAction(inv, d.paidState === 'paid' ? 'התנועה סומנה כשולמה ונשמרה בתשלומי הספקים ✓' : 'התנועה עודכנה ונשמרה בתשלומי הספקים ✓');
 }
 
 function renderPvModalEditCheck() {
@@ -14650,7 +14640,7 @@ function pvRecordPaymentConfirm() {
   const inv = pvSyncSupplierInvoiceFromDebt(debt, 'record-payment');
   savePv(true);
   if (debt.status === 'paid') {
-    pvFinishSupplierInvoiceAction(inv, 'התשלום נרשם וההוצאה סומנה כשולמה ✓');
+    pvFinishSupplierInvoiceAction(inv, 'התשלום נרשם והתנועה סומנה כשולמה ✓');
     return;
   }
   setState({payablesModal:'', payablesModalData:null});
@@ -14659,6 +14649,7 @@ function pvRecordPaymentConfirm() {
 
 // Auto-create debt from expense if isOpenDebt=true and it's an invoice type
 function pvAutoCreateDebtFromExpense(item) {
+  if (!AUTO_LINK_SUPPLIER_INVOICES_AND_EXPENSES) return;
   if (!item) return;
   if (!isExpenseInvoiceType(item.document_type)) return;
   if (item.isOpenDebt === false) return;
@@ -14746,7 +14737,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=144').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=145').then(reg => {
     reg.update();
   }).catch(() => {});
 }
