@@ -677,13 +677,13 @@ const PENDING = JSON.parse(localStorage.getItem('tari_pending_v1')||'[]'); // pe
 // Map of expense-id → true; never overwritten by syncAll
 const ACC_FLAGS = JSON.parse(localStorage.getItem('tari_acc_flags_v1')||'{}');
 function saveAccFlags(skipDirty) {
-  localStorage.setItem('tari_acc_flags_v1', JSON.stringify(ACC_FLAGS));
+  setLocalStorageItemWithExpenseImageFallback('tari_acc_flags_v1', JSON.stringify(ACC_FLAGS));
   if (!skipDirty) markCoreStateDirty();
 }
 const DN_ORDER_LINKS = JSON.parse(localStorage.getItem('tari_dn_order_links_v1')||'{}');
 const APP_META_KEY = 'tari_app_meta_v1';
 let APP_META = (()=>{ try { return JSON.parse(localStorage.getItem(APP_META_KEY)||'{}'); } catch(e) { return {}; } })();
-function saveAppMeta() { localStorage.setItem(APP_META_KEY, JSON.stringify(APP_META)); }
+function saveAppMeta() { setLocalStorageItemWithExpenseImageFallback(APP_META_KEY, JSON.stringify(APP_META)); }
 function markCoreStateDirty() {
   APP_META.coreLocalModified = Date.now();
   saveAppMeta();
@@ -695,12 +695,51 @@ function markDataStateDirty() {
   scheduleAutoSync();
 }
 function saveDnOrderLinks(skipDirty) {
-  localStorage.setItem('tari_dn_order_links_v1', JSON.stringify(DN_ORDER_LINKS));
+  setLocalStorageItemWithExpenseImageFallback('tari_dn_order_links_v1', JSON.stringify(DN_ORDER_LINKS));
   if (!skipDirty) markCoreStateDirty();
 }
 function isStorageQuotaError(err) {
   const msg = String(err?.message || err || '').toLowerCase();
   return err?.name === 'QuotaExceededError' || err?.code === 22 || msg.includes('quota') || msg.includes('exceeded');
+}
+
+const LOCAL_EXPENSES_STORAGE_KEY = 'tari_expenses_v2';
+let LAST_LOCAL_MEDIA_CLEANUP_TOAST = 0;
+
+function notifyLocalMediaCleanup() {
+  if (Date.now() - LAST_LOCAL_MEDIA_CLEANUP_TOAST < 60 * 1000) return;
+  LAST_LOCAL_MEDIA_CLEANUP_TOAST = Date.now();
+  toast('פרטי ההוצאה נשמרו. כדי לפנות מקום בטלפון, תמונות ישנות הוסרו מהמטמון המקומי.', 'info');
+}
+
+function setLocalStorageItemWithExpenseImageFallback(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return false;
+  } catch(e) {
+    if (!isStorageQuotaError(e)) throw e;
+    console.warn('[local-save] storage quota exceeded; freeing inline expense images', {key, error:e});
+    const compact = (DB.expenses || []).map(item => ({...item}));
+    let lastError = e;
+    let removedAny = false;
+    for (let i = compact.length - 1; i >= 0; i--) {
+      if (typeof compact[i]?.image !== 'string' || !compact[i].image.startsWith('data:')) continue;
+      compact[i].image = '';
+      removedAny = true;
+      try {
+        localStorage.setItem(LOCAL_EXPENSES_STORAGE_KEY, JSON.stringify(compact));
+        DB.expenses = compact;
+        if (key !== LOCAL_EXPENSES_STORAGE_KEY) localStorage.setItem(key, value);
+        notifyLocalMediaCleanup();
+        return true;
+      } catch(retryErr) {
+        lastError = retryErr;
+        if (!isStorageQuotaError(retryErr)) throw retryErr;
+      }
+    }
+    if (!removedAny) console.warn('[local-save] no inline expense images were available for cleanup');
+    throw lastError;
+  }
 }
 function mergeAccFlags(expenses) {
   // After every cloud pull: restore sentToAccountant from the local flags store
@@ -715,35 +754,16 @@ function mergeAccFlags(expenses) {
 }
 
 function persistLocal() {
-  try {
-    localStorage.setItem('tari_expenses_v2', JSON.stringify(DB.expenses));
-  } catch(e) {
-    if (!isStorageQuotaError(e)) throw e;
-    console.warn('[local-save] storage quota exceeded while saving expenses; stripping stored document images', e);
-    let compact = DB.expenses.map(x => ({...x}));
-    for (let i = compact.length - 1; i >= 0; i--) {
-      if (compact[i] && typeof compact[i].image === 'string' && compact[i].image.startsWith('data:')) {
-        compact[i].image = '';
-      }
-      try {
-        localStorage.setItem('tari_expenses_v2', JSON.stringify(compact));
-        DB.expenses = compact;
-        toast('נשמר. האחסון בטלפון היה מלא ולכן תמונות ישנות הוסרו מהמטמון.', 'info');
-        break;
-      } catch(retryErr) {
-        if (!isStorageQuotaError(retryErr) || i === 0) throw retryErr;
-      }
-    }
-  }
-  localStorage.setItem('tari_fixed_v1', JSON.stringify(DB.fixed));
-  localStorage.setItem('tari_installments_v1', JSON.stringify(DB.installments));
-  localStorage.setItem('tari_income_v1', JSON.stringify(DB.income));
-  localStorage.setItem('tari_credits_v1', JSON.stringify(DB.credits));
-  localStorage.setItem('tari_workers_v1', JSON.stringify(DB.workers));
-  localStorage.setItem('tari_advances_v1', JSON.stringify(DB.advances));
-  localStorage.setItem('tari_checks_v1', JSON.stringify(DB.checks));
-  localStorage.setItem('tari_suppliers_v1', JSON.stringify(DB.suppliers));
-  localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+  setLocalStorageItemWithExpenseImageFallback(LOCAL_EXPENSES_STORAGE_KEY, JSON.stringify(DB.expenses));
+  setLocalStorageItemWithExpenseImageFallback('tari_fixed_v1', JSON.stringify(DB.fixed));
+  setLocalStorageItemWithExpenseImageFallback('tari_installments_v1', JSON.stringify(DB.installments));
+  setLocalStorageItemWithExpenseImageFallback('tari_income_v1', JSON.stringify(DB.income));
+  setLocalStorageItemWithExpenseImageFallback('tari_credits_v1', JSON.stringify(DB.credits));
+  setLocalStorageItemWithExpenseImageFallback('tari_workers_v1', JSON.stringify(DB.workers));
+  setLocalStorageItemWithExpenseImageFallback('tari_advances_v1', JSON.stringify(DB.advances));
+  setLocalStorageItemWithExpenseImageFallback('tari_checks_v1', JSON.stringify(DB.checks));
+  setLocalStorageItemWithExpenseImageFallback('tari_suppliers_v1', JSON.stringify(DB.suppliers));
+  setLocalStorageItemWithExpenseImageFallback('tari_pending_v1', JSON.stringify(PENDING));
   updateHeader();
 }
 
@@ -1994,18 +2014,29 @@ function stripInlineExpenseImage(item) {
 
 function queueExpenseAdd(item) {
   PENDING.push({action:'add_expense', payload:{payload: stripInlineExpenseImage(item)}});
-  localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+  setLocalStorageItemWithExpenseImageFallback('tari_pending_v1', JSON.stringify(PENDING));
 }
 
 async function pushExpenseAdd(item) {
+  let saved = null;
   try {
-    await cloudCall('add_expense', {payload: item});
+    saved = await cloudCall('add_expense', {payload: item});
   } catch (err) {
     const slim = stripInlineExpenseImage(item);
     if (slim === item) throw err;
-    await cloudCall('add_expense', {payload: slim});
+    saved = await cloudCall('add_expense', {payload: slim});
+  }
+  const local = (DB.expenses || []).find(expense => String(expense.id || '') === String(item.id || ''));
+  if (local && typeof item.image === 'string' && item.image.startsWith('data:')) {
+    local.image = saved?.image || '';
+    try {
+      persistLocal();
+    } catch(storageErr) {
+      console.warn('[scan-save] cloud copy succeeded but local image URL cache could not be updated', storageErr);
+    }
   }
   await pushDataAppStateIfDirty();
+  return saved;
 }
 
 async function pushDataAppStateIfDirty() {
@@ -4643,11 +4674,18 @@ async function saveScanResult() {
     if (supplier) item.supplier = supplier.name;
     else item.supplier_match_status = 'requires_manual_link';
     if (supplier?.defaultCategory) item.category = supplier.defaultCategory;
-    const dup = findDuplicate(item);
+    const existingLocal = (DB.expenses || []).find(expense => String(expense.id || '') === String(item.id || ''));
+    const dup = existingLocal ? null : findDuplicate(item);
     if (dup && !warnDuplicate(dup)) return;
     const localItem = {...item};
     // ── Synchronous: apply locally + navigate in the SAME JS tick ──
-    DB.expenses.unshift(localItem);
+    if (existingLocal) Object.assign(existingLocal, localItem);
+    else DB.expenses.unshift(localItem);
+    dedupeExactExpenses();
+    // Persist the expense first. If Safari storage is full, the storage helper
+    // releases old inline image copies while `localItem` keeps the current image
+    // available for the background Drive upload.
+    persistLocal();
     applyExpenseOrderLink(localItem);
     if (isExpenseInvoiceType(localItem.document_type)) {
       pvCreateDraftSupplierInvoiceFromExpense(localItem);
@@ -4655,7 +4693,6 @@ async function saveScanResult() {
       pvRegisterDeliveryNoteFromExpense(localItem);
     }
     processInvoiceLineItems(localItem);
-    dedupeExactExpenses();
     markDataStateDirty();
     persistLocal();
     console.info('[scan-save] local save succeeded', {id:localItem.id, supplier:localItem.supplier, total_amount:localItem.total_amount});
@@ -4680,8 +4717,11 @@ async function saveScanResult() {
       message:e?.message || String(e),
       form: state.scanForm
     });
-    setState({scanErr:e.message || 'שמירה נכשלה', scanSaving:false});
-    toast('שמירה נכשלה: ' + (e.message || 'שגיאה לא ידועה'), 'error');
+    const message = isStorageQuotaError(e)
+      ? 'האחסון המקומי בטלפון מלא. פרטי המסמך נשארו על המסך; נסה שוב לאחר רענון.'
+      : (e.message || 'שמירה נכשלה');
+    setState({scanErr:message, scanSaving:false});
+    toast('שמירה נכשלה: ' + message, 'error');
   } finally {
     scanSaveInFlight = false;
     if (state.scanSaving) setState({scanSaving:false});
@@ -7617,7 +7657,7 @@ function loadOdb() {
 }
 function saveOdb(dirty) {
   if (dirty) odb._localModified = Date.now();
-  localStorage.setItem(ORDERS_KEY, JSON.stringify(odb));
+  setLocalStorageItemWithExpenseImageFallback(ORDERS_KEY, JSON.stringify(odb));
   if (dirty) scheduleAutoSync();
 }
 loadOdb();
@@ -10063,7 +10103,7 @@ function loadPdb() {
 }
 function savePdb(dirty) {
   if (dirty) pdb._localModified = Date.now();
-  localStorage.setItem(PRODUCTS_KEY, JSON.stringify(pdb));
+  setLocalStorageItemWithExpenseImageFallback(PRODUCTS_KEY, JSON.stringify(pdb));
   if (dirty) scheduleAutoSync();
 }
 loadPdb();
@@ -14737,7 +14777,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=145').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=146').then(reg => {
     reg.update();
   }).catch(() => {});
 }
