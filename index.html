@@ -14,28 +14,30 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Frank+Ruhl+Libre:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:#0a0e0a; --surface:#11161a; --surfaceHi:#1a2025;
-  --border:#1f2a30; --borderHi:#2a3640;
-  --text:#e8efe5; --textDim:#7a8a82; --textMuted:#475259;
-  --accent:#8fc650; --accent2:#d4a574; --amber:#f4b942; --blue:#5b9cf6;
+  --bg:#f4f7f2; --surface:#ffffff; --surfaceHi:#eef3eb;
+  --border:#dce6d7; --borderHi:#c4d4bd;
+  --text:#142016; --textDim:#4f624f; --textMuted:#879381;
+  --accent:#2f7d32; --accent2:#a9632e; --amber:#b87608; --blue:#2768c6;
+  --shadow:0 1px 2px rgba(25,38,25,0.06),0 14px 28px rgba(25,38,25,0.07);
 }
 * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
 html,body { margin:0; padding:0; min-height:100%; background:var(--bg); color:var(--text); font-family:'Heebo',-apple-system,sans-serif; overscroll-behavior:none; }
-.display { font-family:'Frank Ruhl Libre',serif; font-weight:700; letter-spacing:-0.02em; }
-.app { max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; }
+.display { font-family:'Frank Ruhl Libre',serif; font-weight:700; letter-spacing:0; }
+.app { max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; background:var(--bg); }
 
-.header { padding:20px 20px 16px; background:rgba(10,14,10,0.95); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); }
+.header { padding:20px 20px 16px; background:rgba(244,247,242,0.94); backdrop-filter:saturate(130%) blur(18px); border-bottom:1px solid var(--border); }
 .header-greeting { font-size:12px; color:var(--textDim); font-weight:600; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:4px; }
 .header-title { font-size:26px; color:var(--text); margin:0; line-height:1.1; }
 
-.main { flex:1; padding:24px 16px; display:flex; flex-direction:column; gap:14px; }
+.main { flex:1; padding:24px 16px; display:flex; flex-direction:column; gap:12px; }
 
-.app-card { display:flex; align-items:center; gap:16px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px 18px; text-decoration:none; color:inherit; transition:border-color 0.15s, background 0.15s; cursor:pointer; }
-.app-card:active { background:var(--surfaceHi); border-color:var(--borderHi); }
+.app-card { display:flex; align-items:center; gap:16px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; text-decoration:none; color:inherit; transition:border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s; cursor:pointer; box-shadow:var(--shadow); }
+.app-card:hover { border-color:var(--borderHi); transform:translateY(-1px); }
+.app-card:active { background:var(--surfaceHi); border-color:var(--borderHi); transform:translateY(0); }
 .app-card:nth-child(1) { border-left:3px solid var(--accent); }
 .app-card:nth-child(2) { border-left:3px solid var(--accent2); }
 
-.app-icon { width:52px; height:52px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:28px; flex-shrink:0; }
+.app-icon { width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:27px; flex-shrink:0; }
 .app-card:nth-child(1) .app-icon { background:rgba(143,198,80,0.12); }
 .app-card:nth-child(2) .app-icon { background:rgba(212,165,116,0.12); }
 
@@ -49,6 +51,7 @@ html,body { margin:0; padding:0; min-height:100%; background:var(--bg); color:va
 .fade-up { animation:fadeUp 0.35s ease-out backwards; }
 @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 </style>
+<link rel="stylesheet" href="app-modern.css?v=142">
 </head>
 <body>
 <div class="app">

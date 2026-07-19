@@ -12,6 +12,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Frank+Ruhl+Libre:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script>
+window.__googleScriptLoaded = false;
+window.onGoogleScriptLoad = window.onGoogleScriptLoad || function() {
+  window.__googleScriptLoaded = true;
+  if (typeof window.initGoogleSignIn === 'function') window.initGoogleSignIn();
+};
+</script>
 <script src="https://accounts.google.com/gsi/client" async defer onload="onGoogleScriptLoad()"></script>
 <style>
 :root {
@@ -211,6 +218,48 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .empty { text-align:center; padding:60px 20px; }
 .empty-icon { font-size:52px; margin-bottom:16px; }
 .empty-title { font-size:18px; font-weight:700; margin-bottom:8px; }
+
+/* Comfort Work UI refresh */
+:root {
+  --bg:#0b100d; --surface:#111814; --surfaceHi:#18211c;
+  --border:#243128; --borderHi:#344639;
+  --text:#edf5ea; --textDim:#9daf98; --textMuted:#6d7d70;
+  --accent:#78c64a; --accent2:#c8955e; --amber:#e7a72a; --danger:#e05c5c; --blue:#62a8e8;
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.28),0 8px 18px rgba(0,0,0,0.12);
+  --shadow:0 1px 2px rgba(0,0,0,0.34),0 14px 30px rgba(0,0,0,0.18);
+}
+[data-theme="light"] {
+  --bg:#f4f7f2; --surface:#ffffff; --surfaceHi:#eef3eb;
+  --border:#dce6d7; --borderHi:#c4d4bd;
+  --text:#142016; --textDim:#4f624f; --textMuted:#879381;
+  --accent:#2f7d32; --accent2:#a9632e; --amber:#b87608; --danger:#c83434; --blue:#2768c6;
+  --shadow-sm:0 1px 2px rgba(25,38,25,0.05),0 8px 18px rgba(25,38,25,0.05);
+  --shadow:0 1px 2px rgba(25,38,25,0.06),0 14px 28px rgba(25,38,25,0.07);
+}
+html,body { background:var(--bg); color:var(--text); font-size:15px; }
+.display { letter-spacing:0; }
+.app { background:var(--bg); }
+.main { scrollbar-gutter:stable; }
+.app-switcher,.header,.order-footer { backdrop-filter:saturate(130%) blur(18px); }
+.sw-btn { min-height:36px; display:flex; align-items:center; justify-content:center; border-radius:9px; font-weight:800; }
+.header { min-height:64px; box-shadow:0 1px 0 rgba(255,255,255,0.03) inset; }
+.header-logo { border-radius:12px; background:var(--accentSoft, rgba(120,198,74,0.13)); box-shadow:none; }
+.supplier-card,.product-row,.manual-item-row,.manual-add-box,.manage-row,.ao-card,.active-orders-banner,.modal,.draft-banner,.add-form,.export-text {
+  border-radius:12px;
+  border-color:var(--border);
+  box-shadow:var(--shadow-sm);
+}
+.supplier-card:active,.product-row:active,.manage-row:active,.ao-card:active { background:var(--surfaceHi); }
+.input,.manage-search input { min-height:46px; border-radius:10px; border-color:var(--border); background:var(--surfaceHi); }
+.input:focus,.manage-search input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(120,198,74,0.18); }
+.btn-primary,.btn-secondary,.btn-save-draft,.btn-order-sent,.btn-add-product,.btn-danger,.reorder-btn,.unit-pill,.unit-toggle,.transfer-btn {
+  border-radius:10px;
+  font-weight:800;
+}
+.btn-primary,.fab,.btn-order-sent,.ao-expense-btn { background:linear-gradient(135deg,var(--accent),#3f9b39); box-shadow:0 10px 22px rgba(47,125,50,0.2); }
+.order-footer { box-shadow:0 -8px 28px rgba(0,0,0,0.18); }
+.modal { border-radius:18px 18px 0 0; }
+.toast { border-radius:12px; white-space:normal; }
 .empty-desc { font-size:14px; color:var(--textDim); line-height:1.6; }
 
 /* Toast */
@@ -250,6 +299,7 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button { -webkit-appe
 .login-sub { font-size:14px; color:var(--textDim); margin-bottom:28px; text-align:center; }
 .login-err { color:var(--danger); font-size:13px; text-align:center; margin-top:14px; min-height:20px; font-weight:600; }
 </style>
+<link rel="stylesheet" href="app-modern.css?v=142">
 </head>
 <body>
 
@@ -1733,13 +1783,13 @@ async function triggerTopSync() {
 
 // ─── Theme ────────────────────────────────────────────────────────────────
 function initTheme() {
-  var t = localStorage.getItem('app-theme') || 'dark';
+  var t = localStorage.getItem('app-theme') || 'light';
   document.documentElement.setAttribute('data-theme', t);
   var btn = document.getElementById('theme-btn');
   if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
 }
 function toggleTheme() {
-  var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  var cur = document.documentElement.getAttribute('data-theme') || 'light';
   var next = cur === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('app-theme', next);
@@ -1887,6 +1937,7 @@ function handleCredentialResponse(response) {
 function initGoogleSignIn() {
   var loginScreen = document.getElementById('login-screen');
   if (!loginScreen || loginScreen.hidden) return;
+  if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) return;
   if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes('YOUR_CLIENT_ID')) {
     document.getElementById('login-err').textContent = '⚙️ יש להגדיר Client ID של Google';
     return;
@@ -1896,7 +1947,9 @@ function initGoogleSignIn() {
   google.accounts.id.prompt();
 }
 function onGoogleScriptLoad() {
-  if (!document.getElementById('login-screen').hidden) initGoogleSignIn();
+  window.__googleScriptLoaded = true;
+  const loginScreen = document.getElementById('login-screen');
+  if (loginScreen && !loginScreen.hidden) initGoogleSignIn();
 }
 
 function initApp() {
@@ -1937,7 +1990,7 @@ initTheme();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=117').then(function(reg) {
+  navigator.serviceWorker.register('./sw.js?v=120').then(function(reg) {
     reg.update();
   }).catch(function() {});
 }

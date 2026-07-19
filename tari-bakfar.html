@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#0a0e0a">
+<meta name="theme-color" content="#F4F7FA">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="טרי בכפר">
@@ -589,6 +589,7 @@ body { color-scheme:dark; }
   .main > div { padding-inline:14px !important; }
 }
 </style>
+<link rel="stylesheet" href="app-modern.css?v=142">
 </head>
 <body>
 
@@ -612,20 +613,20 @@ body { color-scheme:dark; }
       </div>
     </div>
     <div class="desktop-only desktop-global-search">
-      <span class="desktop-search-icon">⌕</span>
+      <span class="desktop-search-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.2-3.2"></path></svg></span>
       <input id="desktop-global-search-input" placeholder="חיפוש מהיר: ספק, חשבונית, מוצר, הזמנה..." oninput="desktopSetGlobalSearch(this.value)" onfocus="desktopSetGlobalSearch(this.value)" autocomplete="off">
       <span class="desktop-search-hint">Ctrl K</span>
     </div>
     <div class="desktop-only desktop-toolbar-actions">
-      <button class="desktop-action-btn primary" onclick="setState({desktopQuickOpen:!state.desktopQuickOpen})">+ פעולה</button>
-      <button class="desktop-action-btn" onclick="setState({desktopPanel:'alerts'})">התראות</button>
+      <button class="desktop-action-btn primary" onclick="setState({desktopQuickOpen:!state.desktopQuickOpen})"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span>פעולה חדשה</span></button>
+      <button class="desktop-action-btn" onclick="setState({desktopPanel:'alerts'})"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M10 21h4"></path></svg><span>התראות</span></button>
     </div>
     <span class="sw-btn active">🌿 טרי בכפר</span>
 
-    <button class="sw-icon-btn" id="sync-top-btn" onclick="triggerTopSync()" title="סנכרן עכשיו">🔄</button>
-    <button class="sw-icon-btn" id="settings-sw-btn" onclick="setState({tab:'settings'})" title="הגדרות">⚙️</button>
+    <button class="sw-icon-btn" id="sync-top-btn" onclick="triggerTopSync()" title="סנכרן עכשיו" aria-label="סנכרן עכשיו"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 7h-5V2"></path><path d="M4 17h5v5"></path><path d="M5.5 9a7 7 0 0 1 11.8-3L20 7"></path><path d="M18.5 15a7 7 0 0 1-11.8 3L4 17"></path></svg></button>
+    <button class="sw-icon-btn" id="settings-sw-btn" onclick="setState({tab:'settings'})" title="הגדרות" aria-label="הגדרות"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z"></path></svg></button>
     <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" title="עיצוב"></button>
-    <button class="sw-icon-btn" onclick="logout()" title="התנתק">🔒</button>
+    <button class="sw-icon-btn" onclick="logout()" title="התנתק" aria-label="התנתק"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path></svg></button>
   </div>
 
   <header class="header">
@@ -997,6 +998,13 @@ function buildCoreCloudState() {
 }
 
 function buildDataCloudState() {
+  try {
+    if (typeof pvRestoreMissingSupplierInvoiceExpenses === 'function') {
+      pvRestoreMissingSupplierInvoiceExpenses({silent:true});
+    }
+  } catch(e) {
+    console.warn('supplier invoice expense restore skipped before data snapshot:', e.message);
+  }
   return {
     _localModified: APP_META.dataLocalModified || 0,
     expenses: DB.expenses || [],
@@ -1237,6 +1245,7 @@ function applyPayablesCloudState(cloud) {
   (pv.supplierInvoices||[]).forEach(inv => { if (!inv.invoice_file && localInvoiceFiles[inv.id]) inv.invoice_file = localInvoiceFiles[inv.id]; });
   pv._lastSynced = Date.now();
   savePv(preservedLocalPayables);
+  pvRestoreMissingSupplierInvoiceExpenses({silent:true});
 }
 
 function buildProductsCloudState() {
@@ -1593,11 +1602,24 @@ async function syncCloudStateBlob(key, buildFn, applyFn, getLocalModified) {
   const hasCloudPayload = cloudStateHasMeaningfulPayload(key, cloud);
   if (!hasCloudPayload && localMod === 0) return false;
   if (localMod > cloudMod) {
-    await cloudCall('save_app_state', {key, payload: buildFn()});
+    const localPayload = buildFn();
+    if (cloudStateHasMeaningfulPayload(key, localPayload)) {
+      await cloudCall('save_app_state', {key, payload: localPayload});
+    } else if (hasCloudPayload) {
+      console.warn(`Blocked empty local ${key} app_state from overwriting cloud data`);
+      applyFn(cloud);
+    } else {
+      return false;
+    }
   } else if (hasCloudPayload) {
     applyFn(cloud);
   } else if (localMod > 0) {
-    await cloudCall('save_app_state', {key, payload: buildFn()});
+    const localPayload = buildFn();
+    if (cloudStateHasMeaningfulPayload(key, localPayload)) {
+      await cloudCall('save_app_state', {key, payload: localPayload});
+    } else {
+      return false;
+    }
   }
   return true;
 }
@@ -1815,6 +1837,12 @@ async function queueAndSync(action, payload, optimisticLocal) {
 
   // 2. If no cloud configured, stop here
   if (!CFG.webAppUrl) return;
+  if (Date.now() < SYNC_PAUSED_UNTIL) {
+    PENDING.push({action, payload});
+    localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
+    setSyncStatus('offline');
+    return;
+  }
 
   // 3. Try to push to cloud
   setSyncStatus('syncing');
@@ -1827,7 +1855,8 @@ async function queueAndSync(action, payload, optimisticLocal) {
     // Queue for later
     PENDING.push({action, payload});
     localStorage.setItem('tari_pending_v1', JSON.stringify(PENDING));
-    setSyncStatus('offline');
+    if (isQuotaError(e)) pauseSyncForQuota(e);
+    else setSyncStatus('offline');
   }
 }
 
@@ -1861,6 +1890,7 @@ async function pushDataAppStateIfDirty() {
     saveAppMeta();
   } catch(e) {
     console.warn('could not push data app_state:', e.message);
+    if (isQuotaError(e)) pauseSyncForQuota(e);
   }
 }
 
@@ -2987,6 +3017,7 @@ let state = {
   ordersManualAddState: { name: '', qty: 1, unit: 'קרטון' },
   ordersTransferData: null,
   ordersModal: '',
+  mobileNavMore: false,
   desktopGlobalSearch: '',
   desktopQuickOpen: false,
   desktopPanel: '',
@@ -3265,7 +3296,7 @@ function renderNav() {
   const desktopMode = isDesktopMode();
 
   const tabBtn = t => `
-    <button class="${state.tab===t.id?'active':''}" onclick="setState({tab:'${t.id}'})">
+    <button class="${state.tab===t.id?'active':''}" onclick="setState({tab:'${t.id}',mobileNavMore:false})">
       <span>${t.label}</span>
       <div class="nav-icon-wrap">${ICONS[t.id]||''}</div>
     </button>`;
@@ -3274,7 +3305,7 @@ function renderNav() {
 
   const fab = (canAccessTab('scan')) ? `
     <div class="nav-fab-slot">
-      <button class="nav-fab${state.tab==='scan'?' active':''}" onclick="setState({tab:'scan'})" title="סרוק חשבונית">
+      <button class="nav-fab${state.tab==='scan'?' active':''}" onclick="setState({tab:'scan',mobileNavMore:false})" title="סרוק חשבונית">
         ${scanIcon}
         <span class="nav-fab-label">סרוק מסמך</span>
       </button>
@@ -3303,7 +3334,17 @@ function renderNav() {
     if (!groupTabs.length) return '';
     return `<div class="sidebar-nav-group"><div class="sidebar-group-label">${label}</div>${groupTabs.map(tabBtn).join('')}</div>`;
   }).join('') + tabs.filter(t => !groupedIds.has(t.id)).map(tabBtn).join('');
-  const mobileNav = left.map(tabBtn).join('') + right.map(tabBtn).join('');
+  const mobilePrimaryIds = ['dashboard','payables','list'];
+  const mobilePrimaryTabs = mobilePrimaryIds.map(id => tabs.find(t => t.id === id)).filter(Boolean);
+  const mobileMoreTabs = tabs.filter(t => !mobilePrimaryIds.includes(t.id));
+  const mobileMoreActive = mobileMoreTabs.some(t => t.id === state.tab);
+  const mobileMoreIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg>`;
+  const mobileMoreButton = `<button class="mobile-more-btn${mobileMoreActive?' active':''}" onclick="setState({mobileNavMore:!state.mobileNavMore})" aria-expanded="${state.mobileNavMore?'true':'false'}"><span>עוד</span><div class="nav-icon-wrap">${mobileMoreIcon}</div></button>`;
+  const mobileMoreMenu = state.mobileNavMore ? `<div class="mobile-nav-menu" role="menu">
+    <div class="mobile-nav-menu-head"><strong>כל המסכים</strong><button type="button" onclick="setState({mobileNavMore:false})" aria-label="סגור">×</button></div>
+    <div class="mobile-nav-menu-grid">${mobileMoreTabs.map(t => `<button type="button" class="mobile-nav-menu-item${state.tab===t.id?' active':''}" onclick="setState({tab:'${t.id}',mobileNavMore:false})"><span class="mobile-nav-menu-icon">${ICONS[t.id]||''}</span><span>${t.label}</span></button>`).join('')}</div>
+  </div>` : '';
+  const mobileNav = mobilePrimaryTabs.slice(0,2).map(tabBtn).join('') + fab + mobilePrimaryTabs.slice(2).map(tabBtn).join('') + mobileMoreButton + mobileMoreMenu;
   const syncText = LAST_EXTENDED_SYNC.data ? 'סנכרון מלא פעיל לכל הטאבים' : 'סנכרון ענן רגיל';
   const desktopSyncCard = desktopMode ? `<div class="sidebar-sync-card"><strong>מצב מערכת</strong>${syncText}</div>` : '';
 
@@ -3320,7 +3361,9 @@ function renderNav() {
     </div>`;
 
   const navEl = document.getElementById('nav');
-  navEl.innerHTML = brand + fab + (desktopMode ? desktopGroupedNav : mobileNav) + desktopSyncCard + footer;
+  navEl.innerHTML = desktopMode
+    ? brand + fab + desktopGroupedNav + desktopSyncCard + footer
+    : mobileNav;
   [...navEl.querySelectorAll('button')].forEach(btn => {
     const handler = btn.getAttribute('onclick') || '';
     if (handler.includes("tab:'settings'") && !canAccessTab('settings')) btn.remove();
@@ -3535,11 +3578,11 @@ function renderDesktopDashboard() {
       <div style="display:grid;gap:16px">
         <section class="desktop-section">
           <div class="desktop-section-head"><div class="desktop-section-title">תשלומים קרובים וחובות</div><button class="desktop-mini-btn" onclick="setState({tab:'payables',payablesView:'dashboard'})">פתח תשלומים</button></div>
-          <div class="desktop-table-wrap">${paymentRows ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>תאריך</th><th>סטטוס</th><th style="text-align:left">סכום</th></tr></thead><tbody>${paymentRows}</tbody></table>` : desktopEmpty('✅','אין תשלומים דחופים','אין חובות או צ׳קים פתוחים להצגה')}</div>
+          <div class="desktop-table-wrap">${paymentRows ? `<table class="desktop-table desktop-dashboard-table"><thead><tr><th>ספק</th><th>תאריך</th><th>סטטוס</th><th style="text-align:left">סכום</th></tr></thead><tbody>${paymentRows}</tbody></table>` : desktopEmpty('✅','אין תשלומים דחופים','אין חובות או צ׳קים פתוחים להצגה')}</div>
         </section>
         <section class="desktop-section">
           <div class="desktop-section-head"><div class="desktop-section-title">הזמנות פתוחות</div><button class="desktop-mini-btn" onclick="setState({tab:'orders',ordersView:'active'})">כל ההזמנות</button></div>
-          <div class="desktop-table-wrap">${orderRows ? `<table class="desktop-table"><thead><tr><th>ספק</th><th>פריטים</th><th>סטטוס</th></tr></thead><tbody>${orderRows}</tbody></table>` : desktopEmpty('🚚','אין הזמנות פתוחות','כשייפתחו הזמנות הן יופיעו כאן')}</div>
+          <div class="desktop-table-wrap">${orderRows ? `<table class="desktop-table desktop-dashboard-table"><thead><tr><th>ספק</th><th>פריטים</th><th>סטטוס</th></tr></thead><tbody>${orderRows}</tbody></table>` : desktopEmpty('✅','אין הזמנות פתוחות','כשייפתחו הזמנות הן יופיעו כאן')}</div>
         </section>
       </div>
       <aside class="desktop-drawer">
@@ -3550,6 +3593,118 @@ function renderDesktopDashboard() {
         </div>
       </aside>
     </div>
+  </div>`;
+}
+
+function renderDashboardModern() {
+  if (isDesktopMode()) return renderDesktopDashboard();
+
+  const now = new Date();
+  const DAY_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  const weekExpenses = (DB.expenses || []).filter(e => isWeek(e.date));
+  const weekIncome = (DB.income || []).filter(e => isWeek(e.date));
+  const weekExpenseTotal = weekExpenses.reduce((sum, item) => sum + (+item.total_amount || 0), 0);
+  const weekIncomeTotal = weekIncome.reduce((sum, item) => sum + (+item.amount || 0), 0);
+  const pendingAccounting = (DB.expenses || []).filter(e => isExpenseInvoiceType(e.document_type) && !e.sentToAccountant);
+  const payments = desktopPaymentsData();
+  const overduePayments = payments.filter(item => item.isOverdue);
+  const dueSoonPayments = payments.filter(item => item.date && !item.isOverdue && pvDateInDays(item.date, 7));
+  const recentExpenses = (DB.expenses || []).slice(0, 7);
+  const openOrders = (odb.activeOrders || []).length;
+  const netWeek = weekIncomeTotal - weekExpenseTotal;
+
+  const kpi = (label, value, meta, tone, icon) => `<article class="mobile-kpi mobile-kpi-${tone}">
+    <div class="mobile-kpi-top"><span class="mobile-kpi-icon">${icon}</span><span class="mobile-kpi-trend"></span></div>
+    <div class="mobile-kpi-value">${value}</div>
+    <div class="mobile-kpi-label">${label}</div>
+    <div class="mobile-kpi-meta">${meta}</div>
+  </article>`;
+
+  const quickAction = (label, icon, onclick, primary) => `<button type="button" class="mobile-quick-action${primary?' primary':''}" onclick="${onclick}">
+    <span class="mobile-quick-icon">${icon}</span><span>${label}</span>
+  </button>`;
+
+  const attentionRow = (label, meta, value, tone, onclick, icon) => `<button type="button" class="mobile-attention-row ${tone}" onclick="${onclick}">
+    <span class="mobile-attention-icon">${icon}</span>
+    <span class="mobile-attention-copy"><strong>${label}</strong><small>${meta}</small></span>
+    <span class="mobile-attention-value">${value}</span>
+    <svg class="mobile-row-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m15 18-6-6 6-6"></path></svg>
+  </button>`;
+
+  const chartDays = [];
+  for (let i = 6; i >= 0; i--) {
+    const day = new Date(now);
+    day.setDate(day.getDate() - i);
+    day.setHours(0,0,0,0);
+    const income = (DB.income || []).filter(e => isSameDay(e.date, day)).reduce((sum, e) => sum + (+e.amount || 0), 0);
+    const expense = (DB.expenses || []).filter(e => isSameDay(e.date, day)).reduce((sum, e) => sum + (+e.total_amount || 0), 0);
+    chartDays.push({ label: day.toLocaleDateString('he-IL', {day:'2-digit', month:'2-digit'}), income, expense, today: i === 0 });
+  }
+  const chartMax = Math.max(...chartDays.map(day => Math.max(day.income, day.expense)), 1);
+  const chartBars = chartDays.map(day => `<div class="mobile-chart-day${day.today?' today':''}">
+    <div class="mobile-chart-bars">
+      <span class="income" style="height:${day.income ? Math.max(4, day.income / chartMax * 100) : 0}%"></span>
+      <span class="expense" style="height:${day.expense ? Math.max(4, day.expense / chartMax * 100) : 0}%"></span>
+    </div>
+    <small>${day.label}</small>
+  </div>`).join('');
+
+  const attention = [
+    overduePayments.length ? attentionRow(`${overduePayments.length} תשלומים באיחור`, 'דורשים טיפול עכשיו', fmtCurr(overduePayments.reduce((sum,item)=>sum+item.amount,0)), 'danger', "setState({tab:'payables',mobileNavMore:false})", ICONS.payables) : '',
+    dueSoonPayments.length ? attentionRow(`${dueSoonPayments.length} תשלומים קרובים`, 'צפויים לרדת בשבוע הקרוב', fmtCurr(dueSoonPayments.reduce((sum,item)=>sum+item.amount,0)), 'warning', "setState({tab:'payables',mobileNavMore:false})", ICONS.installments) : '',
+    pendingAccounting.length ? attentionRow(`${pendingAccounting.length} חשבוניות ממתינות`, 'טרם הועברו להנהלת חשבונות', fmtCurr(pendingAccounting.reduce((sum,item)=>sum+(+item.total_amount||0),0)), 'info', "setState({tab:'list',mobileNavMore:false})", ICONS.list) : ''
+  ].filter(Boolean).join('');
+
+  return `<div class="mobile-dashboard fade-up">
+    <header class="mobile-page-lead">
+      <div>
+        <span class="mobile-page-eyebrow">יום ${DAY_HE[now.getDay()]} · ${now.toLocaleDateString('he-IL',{day:'numeric',month:'long'})}</span>
+        <h1>סקירה יומית</h1>
+        <p>מה דורש טיפול ומה צפוי לרדת</p>
+      </div>
+      <span class="mobile-health-dot" title="המערכת פעילה"></span>
+    </header>
+
+    <section class="mobile-kpi-grid" aria-label="מדדים מרכזיים">
+      ${kpi('הכנסות השבוע', fmtCurr(weekIncomeTotal), `${weekIncome.length} רשומות`, 'positive', ICONS.income)}
+      ${kpi('הוצאות השבוע', fmtCurr(weekExpenseTotal), `${weekExpenses.length} רשומות`, 'negative', ICONS.list)}
+      ${kpi('יתרה השבוע', `${netWeek >= 0 ? '+' : ''}${fmtCurr(netWeek)}`, netWeek >= 0 ? 'מאזן חיובי' : 'יותר הוצאות מהכנסות', netWeek >= 0 ? 'positive' : 'negative', ICONS.reports)}
+      ${kpi('לטיפול', String(pendingAccounting.length + overduePayments.length), `${openOrders} הזמנות פתוחות`, 'warning', ICONS.payables)}
+    </section>
+
+    <section class="mobile-action-section">
+      <div class="mobile-section-heading"><div><span>פעולות מהירות</span><small>הפעולות הנפוצות</small></div></div>
+      <div class="mobile-quick-grid">
+        ${quickAction('סריקת חשבונית', ICONS.scan, "setState({tab:'scan',mobileNavMore:false})", true)}
+        ${quickAction('תשלום לספק', ICONS.payables, "setState({tab:'payables',mobileNavMore:false})")}
+        ${quickAction('הוצאה חדשה', ICONS.add, "setState({tab:'add',mobileNavMore:false})")}
+        ${quickAction('הזמנה חדשה', ICONS.orders, "setState({tab:'orders',mobileNavMore:false})")}
+      </div>
+    </section>
+
+    <section class="mobile-data-section">
+      <div class="mobile-section-heading"><div><span>דורש תשומת לב</span><small>לפי דחיפות ותאריך</small></div><button type="button" onclick="setState({tab:'payables',mobileNavMore:false})">לכל התשלומים</button></div>
+      <div class="mobile-attention-list">
+        ${attention || `<div class="mobile-all-clear"><span>${ICONS.dashboard}</span><div><strong>הכול מסודר כרגע</strong><small>אין תשלומים באיחור או מסמכים דחופים</small></div></div>`}
+      </div>
+    </section>
+
+    <section class="mobile-data-section">
+      <div class="mobile-section-heading"><div><span>7 ימים אחרונים</span><small>הכנסות מול הוצאות</small></div><div class="mobile-chart-legend"><i class="income"></i>הכנסות <i class="expense"></i>הוצאות</div></div>
+      <div class="mobile-chart">${chartBars}</div>
+    </section>
+
+    <section class="mobile-data-section mobile-recent-section">
+      <div class="mobile-section-heading"><div><span>הוצאות אחרונות</span><small>המסמכים שנקלטו לאחרונה</small></div><button type="button" onclick="setState({tab:'list',mobileNavMore:false})">הצג הכול</button></div>
+      <div class="mobile-recent-list">
+        ${recentExpenses.length ? recentExpenses.map(expense => `<button type="button" class="mobile-recent-row" onclick="setState({tab:'list',listOpen:'${expense.id}',mobileNavMore:false})">
+          <span class="mobile-expense-mark" style="--expense-color:${getCatColor(expense.category)}"></span>
+          <span class="mobile-recent-copy"><strong>${esc(expense.supplier || 'ללא ספק')}</strong><small>${esc(expense.category || 'ללא קטגוריה')} · ${fmtDate(expense.date)}</small></span>
+          <span class="mobile-recent-amount">${fmtCurr(expense.total_amount)}</span>
+          <svg class="mobile-row-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m15 18-6-6 6-6"></path></svg>
+        </button>`).join('') : `<div class="mobile-empty-state">אין עדיין הוצאות להצגה</div>`}
+      </div>
+    </section>
   </div>`;
 }
 
@@ -4327,6 +4482,11 @@ function normalizeScanExpenseItem(raw) {
 function syncScannedExpenseInBackground(item) {
   if (!CFG.webAppUrl) {
     console.info('[scan-save] saved locally only: no Google Sheets Web App URL configured', {id:item.id});
+    return;
+  }
+  if (Date.now() < SYNC_PAUSED_UNTIL) {
+    queueExpenseAdd(item);
+    setSyncStatus('offline');
     return;
   }
   console.info('[scan-save] sending expense to Google Sheets', {
@@ -7012,7 +7172,7 @@ function render() {
 
   let content = '';
   switch(state.tab) {
-    case 'dashboard': content = renderDashboard(); break;
+    case 'dashboard': content = renderDashboardModern(); break;
     case 'scan': content = renderScan(); break;
     case 'list': content = renderList(); break;
     case 'fixed': case 'workers': content = renderFixedAndWorkers(); break;
@@ -7060,11 +7220,16 @@ function render() {
 }
 
 // ─── Theme ──────────────────────────────────────────────────────────────────
+function themeIconSvg(isDark) {
+  return isDark
+    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>'
+    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"></path></svg>';
+}
 function initTheme() {
   const t = localStorage.getItem('app-theme') || 'light'; // default: light (premium style)
   document.documentElement.setAttribute('data-theme', t);
   const btn = document.getElementById('theme-btn');
-  if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
+  if (btn) { btn.innerHTML = themeIconSvg(t === 'dark'); btn.setAttribute('aria-label', t === 'dark' ? 'עבור למצב בהיר' : 'עבור למצב כהה'); }
 }
 function toggleTheme() {
   const cur = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -7072,7 +7237,7 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('app-theme', next);
   const btn = document.getElementById('theme-btn');
-  if (btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
+  if (btn) { btn.innerHTML = themeIconSvg(next === 'dark'); btn.setAttribute('aria-label', next === 'dark' ? 'עבור למצב בהיר' : 'עבור למצב כהה'); }
   render(); // re-render to update settings button label
 }
 
@@ -7267,6 +7432,7 @@ function initApp() {
   migrateApprovedSuppliers();
   seedSupplierProfiles();
   auditApprovedSuppliers();
+  pvRestoreMissingSupplierInvoiceExpenses({silent:true});
   if (pdb.products.length === 0) importProductsFromOrders();
   loadOdb();
   applyRoleUI();
@@ -9297,7 +9463,7 @@ function pvCalcInvoiceStatus(inv) {
     return 'שולם';
   }
   if (pvIsCheckMethod(inv.payment_method)) return 'ממתין לפירעון צ׳ק';
-  const due = pvDateISO(inv.due_date);
+  const due = pvSupplierInvoiceExpectedDebitDate(inv);
   if (due && due < todayISO()) return 'באיחור';
   return inv.payment_status || 'לא שולם';
 }
@@ -11187,8 +11353,8 @@ const PV_METHOD_ICONS = {
 };
 const PV_PAYMENT_METHODS = ["צ'ק",'העברה','מזומן','אשראי','אחר'];
 function pvIsCheckMethod(method) {
-  const m = method || '';
-  return m.includes("צ'ק") || m.includes('צק');
+  const m = String(method || '').toLowerCase();
+  return (m.includes('\u05e6') && m.includes('\u05e7')) || m.includes('check');
 }
 function pvGetMethodIcon(m) { return PV_METHOD_ICONS[m] || '📄'; }
 function pvGetStatusIcon(s) { return PV_STATUS_ICONS[s] || '🟡'; }
@@ -11405,14 +11571,19 @@ function pvSetPaymentStatus(debtId, newStatus, options) {
     debt.status = 'cancelled';
     debt.closedAt = Date.now();
   }
+  let inv = null;
   try {
-    pvSyncSupplierInvoiceFromDebt(debt, 'payment-status');
+    inv = pvSyncSupplierInvoiceFromDebt(debt, 'payment-status');
   } catch(syncErr) {
     console.warn('[payables] supplier invoice sync after payment failed', syncErr);
   }
   savePv(true);
+  if (newStatus === 'שולם' || newStatus === 'נפרע') {
+    pvFinishSupplierInvoiceAction(inv, 'התשלום סומן כשולם ונשמר בהוצאות ✓');
+    return;
+  }
   setState(options.closeModal ? {payablesModal:'', payablesModalData:null} : {});
-  toast(newStatus==='שולם'?'✅ סומן כשולם':'סטטוס עודכן', 'success');
+  toast('סטטוס עודכן', 'success');
 }
 function pvNextStatus(debt) {
   const cur = debt.paymentStatus || 'ממתין';
@@ -11567,13 +11738,13 @@ function renderPayablesDashboard() {
 
   // ── 2. Summary header ───────────────────────────────────────────────────
   function chip(label, val, color, onClick) {
-    return `<div onclick="${onClick||''}" style="flex-shrink:0;min-width:72px;padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--border);text-align:center;cursor:${onClick?'pointer':'default'}">
+    return `<div class="payables-summary-chip" onclick="${onClick||''}" style="flex-shrink:0;min-width:72px;padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--border);text-align:center;cursor:${onClick?'pointer':'default'}">
       <div style="font-size:9px;color:var(--textDim);font-weight:600;letter-spacing:.04em;margin-bottom:2px;white-space:nowrap">${label}</div>
       <div class="display" style="font-size:14px;font-weight:700;color:${color};white-space:nowrap">${val}</div>
     </div>`;
   }
   const summaryHtml = `
-    <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;margin-bottom:14px;scrollbar-width:none;-webkit-overflow-scrolling:touch">
+    <div class="payables-summary-grid" style="display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;margin-bottom:14px;scrollbar-width:none;-webkit-overflow-scrolling:touch">
       ${chip('30 יום',fmtCurr(tot30),tot30>0?'var(--text)':'var(--textMuted)')}
       ${chip('60 יום',fmtCurr(tot60),tot60>0?'var(--text)':'var(--textMuted)')}
       ${chip('90 יום',fmtCurr(tot90),tot90>0?'var(--text)':'var(--textMuted)')}
@@ -11671,7 +11842,7 @@ function renderPayablesDashboard() {
     : '';
   const nextPaymentTone = nextPayment && nextPayment.date && nextPayment.date < today ? 'var(--danger)' : 'var(--accent)';
   const nextPaymentHtml = nextPayment ? `
-    <div onclick="${nextPaymentAction}" style="display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;background:var(--surface);border:1px solid rgba(143,198,80,0.28);margin-bottom:12px;cursor:${nextPaymentAction?'pointer':'default'}">
+    <div class="payables-next-payment" onclick="${nextPaymentAction}" style="display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;background:var(--surface);border:1px solid rgba(143,198,80,0.28);margin-bottom:12px;cursor:${nextPaymentAction?'pointer':'default'}">
       <div style="width:42px;height:42px;border-radius:12px;background:var(--accentSoft);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${pvGetMethodIcon(nextPayment.method)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;color:var(--textDim);font-weight:900;margin-bottom:2px">התשלום הבא</div>
@@ -11710,10 +11881,10 @@ function renderPayablesDashboard() {
   const searchBar = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:${searchOpen?'8px':'12px'}">
       <div style="flex:1;min-width:0">
-        <div style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase">📅 תשלומים צפויים לפי תאריך פירעון</div>
+        <div class="payables-timeline-title" style="font-size:11px;font-weight:700;color:var(--textDim);letter-spacing:.06em;text-transform:uppercase">תשלומים צפויים לרדת לפי תאריך</div>
         ${q ? `<div style="font-size:11px;color:var(--accent);font-weight:800;margin-top:3px">${sortedPayments.length} תוצאות עבור "${esc(state.payablesSearch)}"</div>` : ''}
       </div>
-      <button type="button" onclick="pvTogglePaymentSearch(true)"
+      <button type="button" class="payables-search-btn" onclick="pvTogglePaymentSearch(true)"
         style="flex-shrink:0;display:inline-flex;align-items:center;gap:6px;border:1px solid ${searchOpen?'rgba(143,198,80,0.45)':'var(--border)'};border-radius:999px;background:${searchOpen?'var(--accentSoft)':'var(--surface)'};color:${searchOpen?'var(--accent)':'var(--textDim)'};padding:8px 12px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer;white-space:nowrap">
         <span>🔍</span><span>חיפוש</span>
       </button>
@@ -11723,9 +11894,9 @@ function renderPayablesDashboard() {
       ${q ? `<button type="button" onclick="pvClearPaymentSearch()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;border-radius:50%;background:var(--borderHi);color:var(--textDim);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>` : ''}
     </div>` : ''}`;
   const filterBar = `
-    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none">
+    <div class="payables-filter-strip" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none">
       ${filterOptions.map(f=>`
-        <button onclick="setState({pvPaymentFilter:'${f}'})"
+        <button class="payables-filter-btn${pf===f?' active':''}" onclick="setState({pvPaymentFilter:'${f}'})"
           style="flex-shrink:0;padding:5px 11px;border-radius:20px;border:none;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;
             background:${pf===f?'var(--accent)':'var(--surface)'};
             color:${pf===f?'#071302':'var(--textDim)'};
@@ -11773,8 +11944,8 @@ function renderPayablesDashboard() {
     }
     weekTotal += dayTotal;
 
-    timelineRows += `<div style="border-radius:13px;border:1px solid ${borderColor};background:${bgTint};margin-bottom:10px;overflow:hidden">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:var(--surfaceHi)">
+    timelineRows += `<div class="payables-day-group${isOverdueGroup?' overdue':''}" style="border-radius:13px;border:1px solid ${borderColor};background:${bgTint};margin-bottom:10px;overflow:hidden">
+      <div class="payables-day-head" style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:var(--surfaceHi)">
         <div style="font-size:13px;font-weight:800;color:${dateColor}">${isOverdueGroup?'🔴 ':'🟢 '} ${fmtDate(date)}</div>
         <div class="display" style="font-size:14px;font-weight:700;color:${dateColor}">${fmtCurr(dayTotal)}</div>
       </div>`;
@@ -11792,7 +11963,7 @@ function renderPayablesDashboard() {
       const pendingType = p.debtId ? 'debt' : 'check';
 
       timelineRows += `
-        <div onclick="${onclick}" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid ${itemBorder};background:${itemBg};cursor:pointer">
+        <div class="payables-payment-row${itemOverdue?' overdue':''}" onclick="${onclick}" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid ${itemBorder};background:${itemBg};cursor:pointer">
           <div style="font-size:22px;flex-shrink:0">${pvGetMethodIcon(p.method)}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.supplier)}</div>
@@ -11854,12 +12025,12 @@ function renderPayablesDashboard() {
 
   // ── 5. Add invoice action ───────────────────────────────────────────────
   const fabHtml = `
-    <button onclick="setState({pvFabOpen:false,payablesModal:'add-direct',payablesModalData:{docType:'חשבונית'}})"
+    <button class="payables-add-fab" onclick="setState({pvFabOpen:false,payablesModal:'add-direct',payablesModalData:{docType:'חשבונית'}})"
       style="position:fixed;bottom:calc(88px + env(safe-area-inset-bottom,0px));left:16px;z-index:30;height:50px;padding:0 18px;border:none;border-radius:999px;background:var(--accent);color:#071302;font-size:14px;font-weight:900;font-family:inherit;cursor:pointer;box-shadow:0 4px 16px rgba(143,198,80,0.5);display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap">
       <span style="font-size:18px">🧾</span><span>הוספת חשבונית</span>
     </button>`;
 
-  return `<div style="padding:14px 14px 140px" class="fade-up">
+  return `<div style="padding:14px 14px 140px" class="fade-up payables-dashboard-page">
     ${accountingAlert}
     ${overdueAlert}
     ${nextPaymentHtml}
@@ -12626,7 +12797,7 @@ function renderDesktopPayables() {
     </tr>`;
   }).join('');
   return `<div class="desktop-page fade-up">
-    ${desktopPageHead('תשלומי ספקים', 'מה צפוי לרדת או לעבור, מסודר כרונולוגית לפי תאריכי פירעון', `<button class="desktop-mini-btn primary" onclick="setState({payablesModal:'add-direct',payablesModalData:{docType:'חשבונית'}})">+ חשבונית</button>`)}
+    ${desktopPageHead('תשלומי ספקים', 'מה צפוי לרדת או לעבור, מסודר כרונולוגית לפי תאריך צפוי לרדת', `<button class="desktop-mini-btn primary" onclick="setState({payablesModal:'add-direct',payablesModalData:{docType:'חשבונית'}})">+ חשבונית</button>`)}
     <div class="desktop-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
       ${desktopKpi('חוב פתוח', fmtCurr(payments.reduce((s,p)=>s+p.amount,0)), payments.length+' תשלומים')}
       ${desktopKpi('השבוע', fmtCurr(payments.filter(p=>p.date&&pvDateInDays(p.date,7)).reduce((s,p)=>s+p.amount,0)), 'לתשלום בקרוב', 'warn')}
@@ -12668,15 +12839,21 @@ function pvInvoiceAccountingBadge(inv) {
     : `<span style="color:var(--danger);font-size:11px;font-weight:800">לא</span>`;
 }
 
+function pvSupplierInvoiceExpectedDebitDate(inv) {
+  const explicitDue = pvDateISO(inv?.due_date || inv?.check_due_date || '');
+  if (explicitDue) return explicitDue;
+  return pvIsCheckMethod(inv?.payment_method) ? pvDateISO(inv?.invoice_date || '') : '';
+}
+
 function pvInvoiceDueInfo(inv) {
-  const due = pvDateISO(inv?.due_date || '');
+  const due = pvSupplierInvoiceExpectedDebitDate(inv);
   const today = todayISO();
-  if (!due) return { group: 1, days: null, due: '', label: 'חסר תאריך', title: 'חסר תאריך פירעון', tone: 'missing' };
+  if (!due) return { group: 1, days: null, due: '', label: 'חסר תאריך', title: 'חסר תאריך צפוי לרדת', tone: 'missing' };
   const days = Math.round((new Date(due + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
-  if (days < 0) return { group: 0, days, due, label: `באיחור ${Math.abs(days)} ימים`, title: `תאריך פירעון: ${fmtDate(due)}`, tone: 'overdue' };
-  if (days === 0) return { group: 2, days, due, label: 'היום', title: `תאריך פירעון: ${fmtDate(due)}`, tone: 'today' };
-  if (days <= 7) return { group: 3, days, due, label: `בעוד ${days} ימים`, title: `תאריך פירעון: ${fmtDate(due)}`, tone: 'soon' };
-  return { group: 4, days, due, label: `בעוד ${days} ימים`, title: `תאריך פירעון: ${fmtDate(due)}`, tone: 'future' };
+  if (days < 0) return { group: 0, days, due, label: `באיחור ${Math.abs(days)} ימים`, title: `צפוי לרדת: ${fmtDate(due)}`, tone: 'overdue' };
+  if (days === 0) return { group: 2, days, due, label: 'היום', title: `צפוי לרדת: ${fmtDate(due)}`, tone: 'today' };
+  if (days <= 7) return { group: 3, days, due, label: `בעוד ${days} ימים`, title: `צפוי לרדת: ${fmtDate(due)}`, tone: 'soon' };
+  return { group: 4, days, due, label: `בעוד ${days} ימים`, title: `צפוי לרדת: ${fmtDate(due)}`, tone: 'future' };
 }
 
 function pvInvoiceDueSortValue(inv) {
@@ -12696,7 +12873,7 @@ function pvInvoiceDueBadge(inv) {
   const [color, bg] = tones[info.tone] || tones.future;
   const dateText = info.due ? fmtDate(info.due) : '—';
   return `<div style="min-width:112px;text-align:center;border:1px solid rgba(148,163,184,0.24);background:${bg};border-radius:14px;padding:9px 8px">
-    <div style="font-size:10px;color:${color};font-weight:900;margin-bottom:2px">תאריך פירעון</div>
+    <div style="font-size:10px;color:${color};font-weight:900;margin-bottom:2px">צפוי לרדת</div>
     <div class="display" style="font-size:17px;color:${color};font-weight:900;line-height:1.05">${dateText}</div>
     <div style="font-size:10.5px;color:${color};font-weight:800;margin-top:3px">${info.label}</div>
   </div>`;
@@ -12724,7 +12901,7 @@ function pvSupplierInvoiceRows() {
   if (quick === 'באיחור') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === 'באיחור');
   if (quick === 'היום') rows = rows.filter(inv => pvIsInvoiceOpen(inv) && pvInvoiceDueInfo(inv).group === 2);
   if (quick === 'השבוע') rows = rows.filter(inv => pvIsInvoiceOpen(inv) && [2,3].includes(pvInvoiceDueInfo(inv).group));
-  if (quick === 'חסר תאריך') rows = rows.filter(inv => pvIsInvoiceOpen(inv) && !pvDateISO(inv.due_date));
+  if (quick === 'חסר תאריך') rows = rows.filter(inv => pvIsInvoiceOpen(inv) && !pvSupplierInvoiceExpectedDebitDate(inv));
   if (quick === 'לא עבר להנה"ח') rows = rows.filter(inv => !inv.archived && !inv.accounting_sent);
   if (quick === "צ'קים פתוחים") rows = rows.filter(inv => pvIsCheckMethod(inv.payment_method) && pvCalcInvoiceStatus(inv) !== 'שולם');
   if (quick === 'שולמו') rows = rows.filter(inv => pvCalcInvoiceStatus(inv) === 'שולם');
@@ -12773,7 +12950,10 @@ function renderSupplierInvoicesDashboard() {
   const month = today.slice(0,7);
   const open = all.filter(pvIsInvoiceOpen);
   const overdue = all.filter(inv => pvCalcInvoiceStatus(inv) === 'באיחור');
-  const week = open.filter(inv => inv.due_date && pvDateInDays(inv.due_date, 7));
+  const week = open.filter(inv => {
+    const due = pvSupplierInvoiceExpectedDebitDate(inv);
+    return due && pvDateInDays(due, 7);
+  });
   const checks = all.filter(inv => pvIsCheckMethod(inv.payment_method) && pvCalcInvoiceStatus(inv) !== 'שולם');
   const paidMonth = all.filter(inv => pvCalcInvoiceStatus(inv) === 'שולם' && String(inv.paid_at || inv.updated_at || '').slice(0,7) === month);
   const notAccounting = all.filter(inv => !inv.accounting_sent && !inv.archived);
@@ -12802,8 +12982,11 @@ function renderSupplierTrackingPanel() {
   const source = (pv.supplierInvoices || []).filter(inv => !inv.deleted && !inv.archived);
   const open = source.filter(pvIsInvoiceOpen);
   const overdue = open.filter(inv => pvCalcInvoiceStatus(inv) === 'באיחור');
-  const week = open.filter(inv => inv.due_date && pvDateInDays(inv.due_date, 7));
-  const missingDate = open.filter(inv => !pvDateISO(inv.due_date));
+  const week = open.filter(inv => {
+    const due = pvSupplierInvoiceExpectedDebitDate(inv);
+    return due && pvDateInDays(due, 7);
+  });
+  const missingDate = open.filter(inv => !pvSupplierInvoiceExpectedDebitDate(inv));
   const drafts = source.filter(inv => pvCalcInvoiceStatus(inv) === 'טיוטה לבדיקה');
   const notAccounting = source.filter(inv => !inv.accounting_sent);
   const checkPending = open.filter(inv => pvIsCheckMethod(inv.payment_method) && pvCalcInvoiceStatus(inv) !== 'שולם');
@@ -12885,7 +13068,7 @@ function renderSupplierInvoicesTab() {
         <div style="flex:1;min-width:0" onclick="setState({payablesView:'invoice',payablesInvoiceId:'${inv.id}'})">
           <div style="font-size:15px;font-weight:900;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(inv.supplier_name || 'ספק')}</div>
           <div style="font-size:11px;color:var(--textDim);margin-top:3px">#${esc(inv.invoice_number || 'ללא מספר')} · ${fmtDate(inv.invoice_date)} · ${esc(inv.payment_method||'')}</div>
-          <div style="font-size:12px;color:${dueInfo.tone==='overdue'?'var(--danger)':dueInfo.tone==='missing'?'var(--amber)':'var(--textDim)'};font-weight:900;margin-top:6px">${dueInfo.due ? `תאריך פירעון: ${fmtDate(dueInfo.due)}` : 'חסר תאריך פירעון'}</div>
+          <div style="font-size:12px;color:${dueInfo.tone==='overdue'?'var(--danger)':dueInfo.tone==='missing'?'var(--amber)':'var(--textDim)'};font-weight:900;margin-top:6px">${dueInfo.due ? `צפוי לרדת: ${fmtDate(dueInfo.due)}` : 'חסר תאריך צפוי לרדת'}</div>
           ${warn ? `<div style="font-size:11px;color:var(--amber);font-weight:800;margin-top:5px">⚠ ${warn}</div>` : ''}
           ${isDraft ? `<div style="font-size:11px;color:var(--amber);font-weight:900;margin-top:5px">טיוטה מסריקה · ${inv.supplier_match_status==='requires_manual_link'?'דורש שיוך ידני':'ממתינה לאישור'}</div>` : ''}
         </div>
@@ -12965,7 +13148,7 @@ function renderSupplierInvoiceDetail() {
   const paymentMethods = PV_PAYMENT_METHODS.includes('העברה בנקאית') ? PV_PAYMENT_METHODS : [...PV_PAYMENT_METHODS, 'העברה בנקאית'];
   const paymentStatuses = ['טיוטה לבדיקה','מאושרת כחוב פתוח','לא שולם','שולם חלקית','ממתין לפירעון צ׳ק','שולם'];
   const checkFieldsOpen = isEditing ? pvIsCheckMethod(draft.payment_method) : pvIsCheckMethod(inv.payment_method);
-  const detailRows = [['עוסק/ח.פ',inv.supplier_tax_id],['תאריך חשבונית',fmtDate(inv.invoice_date)],['תאריך פירעון',fmtDate(inv.due_date)],['אמצעי תשלום',inv.payment_method],['סטטוס תשלום',pvCalcInvoiceStatus(inv)],['מספר צ׳ק',inv.check_number],['פירעון צ׳ק',fmtDate(inv.check_due_date)],['בנק',inv.check_bank],['הנה"ח',inv.accounting_sent?'כן':'לא'],['תאריך הנה"ח',inv.accounting_sent ? fmtDate(inv.accounting_sent_at) : '—']];
+  const detailRows = [['עוסק/ח.פ',inv.supplier_tax_id],['תאריך חשבונית',fmtDate(inv.invoice_date)],['צפוי לרדת',fmtDate(pvSupplierInvoiceExpectedDebitDate(inv))],['אמצעי תשלום',inv.payment_method],['סטטוס תשלום',pvCalcInvoiceStatus(inv)],['מספר צ׳ק',inv.check_number],['פירעון צ׳ק',fmtDate(inv.check_due_date)],['בנק',inv.check_bank],['הנה"ח',inv.accounting_sent?'כן':'לא'],['תאריך הנה"ח',inv.accounting_sent ? fmtDate(inv.accounting_sent_at) : '—']];
   const editField = (label, html) => `<div class="field" style="margin-bottom:10px"><label class="label">${label}</label>${html}</div>`;
   const editHtml = isEditing ? `
     <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--accent);margin-bottom:12px">
@@ -13070,6 +13253,183 @@ function pvGetInvoice(invId) {
 function pvTouchInvoice(inv) {
   inv.updated_at = new Date().toISOString();
   inv.updated_by = pvCurrentUserName();
+}
+
+function pvIsCancelledSupplierInvoiceForExpense(inv) {
+  if (!inv) return true;
+  const status = String(inv.payment_status || inv.paymentStatus || '').trim();
+  const debt = (pv.debts || []).find(d => d.id === inv.legacy_debt_id || d.sourceSupplierInvoiceId === inv.id);
+  return !!inv.deleted ||
+    status === 'בוטל' ||
+    status === 'נמחקה' ||
+    inv.legacy_data?.debt?.status === 'cancelled' ||
+    debt?.status === 'cancelled' ||
+    debt?.paymentStatus === 'בוטל';
+}
+
+function pvShouldMirrorSupplierInvoiceToExpense(inv) {
+  if (!inv || pvIsCancelledSupplierInvoiceForExpense(inv)) return false;
+  const status = String(inv.payment_status || inv.paymentStatus || '').trim();
+  if (status === 'טיוטה לבדיקה') return false;
+  const legacyExpense = inv.legacy_data?.expense || {};
+  const supplierName = inv.supplier_name || legacyExpense.supplier || '';
+  const total = +inv.total_amount || +legacyExpense.total_amount || 0;
+  return !!supplierName && total > 0;
+}
+
+function pvFindExpenseForSupplierInvoice(inv) {
+  if (!inv) return null;
+  const linkedDebt = (pv.debts || []).find(d => d.id === inv.legacy_debt_id || d.sourceSupplierInvoiceId === inv.id);
+  const sourceIds = [
+    inv.source_expense_id,
+    inv.sourceExpenseId,
+    inv.legacy_data?.expense?.id,
+    inv.legacy_data?.debt?.expenseId,
+    linkedDebt?.expenseId
+  ].filter(Boolean).map(String);
+  const byLink = (DB.expenses || []).find(e =>
+    sourceIds.includes(String(e.id || '')) ||
+    e.supplier_invoice_id === inv.id ||
+    e.linkedSupplierInvoiceId === inv.id ||
+    e.sourceSupplierInvoiceId === inv.id
+  );
+  if (byLink) return byLink;
+
+  const invoiceNumber = String(inv.invoice_number || '').trim();
+  const supplier = pvSupplierNorm(inv.supplier_name || '');
+  if (!invoiceNumber || !supplier) return null;
+  const total = +inv.total_amount || 0;
+  const invoiceDate = pvDateISO(inv.invoice_date);
+  return (DB.expenses || []).find(e => {
+    if (!isExpenseInvoiceType(e.document_type)) return false;
+    if (pvSupplierNorm(e.supplier || '') !== supplier) return false;
+    if (String(e.document_number || '').trim() !== invoiceNumber) return false;
+    if (total > 0 && Math.abs((+e.total_amount || 0) - total) > 0.01) return false;
+    if (invoiceDate && pvDateISO(e.date) !== invoiceDate) return false;
+    return true;
+  }) || null;
+}
+
+function pvInvoiceExpenseDate(value) {
+  const iso = pvDateISO(value);
+  return iso ? isoToHe(iso) : (fmtDate(value) || todayStr());
+}
+
+function pvIsSupplierInvoicePaidForExpense(inv) {
+  const status = pvCalcInvoiceStatus(inv);
+  return status === 'שולם' || inv.payment_status === 'שולם' || ((+inv.total_amount || 0) > 0 && pvInvoiceOpenAmount(inv) <= 0);
+}
+
+function pvSetExpenseField(expense, field, value) {
+  if (String(expense[field] ?? '') === String(value ?? '')) return false;
+  expense[field] = value;
+  return true;
+}
+
+function pvEnsureExpenseForSupplierInvoice(inv) {
+  if (!inv) return null;
+  const existing = pvFindExpenseForSupplierInvoice(inv);
+  if (!pvShouldMirrorSupplierInvoiceToExpense(inv)) return existing || null;
+  const legacyExpense = inv.legacy_data?.expense || {};
+  const supplierName = inv.supplier_name || legacyExpense.supplier || '';
+  const total = +inv.total_amount || +legacyExpense.total_amount || 0;
+  if (!supplierName || total <= 0) return existing || null;
+
+  const supplier = findApprovedSupplier(supplierName);
+  const vat = +inv.vat_amount || +legacyExpense.vat_amount || 0;
+  const beforeVat = +inv.amount_before_vat || +legacyExpense.amount_before_vat || Math.max(0, total - vat);
+  const paid = pvIsSupplierInvoicePaidForExpense(inv);
+  const dueDate = pvSupplierInvoiceExpectedDebitDate(inv) || pvDateISO(legacyExpense.paymentDueDate || '');
+  const paymentMethod = inv.payment_method || legacyExpense.paymentMethod || 'העברה';
+  const expense = existing || { id: inv.source_expense_id || legacyExpense.id || uid() };
+  let changed = !existing;
+
+  changed = pvSetExpenseField(expense, 'date', pvInvoiceExpenseDate(inv.invoice_date || legacyExpense.date)) || changed;
+  changed = pvSetExpenseField(expense, 'supplier', supplierName) || changed;
+  changed = pvSetExpenseField(expense, 'total_amount', total) || changed;
+  changed = pvSetExpenseField(expense, 'vat_amount', vat) || changed;
+  changed = pvSetExpenseField(expense, 'amount_before_vat', beforeVat) || changed;
+  changed = pvSetExpenseField(expense, 'category', existing?.category || legacyExpense.category || supplier?.defaultCategory || CATS[0] || 'אחר') || changed;
+  changed = pvSetExpenseField(expense, 'document_type', isExpenseInvoiceType(legacyExpense.document_type) ? legacyExpense.document_type : 'חשבונית מס') || changed;
+  changed = pvSetExpenseField(expense, 'document_number', inv.invoice_number || legacyExpense.document_number || '') || changed;
+  changed = pvSetExpenseField(expense, 'notes', inv.notes || legacyExpense.notes || '') || changed;
+  changed = pvSetExpenseField(expense, 'paymentDueDate', dueDate) || changed;
+  changed = pvSetExpenseField(expense, 'paymentMethod', paymentMethod) || changed;
+  changed = pvSetExpenseField(expense, 'checkNumber', inv.check_number || legacyExpense.checkNumber || '') || changed;
+  changed = pvSetExpenseField(expense, 'sentToAccountant', !!inv.accounting_sent) || changed;
+  changed = pvSetExpenseField(expense, 'accountingSentAt', inv.accounting_sent ? (pvDateISO(inv.accounting_sent_at) || todayISO()) : '') || changed;
+  changed = pvSetExpenseField(expense, 'expensePaid', paid) || changed;
+  changed = pvSetExpenseField(expense, 'expensePaidAt', paid ? (pvDateISO(inv.paid_at) || todayISO()) : '') || changed;
+  changed = pvSetExpenseField(expense, 'isOpenDebt', !paid) || changed;
+  changed = pvSetExpenseField(expense, 'supplier_invoice_id', inv.id) || changed;
+  changed = pvSetExpenseField(expense, 'linkedSupplierInvoiceId', inv.id) || changed;
+  if (!expense.image && (inv.invoice_file || legacyExpense.image)) {
+    expense.image = inv.invoice_file || legacyExpense.image;
+    changed = true;
+  }
+
+  if (!existing) DB.expenses.unshift(expense);
+  if (changed) {
+    dedupeExactExpenses();
+    markDataStateDirty();
+    persistLocal();
+  }
+
+  let payablesChanged = false;
+  if (inv.source_expense_id !== expense.id) {
+    inv.source_expense_id = expense.id;
+    payablesChanged = true;
+  }
+  const debt = (pv.debts || []).find(d => d.id === inv.legacy_debt_id || d.sourceSupplierInvoiceId === inv.id);
+  if (debt && debt.expenseId !== expense.id) {
+    debt.expenseId = expense.id;
+    payablesChanged = true;
+  }
+  if (payablesChanged) {
+    inv.legacy_data = inv.legacy_data || {};
+    inv.legacy_data.expense = {...expense, image: ''};
+    pvTouchInvoice(inv);
+    savePv(true);
+  }
+  return expense;
+}
+
+function pvRestoreMissingSupplierInvoiceExpenses(options) {
+  const opts = options || {};
+  if (!Array.isArray(pv.supplierInvoices) || !Array.isArray(DB.expenses)) return 0;
+  let restored = 0;
+  (pv.supplierInvoices || []).forEach(inv => {
+    if (!pvShouldMirrorSupplierInvoiceToExpense(inv)) return;
+    const existing = pvFindExpenseForSupplierInvoice(inv);
+    const expense = pvEnsureExpenseForSupplierInvoice(inv);
+    if (expense && !existing) restored++;
+  });
+  if (restored) {
+    dedupeExactExpenses();
+    markDataStateDirty();
+    persistLocal();
+    if (!opts.silent) toast(`שוחזרו ${restored} הוצאות ספקים למסך ההוצאות`, 'success');
+  }
+  return restored;
+}
+
+function pvFinishSupplierInvoiceAction(inv, message, toastType) {
+  const expense = pvEnsureExpenseForSupplierInvoice(inv);
+  setState({
+    tab: 'list',
+    listPer: 'הכל',
+    listCat: 'הכל',
+    listSearch: '',
+    listOpen: expense?.id || null,
+    pvInvoiceEditId: '',
+    pvInvoiceEditDraft: null,
+    payablesModal: '',
+    payablesModalData: null,
+    payablesView: 'dashboard',
+    payablesInvoiceId: '',
+    payablesDebtId: ''
+  });
+  toast(message || 'נשמר בהצלחה ✓', toastType || 'success');
 }
 
 function pvStartSupplierInvoiceEdit(invId) {
@@ -13191,8 +13551,7 @@ function pvSaveSupplierInvoiceEdit(invId) {
     if (inv.legacy_data.edit_snapshots.length > 20) inv.legacy_data.edit_snapshots = inv.legacy_data.edit_snapshots.slice(-20);
     pvTouchInvoice(inv);
     savePv(true);
-    setState({pvInvoiceEditId:'', pvInvoiceEditDraft:null});
-    toast('השינויים נשמרו בהצלחה', 'success');
+    pvFinishSupplierInvoiceAction(inv, 'השינויים נשמרו בהצלחה ✓');
   } catch(e) {
     console.error('[supplier-invoice-edit] save failed', {invoiceId:invId, error:e, draft:d});
     toast('שמירת השינויים נכשלה. בדוק קונסול לפרטים.', 'error');
@@ -13241,8 +13600,7 @@ function pvApproveSupplierInvoice(invId) {
     pvTouchInvoice(inv);
     pvInvoiceLog(inv.id, 'אישור חשבונית', 'payment_status', oldStatus, inv.payment_status);
     savePv(true);
-    setState({});
-    toast('החשבונית אושרה כחוב פתוח', 'success');
+    pvFinishSupplierInvoiceAction(inv, 'החשבונית אושרה ונשמרה בהוצאות ✓');
   } catch(e) {
     console.error('[supplier-invoice-approve] failed', {invoiceId:invId, error:e});
     toast('אישור החשבונית נכשל: ' + (e.message || 'שגיאה לא ידועה'), 'error');
@@ -13328,8 +13686,7 @@ function pvMarkSupplierInvoicePaid(invId) {
   pvInvoiceLog(inv.id, 'סימון שולם', 'payment_status', old, 'שולם');
   if (!wasArchived) pvInvoiceLog(inv.id, 'העברה לארכיון', 'archived', 'פעיל', 'בארכיון', {source:'mark-paid'});
   savePv(true);
-  setState({payablesModal:'', payablesModalData:null, payablesView:'invoices', payablesInvoiceId:''});
-  toast('החשבונית שולמה והועברה לארכיון ✓', 'success');
+  pvFinishSupplierInvoiceAction(inv, 'החשבונית סומנה כשולמה ונשמרה בהוצאות ✓');
 }
 
 function pvAddSupplierInvoicePartialPayment(invId) {
@@ -13756,10 +14113,9 @@ function pvLinkDNConfirm() {
     createdAt: Date.now(),
   };
   pv.debts.push(debt);
-  pvCreateSupplierInvoiceFromDebt(debt, {source:'link-delivery-notes', delivery_note_ids:d.selectedDNIds || [], legacy_tax_invoice_id:tiId, legacy_data:{tax_invoice:{...ti}}});
+  const inv = pvCreateSupplierInvoiceFromDebt(debt, {source:'link-delivery-notes', delivery_note_ids:d.selectedDNIds || [], legacy_tax_invoice_id:tiId, legacy_data:{tax_invoice:{...ti}}});
   savePv(true);
-  setState({payablesModal:'', payablesModalData:null});
-  toast('חשבונית וחוב נוצרו ✓', 'success');
+  pvFinishSupplierInvoiceAction(inv, 'חשבונית וחוב נוצרו ונשמרו בהוצאות ✓');
 }
 
 // Modal: add direct debt
@@ -13811,10 +14167,9 @@ function pvAddDirectConfirm() {
     createdAt: Date.now(),
   };
   pv.debts.push(debt);
-  pvCreateSupplierInvoiceFromDebt(debt, {source:'direct-debt'});
+  const inv = pvCreateSupplierInvoiceFromDebt(debt, {source:'direct-debt'});
   savePv(true);
-  setState({payablesModal:'', payablesModalData:null, payablesView:'debt', payablesDebtId:debt.id});
-  toast((d.docType === 'חשבונית' ? 'חשבונית נוספה כחוב פתוח' : 'התחייבות נוספה') + ' ✓', 'success');
+  pvFinishSupplierInvoiceAction(inv, (d.docType === 'חשבונית' ? 'חשבונית נוספה ונשמרה בהוצאות ✓' : 'התחייבות נוספה ונשמרה בהוצאות ✓'));
 }
 
 function renderPvModalEditDebt() {
@@ -13906,10 +14261,9 @@ function pvEditDebtConfirm() {
     }
   }
 
-  pvSyncSupplierInvoiceFromDebt(debt, 'edit-debt');
+  const inv = pvSyncSupplierInvoiceFromDebt(debt, 'edit-debt');
   savePv(true);
-  setState({payablesModal:'', payablesModalData:null, payablesView:'debt', payablesDebtId:debt.id});
-  toast('התנועה עודכנה ✓', 'success');
+  pvFinishSupplierInvoiceAction(inv, d.paidState === 'paid' ? 'התנועה סומנה כשולמה ונשמרה בהוצאות ✓' : 'התנועה עודכנה ונשמרה בהוצאות ✓');
 }
 
 function renderPvModalEditCheck() {
@@ -14009,8 +14363,12 @@ function pvRecordPaymentConfirm() {
     debt.paidDate = payment.date;
     debt.closedAt = Date.now();
   }
-  pvSyncSupplierInvoiceFromDebt(debt, 'record-payment');
+  const inv = pvSyncSupplierInvoiceFromDebt(debt, 'record-payment');
   savePv(true);
+  if (debt.status === 'paid') {
+    pvFinishSupplierInvoiceAction(inv, 'התשלום נרשם וההוצאה סומנה כשולמה ✓');
+    return;
+  }
   setState({payablesModal:'', payablesModalData:null});
   toast('תשלום נרשם ✓', 'success');
 }
