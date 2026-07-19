@@ -589,7 +589,7 @@ body { color-scheme:dark; }
   .main > div { padding-inline:14px !important; }
 }
 </style>
-<link rel="stylesheet" href="app-modern.css?v=142">
+<link rel="stylesheet" href="app-modern.css?v=144">
 </head>
 <body>
 
@@ -3469,17 +3469,7 @@ function renderNav() {
     if (!groupTabs.length) return '';
     return `<div class="sidebar-nav-group"><div class="sidebar-group-label">${label}</div>${groupTabs.map(tabBtn).join('')}</div>`;
   }).join('') + tabs.filter(t => !groupedIds.has(t.id)).map(tabBtn).join('');
-  const mobilePrimaryIds = ['dashboard','payables','list'];
-  const mobilePrimaryTabs = mobilePrimaryIds.map(id => tabs.find(t => t.id === id)).filter(Boolean);
-  const mobileMoreTabs = tabs.filter(t => !mobilePrimaryIds.includes(t.id));
-  const mobileMoreActive = mobileMoreTabs.some(t => t.id === state.tab);
-  const mobileMoreIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg>`;
-  const mobileMoreButton = `<button class="mobile-more-btn${mobileMoreActive?' active':''}" onclick="setState({mobileNavMore:!state.mobileNavMore})" aria-expanded="${state.mobileNavMore?'true':'false'}"><span>עוד</span><div class="nav-icon-wrap">${mobileMoreIcon}</div></button>`;
-  const mobileMoreMenu = state.mobileNavMore ? `<div class="mobile-nav-menu" role="menu">
-    <div class="mobile-nav-menu-head"><strong>כל המסכים</strong><button type="button" onclick="setState({mobileNavMore:false})" aria-label="סגור">×</button></div>
-    <div class="mobile-nav-menu-grid">${mobileMoreTabs.map(t => `<button type="button" class="mobile-nav-menu-item${state.tab===t.id?' active':''}" onclick="setState({tab:'${t.id}',mobileNavMore:false})"><span class="mobile-nav-menu-icon">${ICONS[t.id]||''}</span><span>${t.label}</span></button>`).join('')}</div>
-  </div>` : '';
-  const mobileNav = mobilePrimaryTabs.slice(0,2).map(tabBtn).join('') + fab + mobilePrimaryTabs.slice(2).map(tabBtn).join('') + mobileMoreButton + mobileMoreMenu;
+  const mobileNav = fab + tabs.map(tabBtn).join('');
   const syncText = LAST_EXTENDED_SYNC.data ? 'סנכרון מלא פעיל לכל הטאבים' : 'סנכרון ענן רגיל';
   const desktopSyncCard = desktopMode ? `<div class="sidebar-sync-card"><strong>מצב מערכת</strong>${syncText}</div>` : '';
 
@@ -14756,7 +14746,7 @@ ensureExistingLocalStoresCanSync();
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=143').then(reg => {
+  navigator.serviceWorker.register('./sw.js?v=144').then(reg => {
     reg.update();
   }).catch(() => {});
 }

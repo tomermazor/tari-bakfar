@@ -1063,20 +1063,29 @@ textarea:focus,
   .nav {
     position:relative;
     z-index:60;
-    display:grid !important;
-    grid-template-columns:repeat(5,minmax(0,1fr));
-    align-items:center !important;
+    display:flex !important;
+    align-items:flex-end !important;
     min-height:68px;
     padding:4px 8px calc(4px + env(safe-area-inset-bottom,0px)) !important;
-    overflow:visible !important;
+    overflow-x:auto !important;
+    overflow-y:hidden !important;
+    overscroll-behavior-x:contain;
+    scroll-snap-type:x proximity;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
     border-top:1px solid var(--border) !important;
     box-shadow:0 -6px 24px rgba(23,34,48,.08) !important;
   }
 
+  .nav::-webkit-scrollbar {
+    display:none;
+  }
+
   .nav > button,
   .nav > .nav-fab-slot {
-    width:100% !important;
-    min-width:0 !important;
+    flex:0 0 68px !important;
+    width:68px !important;
+    min-width:68px !important;
     min-height:58px !important;
     margin:0 !important;
     padding:5px 2px !important;
@@ -1084,6 +1093,7 @@ textarea:focus,
     border-radius:7px !important;
     background:transparent !important;
     color:var(--textMuted) !important;
+    scroll-snap-align:start;
   }
 
   .nav > button {
