@@ -589,7 +589,7 @@ body { color-scheme:dark; }
   .main > div { padding-inline:14px !important; }
 }
 </style>
-<link rel="stylesheet" href="app-modern.css?v=144">
+<link rel="stylesheet" href="app-modern.css?v=148">
 </head>
 <body>
 
@@ -651,8 +651,10 @@ body { color-scheme:dark; }
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════════════════════════════
+const LOCAL_PREVIEW_MODE = ['localhost', '127.0.0.1'].includes(location.hostname)
+  && new URLSearchParams(location.search).get('preview') === '1';
 const CFG = {
-  webAppUrl: localStorage.getItem('tari_webapp_url') || 'https://script.google.com/macros/s/AKfycbxdXp4ZXpt2EAXYXHSKdjrNZRNFuAIiOEdyXktShtnSlRSYHXLoNlSyOf-LJYJkS7ndjw/exec',
+  webAppUrl: LOCAL_PREVIEW_MODE ? '' : (localStorage.getItem('tari_webapp_url') || 'https://script.google.com/macros/s/AKfycbxdXp4ZXpt2EAXYXHSKdjrNZRNFuAIiOEdyXktShtnSlRSYHXLoNlSyOf-LJYJkS7ndjw/exec'),
   apiKey: localStorage.getItem('tari_apikey_v1') || '',
 };
 
@@ -3517,7 +3519,7 @@ function renderNav() {
   const desktopMode = isDesktopMode();
 
   const tabBtn = t => `
-    <button class="${state.tab===t.id?'active':''}" onclick="setState({tab:'${t.id}',mobileNavMore:false})">
+    <button data-nav="${t.id}" class="${state.tab===t.id?'active':''}" aria-current="${state.tab===t.id?'page':'false'}" onclick="setState({tab:'${t.id}',mobileNavMore:false})">
       <span>${t.label}</span>
       <div class="nav-icon-wrap">${ICONS[t.id]||''}</div>
     </button>`;
@@ -3629,7 +3631,7 @@ function desktopEmpty(icon, title, sub) {
 
 function desktopKpi(label, value, sub, tone) {
   const color = tone === 'danger' ? 'var(--danger)' : tone === 'warn' ? 'var(--amber)' : tone === 'info' ? 'var(--info)' : 'var(--accent)';
-  return `<div class="desktop-kpi">
+  return `<div class="desktop-kpi desktop-kpi-${tone || 'ok'}">
     <div class="desktop-kpi-label">${label}</div>
     <div class="desktop-kpi-value" style="color:${color}">${value}</div>
     <div class="desktop-kpi-sub">${sub||''}</div>
@@ -6579,14 +6581,14 @@ function renderIncome() {
     const c = COLS[type]||'var(--accent)';
     const bg = sel ? (BGS[type]||'transparent') : 'var(--surfaceHi)';
     const bc = sel ? (BORD[type]||c) : 'var(--border)';
-    return `<button onclick="state.incomeForm.type='${type}';setState({})" style="flex:1;min-width:0;padding:10px 4px 8px;border-radius:10px;border:1.5px solid ${bc};background:${bg};color:${sel?c:'var(--textDim)'};cursor:pointer;font-size:16px;font-weight:700;font-family:inherit;text-align:center;line-height:1;transition:all var(--t-fast);display:flex;flex-direction:column;align-items:center;gap:4px">${INCOME_ICONS[type]||'💵'}<span style="font-size:9.5px;font-weight:700;line-height:1.2">${type}</span></button>`;
+    return `<button class="income-type-btn${sel?' selected':''}" onclick="state.incomeForm.type='${type}';setState({})" style="flex:1;min-width:0;padding:10px 4px 8px;border-radius:10px;border:1.5px solid ${bc};background:${bg};color:${sel?c:'var(--textDim)'};cursor:pointer;font-size:16px;font-weight:700;font-family:inherit;text-align:center;line-height:1;transition:all var(--t-fast);display:flex;flex-direction:column;align-items:center;gap:4px">${INCOME_ICONS[type]||'💵'}<span style="font-size:9.5px;font-weight:700;line-height:1.2">${type}</span></button>`;
   };
 
   const incomeRow = e => {
     const c = INCOME_COLORS[e.type]||'var(--accent)';
     const bg = INCOME_BG[e.type]||'rgba(143,198,80,0.08)';
     const ic = INCOME_ICONS[e.type]||'💵';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:7px">
+    return `<div class="income-ledger-row income-ledger-row-positive" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:7px">
       <div style="width:32px;height:32px;border-radius:8px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">${ic}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:700;color:${c}">${esc(e.type)}</div>
@@ -6599,7 +6601,7 @@ function renderIncome() {
 
   const expenseRow = e => {
     const c = getCatColor(e.category)||'var(--accent)';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:7px">
+    return `<div class="income-ledger-row income-ledger-row-negative" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:7px">
       <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.supplier||'ספק')}</div>
@@ -6610,10 +6612,12 @@ function renderIncome() {
   };
 
   return `
-    <div style="padding:16px 16px 24px" class="fade-up">
+    <div style="padding:16px 16px 24px" class="fade-up income-page">
+
+      ${isDesktopMode() ? desktopPageHead('הכנסות', 'מעקב שבועי אחר הכנסות, הוצאות ורווח תפעולי', '') : ''}
 
       <!-- Week navigation -->
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <div class="income-week-nav" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <button onclick="changeIncomeWeek(-1)" style="width:40px;height:40px;border:1px solid var(--border);border-radius:11px;background:var(--surfaceHi);color:var(--text);cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background var(--t-fast)" title="שבוע קודם">‹</button>
         <div style="flex:1;text-align:center;padding:9px 12px;border-radius:12px;background:var(--surface);border:1px solid ${isCurrentWeek?'rgba(110,198,58,0.3)':'var(--border)'}">
           <div style="font-size:14px;font-weight:700;color:var(--text);line-height:1.2">${weekLabel}</div>
@@ -6623,13 +6627,13 @@ function renderIncome() {
       </div>
       ${!isCurrentWeek ? `<button onclick="changeIncomeWeek(${-offset})" style="width:100%;margin-bottom:10px;padding:8px;border:1px solid rgba(110,198,58,0.28);border-radius:10px;background:var(--accentSoft);color:var(--accent);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">↩ חזור לשבוע הנוכחי</button>` : ''}
 
-      <button onclick="syncAllIncomeToCloud()" style="width:100%;margin-bottom:10px;padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--textDim);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">סנכרן הכנסות לענן</button>
+      <button class="income-cloud-sync" onclick="syncAllIncomeToCloud()" style="width:100%;margin-bottom:10px;padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--textDim);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">סנכרן הכנסות לענן</button>
 
       <!-- P&L card -->
-      <div style="padding:15px 16px;margin-bottom:14px;border-radius:16px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
-        <div style="position:absolute;top:-25px;right:-25px;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,rgba(110,198,58,0.09),transparent 70%)"></div>
+      <div class="income-summary" style="padding:15px 16px;margin-bottom:14px;border-radius:16px;background:linear-gradient(135deg,var(--surface),var(--surfaceHi));border:1px solid var(--border);position:relative;overflow:hidden">
+        <div class="income-summary-decoration" style="position:absolute;top:-25px;right:-25px;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,rgba(110,198,58,0.09),transparent 70%)"></div>
         <div style="position:relative">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:${(totalIncome>0||totalExpenses>0)?'12px':'0'}">
+          <div class="income-summary-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:${(totalIncome>0||totalExpenses>0)?'12px':'0'}">
             <div style="text-align:center;padding:9px 4px;border-radius:10px;background:rgba(110,198,58,0.07);border:1px solid rgba(110,198,58,0.18)">
               <div style="font-size:9px;color:var(--textDim);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">הכנסות</div>
               <div class="display" style="font-size:15px;color:var(--accent);line-height:1">${fmtCurr(totalIncome)}</div>
@@ -6657,10 +6661,10 @@ function renderIncome() {
       </div>
 
       <!-- Quick add income -->
-      <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
+      <div class="income-entry-panel" style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);margin-bottom:14px">
         <div style="font-size:10px;color:var(--textDim);font-weight:600;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:10px">+ הוספת הכנסה${!isCurrentWeek?' לשבוע זה':''}</div>
-        <div style="display:flex;gap:7px;margin-bottom:10px">${INCOME_TYPES.map(typeBtn).join('')}</div>
-        <div style="display:flex;gap:8px;align-items:flex-end">
+        <div class="income-type-grid" style="display:flex;gap:7px;margin-bottom:10px">${INCOME_TYPES.map(typeBtn).join('')}</div>
+        <div class="income-fields" style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1.2">
             <label class="label">סכום ₪ *</label>
             <input class="input" id="income-amount-input" data-testid="income-amount" type="number" inputmode="decimal" placeholder="0.00" value="${f.amount}" oninput="state.incomeForm.amount=this.value" onkeydown="if(event.key==='Enter')addIncome()" style="padding:11px 12px">
@@ -6673,7 +6677,7 @@ function renderIncome() {
             <label class="label">הערות</label>
             <input class="input" id="income-notes-input" placeholder="אופציונלי" value="${esc(f.notes)}" oninput="state.incomeForm.notes=this.value" onkeydown="if(event.key==='Enter')addIncome()" style="padding:11px 12px">
           </div>
-          <button id="income-save-button" data-testid="income-save" aria-label="שמור הכנסה" onclick="addIncome()" style="flex-shrink:0;height:42px;width:44px;border:none;border-radius:12px;background:${f.amount?'linear-gradient(135deg,var(--accent),#6fa83a)':'var(--border)'};color:${f.amount?'#0a1505':'var(--textMuted)'};font-size:22px;line-height:1;cursor:pointer">+</button>
+          <button class="income-save-button" id="income-save-button" data-testid="income-save" aria-label="שמור הכנסה" onclick="addIncome()" style="flex-shrink:0;height:42px;width:44px;border:none;border-radius:12px;background:${f.amount?'linear-gradient(135deg,var(--accent),#6fa83a)':'var(--border)'};color:${f.amount?'#0a1505':'var(--textMuted)'};font-size:22px;line-height:1;cursor:pointer">+</button>
         </div>
       </div>
 
@@ -7536,6 +7540,7 @@ function saveDynamicUsers(users) {
 }
 
 function getStoredUser() {
+  if (LOCAL_PREVIEW_MODE) return { email: ALLOWED_EMAILS[0], name: 'Local Preview', picture: '' };
   try { return JSON.parse(localStorage.getItem('google-user') || 'null'); } catch(e) { return null; }
 }
 function isAllowed(email) {
