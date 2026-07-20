@@ -614,7 +614,7 @@ body { color-scheme:dark; }
     </div>
     <div class="desktop-only desktop-global-search">
       <span class="desktop-search-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.2-3.2"></path></svg></span>
-      <input id="desktop-global-search-input" placeholder="חיפוש מהיר: ספק, חשבונית, מוצר, הזמנה..." oninput="desktopSetGlobalSearch(this.value)" onfocus="desktopSetGlobalSearch(this.value)" autocomplete="off">
+      <input id="desktop-global-search-input" placeholder="חיפוש מהיר: ספק, חשבונית, תשלום, הזמנה..." oninput="desktopSetGlobalSearch(this.value)" onfocus="desktopSetGlobalSearch(this.value)" autocomplete="off">
       <span class="desktop-search-hint">Ctrl K</span>
     </div>
     <div class="desktop-only desktop-toolbar-actions">
@@ -3364,11 +3364,6 @@ function desktopSearchResults(query) {
       results.push({icon:'💳', title:d.supplierName || 'חוב ספק', sub:`${fmtDate(d.dueDate || d.date)} · ${fmtCurr(d.amount)} · ${pvDebtStatusText(d)}`, action:`setState({tab:'payables',payablesView:'debt',payablesDebtId:'${d.id}',desktopGlobalSearch:''})`});
     }
   });
-  ((pdb && pdb.products) || []).forEach(p => {
-    if (hit(p.name) || hit(p.category)) {
-      results.push({icon:'🏷️', title:p.name, sub:`${p.category || 'מוצר'} · מחיר מכירה ${fmtCurr(p.sellPrice || 0)}`, action:`setState({tab:'products',productsView:'detail',productsDetailId:'${p.id}',desktopGlobalSearch:''})`});
-    }
-  });
   ((odb && odb.activeOrders) || []).forEach(o => {
     const sup = typeof ordersGetSupplierName === 'function' ? ordersGetSupplierName(o.supplierId) : '';
     if (hit(sup) || hit(o.id)) {
@@ -3406,7 +3401,6 @@ function renderDesktopQuickMenu() {
   return `<div class="desktop-quick-menu">
     ${item('📷','סריקת חשבונית','צילום או העלאת מסמך',"setState({tab:'scan',scanStage:'idle'})")}
     ${item('🏭','הוסף ספק','כרטיס ספק מאושר',"setState({tab:'settings'});setTimeout(()=>document.getElementById('sup-name-inp')?.focus(),80)")}
-    ${item('🏷️','הוסף מוצר','קטלוג ומלאי',"setState({tab:'products',productsModal:'add'})")}
     ${item('💳','הוסף התחייבות','חוב/תעודה/חשבונית ספק',"setState({tab:'payables',payablesModal:'add-direct',payablesModalData:{}})")}
     ${item('🚚','הזמנה חדשה','פתיחת מסך הזמנות',"setState({tab:'orders',ordersView:'home'})")}
   </div>`;
@@ -3507,7 +3501,6 @@ const TABS = [
   {id:'reports',label:'דוחות'},{id:'fixed',label:'קבועות'},
   {id:'installments',label:'תשלומים'},{id:'credits',label:'זיכויים'},
   {id:'payables',label:'תשלומי ספקים'},
-  {id:'products',label:'מוצרים'},
 ];
 
 function renderNav() {
@@ -3547,7 +3540,7 @@ function renderNav() {
   // Sidebar footer: orders link + settings (desktop only)
   const desktopGroups = [
     ['ראשי', ['dashboard']],
-    ['עבודה יומית', ['orders','payables','list','products']],
+    ['עבודה יומית', ['orders','payables','list']],
     ['כספים ובקרה', ['income','installments','credits','reports']],
     ['ניהול', ['fixed']]
   ];
@@ -3759,7 +3752,6 @@ function renderDesktopDashboard() {
   const dueSoon = payments.filter(p => p.date && !p.isOverdue && pvDateInDays(p.date, 7));
   const overdue = payments.filter(p => p.isOverdue);
   const openExpenses = (DB.expenses || []).filter(e => isExpenseInvoiceType(e.document_type) && !e.sentToAccountant);
-  const productsNeedingCare = (pdb.products || []).filter(p => p.active !== false && (p.sellPrice == null || !(p.supplierPrices||[]).some(sp=>sp.buyPrice>0) || (calcMargin(p) != null && calcMargin(p) < 15)));
   const action = (txt, onclick, primary) => `<button class="desktop-mini-btn ${primary?'primary':''}" onclick="${onclick}">${txt}</button>`;
   const orderRows = activeOrders.slice(0,8).map(o => {
     const sup = (typeof ordersGetSupplierName === 'function') ? ordersGetSupplierName(o.supplierId) : (o.supplierName || '');
@@ -3779,13 +3771,12 @@ function renderDesktopDashboard() {
     </tr>`;
   }).join('');
   return `<div class="desktop-page fade-up">
-    ${desktopPageHead('דשבורד ניהולי', 'תמונת מצב יומית לעסק, תשלומים, הזמנות ומלאי', action('סרוק חשבונית',"setState({tab:'scan'})",true)+action('הזמנה חדשה',"setState({tab:'orders'})")+action('התראות',"setState({desktopPanel:'alerts'})"))}
+    ${desktopPageHead('דשבורד ניהולי', 'תמונת מצב יומית לעסק, תשלומים, הזמנות ובקרה', action('סרוק חשבונית',"setState({tab:'scan'})",true)+action('הזמנה חדשה',"setState({tab:'orders'})")+action('התראות',"setState({desktopPanel:'alerts'})"))}
     <div class="desktop-kpi-grid">
       ${desktopKpi('מכירות היום', fmtCurr(todaySales), 'השבוע: '+fmtCurr(weekSales), 'ok')}
       ${desktopKpi('הזמנות פתוחות', activeOrders.length, 'לטיפול ולתיעוד', 'info')}
       ${desktopKpi('הוצאות פתוחות', openExpenses.length, 'חשבוניות להנהלת חשבונות', openExpenses.length?'warn':'ok')}
       ${desktopKpi('תשלומים קרובים', fmtCurr(dueSoon.reduce((s,p)=>s+p.amount,0)), dueSoon.length+' בשבוע הקרוב', 'warn')}
-      ${desktopKpi('מוצרים לטיפול', productsNeedingCare.length, 'מחיר חסר או רווחיות נמוכה', productsNeedingCare.length?'danger':'ok')}
     </div>
     <div class="desktop-work-grid">
       <div style="display:grid;gap:16px">
